@@ -2,12 +2,56 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
 -- Evitar duplicados de la interfaz
 if CoreGui:FindFirstChild("KillerHub_MM2") then
     CoreGui.KillerHub_MM2:Destroy()
 end
+
+-- ============================================================================
+-- 💾 SISTEMA DE CONFIGURACIÓN Y AUTO-GUARDADO (File System)
+-- ============================================================================
+local FILE_NAME = "KillerHub_MM2_Config.json"
+local Config = {
+    Highlights = false,
+    Boxes = false,
+    Names = false,
+    Tracers = false,
+    MenuOpacity = 1,     -- 1 significa 100% visible (0% transparencia)
+    ButtonOpacity = 1
+}
+
+local function saveConfig()
+    if writefile then
+        local success, json = pcall(function() return HttpService:JSONEncode(Config) end)
+        if success then
+            writefile(FILE_NAME, json)
+        end
+    end
+end
+
+local function loadConfig()
+    if isfile and readfile and isfile(FILE_NAME) then
+        local success, json = pcall(function() return readfile(FILE_NAME) end)
+        if success then
+            local success2, data = pcall(function() return HttpService:JSONDecode(json) end)
+            if success2 and type(data) == "table" then
+                for k, v in pairs(data) do
+                    Config[k] = v
+                end
+            end
+        end
+    end
+end
+
+-- Cargar configuración guardada antes de pintar la interfaz
+loadConfig()
 
 -- CONTENEDOR PRINCIPAL
 local ScreenGui = Instance.new("ScreenGui")
@@ -22,6 +66,14 @@ local BG_SECONDARY = Color3.fromRGB(22, 22, 22)
 local ACCENT_GREEN = Color3.fromRGB(0, 230, 115) 
 local TEXT_WHITE = Color3.fromRGB(240, 240, 240)
 local TEXT_MUTED = Color3.fromRGB(130, 130, 130)
+
+-- COLORES DE ROLES PARA EL ESP
+local ColoresESP = {
+    Murderer = Color3.fromRGB(255, 35, 35),
+    Sheriff = Color3.fromRGB(35, 115, 255),
+    Innocent = Color3.fromRGB(0, 230, 115),
+    GunDrop = Color3.fromRGB(255, 215, 0)
+}
 
 -- VENTANA PRINCIPAL
 local MainFrame = Instance.new("Frame") 
@@ -56,7 +108,7 @@ Title.Font = Enum.Font.Code
 Title.TextSize = 15
 Title.Parent = Topbar
 
--- BARRA LATERAL IZQUIERDA (Sidebar Estrecho - 95px)
+-- BARRA LATERAL IZQUIERDA
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
 Sidebar.Size = UDim2.new(0, 95, 1, -40)
@@ -67,16 +119,15 @@ Sidebar.Active = true
 Sidebar.Parent = MainFrame
 local SidebarStroke = Instance.new("UIStroke") SidebarStroke.Thickness = 1 SidebarStroke.Color = Color3.fromRGB(30, 30, 30) SidebarStroke.Parent = Sidebar
 
--- Contenedor interno superior para los botones de juego (Visuals, Murder, Sheriff)
 local SidebarTabsContainer = Instance.new("Frame")
-SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -95) -- Ajustado para dar espacio a la nueva posición de Settings
+SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -95)
 SidebarTabsContainer.BackgroundTransparency = 1
 SidebarTabsContainer.Parent = Sidebar
 
 local SidebarLayout = Instance.new("UIListLayout") SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder SidebarLayout.Padding = UDim.new(0, 4) SidebarLayout.Parent = SidebarTabsContainer
 local SidebarPadding = Instance.new("UIPadding") SidebarPadding.PaddingTop = UDim.new(0, 8) SidebarPadding.PaddingLeft = UDim.new(0, 6) SidebarPadding.PaddingRight = UDim.new(0, 6) SidebarPadding.Parent = SidebarTabsContainer
 
--- CONTENEDOR DE PÁGINAS (Área derecha de contenido)
+-- CONTENEDOR DE PÁGINAS
 local ContentContainer = Instance.new("Frame")
 ContentContainer.Name = "ContentContainer"
 ContentContainer.Size = UDim2.new(1, -95, 1, -40)
@@ -85,7 +136,6 @@ ContentContainer.BackgroundTransparency = 1
 ContentContainer.Active = true
 ContentContainer.Parent = MainFrame
 
--- Inicialización de los Marcos de cada Pestaña
 local VisualsFrame = Instance.new("Frame")
 local MurderFrame = Instance.new("Frame")
 local SheriffFrame = Instance.new("Frame")
@@ -111,7 +161,6 @@ for name, frame in pairs(frames) do
     local s = Instance.new("UIStroke") s.Thickness = 1 s.Color = Color3.fromRGB(32, 32, 32) s.Parent = frame
 end
 
--- SISTEMA DINÁMICO DE NAVEGACIÓN
 local currentTab = "Visuals"
 local tabButtons = {}
 
@@ -132,7 +181,7 @@ local function createTabBtn(text, order)
     btn.Text = text
     btn.TextColor3 = (text == currentTab) and ACCENT_GREEN or TEXT_MUTED
     btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 15 -- ¡Aumentado para mayor claridad!
+    btn.TextSize = 15
     btn.LayoutOrder = order
     btn.Active = true
     btn.Parent = SidebarTabsContainer
@@ -145,21 +194,19 @@ local function createTabBtn(text, order)
     end)
 end
 
--- Crear pestañas de categorías en la parte superior
 createTabBtn("Visuals", 1)
 createTabBtn("Murder", 2)
 createTabBtn("Sheriff", 3)
 
--- BOTÓN DE SETTINGS (Posicionado idealmente más arriba del fondo)
 local SettingsBtn = Instance.new("TextButton")
 SettingsBtn.Name = "SettingsTabButton"
 SettingsBtn.Size = UDim2.new(1, -12, 0, 32)
-SettingsBtn.Position = UDim2.new(0, 6, 1, -55) -- Subido ligeramente para que no quede tan abajo
+SettingsBtn.Position = UDim2.new(0, 6, 1, -55)
 SettingsBtn.BackgroundTransparency = 1
 SettingsBtn.Text = "Settings"
 SettingsBtn.TextColor3 = TEXT_MUTED
 SettingsBtn.Font = Enum.Font.SourceSansBold
-SettingsBtn.TextSize = 15 -- ¡Aumentado al mismo tamaño de las otras letras!
+SettingsBtn.TextSize = 15
 SettingsBtn.Active = true
 SettingsBtn.Parent = Sidebar
 
@@ -170,12 +217,10 @@ SettingsBtn.MouseButton1Click:Connect(function()
     updateTabVisuals("Settings")
 end)
 
--- FABRICA DE COMPONENTES INTERNOS (Constructores del Menu)
-
--- 1. CREADOR DE TOGGLES
-local function createToggle(name, text, position, parent, callback)
+-- 🛠️ FÁBRICA DE COMPONENTES CON MEMORIA INTEGRADA
+local function createToggle(configKey, text, position, parent, callback)
     local ToggleButton = Instance.new("TextButton")
-    ToggleButton.Name = name
+    ToggleButton.Name = configKey
     ToggleButton.Size = UDim2.new(1, -24, 0, 40)
     ToggleButton.Position = position
     ToggleButton.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
@@ -192,7 +237,6 @@ local function createToggle(name, text, position, parent, callback)
     ToggleLabel.Position = UDim2.new(0, 12, 0, 0)
     ToggleLabel.BackgroundTransparency = 1
     ToggleLabel.Text = text
-    ToggleLabel.TextColor3 = TEXT_MUTED
     ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
     ToggleLabel.Font = Enum.Font.SourceSansBold
     ToggleLabel.TextSize = 14
@@ -201,23 +245,29 @@ local function createToggle(name, text, position, parent, callback)
     local Indicator = Instance.new("Frame")
     Indicator.Size = UDim2.new(0, 16, 0, 16)
     Indicator.Position = UDim2.new(1, -28, 0.5, -8)
-    Indicator.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     Indicator.Parent = ToggleButton
     local IndicatorCorner = Instance.new("UICorner") IndicatorCorner.CornerRadius = UDim.new(0, 3) IndicatorCorner.Parent = Indicator
 
-    local state = false
+    -- Cargar estado inicial desde el archivo guardado
+    local state = Config[configKey] or false
+    Indicator.BackgroundColor3 = state and ACCENT_GREEN or Color3.fromRGB(45, 45, 45)
+    ToggleLabel.TextColor3 = state and TEXT_WHITE or TEXT_MUTED
+    task.spawn(function() callback(state) end) -- Ejecutar la función directo si estaba prendida
+
     ToggleButton.MouseButton1Click:Connect(function()
         state = not state
+        Config[configKey] = state
+        saveConfig() -- Guardar en el almacenamiento local al cambiar
+        
         TweenService:Create(Indicator, TweenInfo.new(0.15), {BackgroundColor3 = state and ACCENT_GREEN or Color3.fromRGB(45, 45, 45)}):Play()
         ToggleLabel.TextColor3 = state and TEXT_WHITE or TEXT_MUTED
         callback(state)
     end)
 end
 
--- 2. CREADOR DE SLIDERS
-local function createSlider(name, text, position, parent, callback)
+local function createSlider(configKey, text, position, parent, callback)
     local SliderFrame = Instance.new("Frame")
-    SliderFrame.Name = name
+    SliderFrame.Name = configKey
     SliderFrame.Size = UDim2.new(1, -24, 0, 45)
     SliderFrame.Position = position
     SliderFrame.BackgroundTransparency = 1
@@ -238,7 +288,6 @@ local function createSlider(name, text, position, parent, callback)
     ValueLabel.Size = UDim2.new(0, 40, 0, 20)
     ValueLabel.Position = UDim2.new(1, -40, 0, 0)
     ValueLabel.BackgroundTransparency = 1
-    ValueLabel.Text = "100%"
     ValueLabel.TextColor3 = ACCENT_GREEN
     ValueLabel.Font = Enum.Font.Code
     ValueLabel.TextSize = 12
@@ -256,7 +305,6 @@ local function createSlider(name, text, position, parent, callback)
     local TrackCorner = Instance.new("UICorner") TrackCorner.CornerRadius = UDim.new(0, 2) TrackCorner.Parent = Track
 
     local Fill = Instance.new("Frame")
-    Fill.Size = UDim2.new(1, 0, 1, 0) 
     Fill.BackgroundColor3 = ACCENT_GREEN
     Fill.BorderSizePixel = 0
     Fill.Parent = Track
@@ -264,15 +312,24 @@ local function createSlider(name, text, position, parent, callback)
 
     local Knob = Instance.new("Frame")
     Knob.Size = UDim2.new(0, 10, 0, 10)
-    Knob.Position = UDim2.new(1, -5, 0.5, -5)
     Knob.BackgroundColor3 = TEXT_WHITE
     Knob.Active = true
     Knob.Parent = Track
     local KnobCorner = Instance.new("UICorner") KnobCorner.CornerRadius = UDim.new(1, 0) KnobCorner.Parent = Knob
     local KnobStroke = Instance.new("UIStroke") KnobStroke.Thickness = 1 KnobStroke.Color = Color3.fromRGB(0, 0, 0) KnobStroke.Parent = Knob
 
+    -- Cargar porcentaje inicial guardado
+    local percentage = Config[configKey] or 1
+    Fill.Size = UDim2.new(percentage, 0, 1, 0)
+    Knob.Position = UDim2.new(percentage, -5, 0.5, -5)
+    ValueLabel.Text = math.floor(percentage * 100) .. "%"
+    task.spawn(function() callback(percentage) end)
+
     local function updateSlider(input)
-        local percentage = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
+        percentage = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
+        Config[configKey] = percentage
+        saveConfig() -- Guardar cambio de barra flotante
+        
         Fill.Size = UDim2.new(percentage, 0, 1, 0)
         Knob.Position = UDim2.new(percentage, -5, 0.5, -5)
         ValueLabel.Text = math.floor(percentage * 100) .. "%"
@@ -298,7 +355,7 @@ local function createSlider(name, text, position, parent, callback)
     end)
 end
 
--- COMPONENTES BASE DE CONFIGURACIÓN
+-- CONTROLADORES DE TRANSPARENCIA EN AJUSTES
 createSlider("MenuOpacity", "Menu Transparency", UDim2.new(0, 12, 0, 15), SettingsFrame, function(val)
     local alpha = 1 - val
     MainFrame.BackgroundTransparency = alpha
@@ -310,7 +367,6 @@ createSlider("MenuOpacity", "Menu Transparency", UDim2.new(0, 12, 0, 15), Settin
     SettingsFrame.BackgroundTransparency = alpha
 end)
 
--- BOTÓN FLOTANTE DINÁMICO (Cambia entre "K" y "H")
 local OpenCloseBtn = Instance.new("TextButton")
 OpenCloseBtn.Name = "KillerHubToggle"
 OpenCloseBtn.Size = UDim2.new(0, 45, 0, 45)
@@ -337,7 +393,6 @@ local menuVisible = true
 OpenCloseBtn.MouseButton1Click:Connect(function()
     menuVisible = not menuVisible
     MainFrame.Visible = menuVisible
-    
     if menuVisible then
         OpenCloseBtn.Text = "H"
         OpenCloseBtn.TextColor3 = ACCENT_GREEN
@@ -347,9 +402,8 @@ OpenCloseBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ARRASTRE MULTITOUCH DEL BOTÓN FLOTANTE
+-- ARRASTRE DEL BOTÓN FLOTANTE
 local dragStart = nil local startPos = nil local draggingInput = nil
-
 OpenCloseBtn.InputBegan:Connect(function(input)
     if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
         draggingInput = input
@@ -357,23 +411,166 @@ OpenCloseBtn.InputBegan:Connect(function(input)
         startPos = OpenCloseBtn.Position
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if input == draggingInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         OpenCloseBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-
 OpenCloseBtn.InputEnded:Connect(function(input)
     if input == draggingInput then draggingInput = nil end
 end)
 
 -- ============================================================================
--- 📝 GUÍA DE EJEMPLO: ¿CÓMO AÑADIR NUEVAS FUNCIONES DESDE TU GITHUB?
+-- 📡 ENGINE DE ROLES Y LOGICA ESP (Auto-Sincronizado)
 -- ============================================================================
--- EJEMPLO:
--- createToggle("AutoKillToggle", "Kill Everyone", UDim2.new(0, 12, 0, 15), MurderFrame, function(estado)
---     print("Estado cambiado")
--- end)
--- ===========================================================================
+local SwappedStates = { Highlights = false, Boxes = false, Names = false, Tracers = false }
+local linesCache = {}
+
+local function conseguirRol(p)
+    if not p then return "Innocent" end
+    local bpack = p:FindFirstChild("Backpack")
+    local char = p.Character
+    if (bpack and bpack:FindFirstChild("Knife")) or (char and char:FindFirstChild("Knife")) then
+        return "Murderer"
+    elseif (bpack and bpack:FindFirstChild("Gun")) or (char and char:FindFirstChild("Gun")) then
+        return "Sheriff"
+    end
+    return "Innocent"
+end
+
+RunService.RenderStepped:Connect(function()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        local char = p.Character
+        
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+            local hrp = char.HumanoidRootPart
+            local role = conseguirRol(p)
+            local color = ColoresESP[role]
+            local vector, enPantalla = Camera:WorldToViewportPoint(hrp.Position)
+            
+            -- 1. HIGHLIGHTS SYSTEM
+            local hl = char:FindFirstChild("KH_Highlight")
+            if SwappedStates.Highlights then
+                if not hl then
+                    hl = Instance.new("Highlight")
+                    hl.Name = "KH_Highlight"
+                    hl.Parent = char
+                end
+                hl.FillColor = color
+                hl.OutlineColor = color
+                hl.FillTransparency = 0.5
+                hl.OutlineTransparency = 0.2
+            else
+                if hl then hl:Destroy() end
+            end
+            
+            -- 2. BOX SYSTEM
+            local box = char:FindFirstChild("KH_BoxGui")
+            if SwappedStates.Boxes then
+                if not box then
+                    box = Instance.new("BillboardGui")
+                    box.Name = "KH_BoxGui"
+                    box.AlwaysOnTop = true
+                    box.Size = UDim2.new(4.5, 0, 6, 0)
+                    box.Parent = char
+                    
+                    local f = Instance.new("Frame")
+                    f.Size = UDim2.new(1, 0, 1, 0)
+                    f.BackgroundTransparency = 1
+                    f.Parent = box
+                    
+                    local stroke = Instance.new("UIStroke")
+                    stroke.Thickness = 2
+                    stroke.Parent = f
+                end
+                box.Adornee = hrp
+                box.Frame.UIStroke.Color = color
+            else
+                if box then box:Destroy() end
+            end
+            
+            -- 3. NAMES SYSTEM
+            local nameEs = char:FindFirstChild("KH_NameGui")
+            if SwappedStates.Names then
+                if not nameEs then
+                    nameEs = Instance.new("BillboardGui")
+                    nameEs.Name = "KH_NameGui"
+                    nameEs.AlwaysOnTop = true
+                    nameEs.Size = UDim2.new(0, 100, 0, 20)
+                    nameEs.StudsOffset = Vector3.new(0, 3.5, 0)
+                    nameEs.Parent = char
+                    
+                    local tl = Instance.new("TextLabel")
+                    tl.Size = UDim2.new(1, 0, 1, 0)
+                    tl.BackgroundTransparency = 1
+                    tl.Font = Enum.Font.SourceSansBold
+                    tl.TextSize = 14
+                    tl.TextStrokeTransparency = 0
+                    tl.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+                    tl.Parent = nameEs
+                end
+                nameEs.Adornee = hrp
+                nameEs.TextLabel.Text = p.Name .. " [" .. role .. "]"
+                nameEs.TextLabel.TextColor3 = color
+            else
+                if nameEs then nameEs:Destroy() end
+            end
+            
+            -- 4. TRACERS SYSTEM
+            if SwappedStates.Tracers and enPantalla then
+                local line = linesCache[p.Name]
+                if not line then
+                    line = Drawing.Line.new()
+                    line.Thickness = 1.5
+                    linesCache[p.Name] = line
+                end
+                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                line.To = Vector2.new(vector.X, vector.Y)
+                line.Color = color
+                line.Visible = true
+            else
+                if linesCache[p.Name] then linesCache[p.Name].Visible = false end
+            end
+        else
+            if char then
+                if char:FindFirstChild("KH_Highlight") then char.KH_Highlight:Destroy() end
+                if char:FindFirstChild("KH_BoxGui") then char.KH_BoxGui:Destroy() end
+                if char:FindFirstChild("KH_NameGui") then char.KH_NameGui:Destroy() end
+            end
+            if linesCache[p.Name] then linesCache[p.Name].Visible = false end
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if linesCache[p.Name] then
+        linesCache[p.Name]:Remove()
+        linesCache[p.Name] = nil
+    end
+end)
+
+-- ============================================================================
+-- 💉 INYECCIÓN DE BOTONES CON MEMORIA AUTOMÁTICA
+-- ============================================================================
+createToggle("Highlights", "Instant Highlight Roles", UDim2.new(0, 12, 0, 15), VisualsFrame, function(state)
+    SwappedStates.Highlights = state
+end)
+
+createToggle("Boxes", "ESP Box (Roles Colored)", UDim2.new(0, 12, 0, 65), VisualsFrame, function(state)
+    SwappedStates.Boxes = state
+end)
+
+createToggle("Names", "ESP Name (Roles Colored)", UDim2.new(0, 12, 0, 115), VisualsFrame, function(state)
+    SwappedStates.Names = state
+end)
+
+createToggle("Tracers", "ESP Tracers (Thin Lines)", UDim2.new(0, 12, 0, 165), VisualsFrame, function(state)
+    SwappedStates.Tracers = state
+    if not state then
+        for _, line in pairs(linesCache) do line.Visible = false end
+    end
+end)
+
+print("💾 [KillerHub] - Auto-guardado activado. Tu configuración se cargará sola siempre.")
