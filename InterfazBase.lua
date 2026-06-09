@@ -2,6 +2,9 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 -- Evitar duplicados de la interfaz
@@ -9,13 +12,49 @@ if CoreGui:FindFirstChild("KillerHub_MM2") then
     CoreGui.KillerHub_MM2:Destroy()
 end
 
+-- ============================================================================
+-- 💾 SISTEMA DE CONFIGURACIÓN Y AUTO-GUARDADO
+-- ============================================================================
+local FILE_NAME = "KillerHub_MM2_Config.json"
+local Config = {
+    Highlights = false,
+    Boxes = false,
+    Names = false,
+    NameSize = 0.3,
+    GunHighlight = false,
+    GunEspName = false,
+    MenuOpacity = 1,
+    ButtonOpacity = 1
+}
+
+local function saveConfig()
+    if writefile then
+        local success, json = pcall(function() return HttpService:JSONEncode(Config) end)
+        if success then writefile(FILE_NAME, json) end
+    end
+end
+
+local function loadConfig()
+    if isfile and readfile and isfile(FILE_NAME) then
+        local success, json = pcall(function() return readfile(FILE_NAME) end)
+        if success then
+            local success2, data = pcall(function() return HttpService:JSONDecode(json) end)
+            if success2 and type(data) == "table" then
+                for k, v in pairs(data) do Config[k] = v end
+            end
+        end
+    end
+end
+
+loadConfig()
+
 -- CONTENEDOR PRINCIPAL
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KillerHub_MM2"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
--- PALETA DE COLORES (Estilo Dark Premium)
+-- PALETA DE COLORES DE LA INTERFAZ
 local BG_MAIN = Color3.fromRGB(14, 14, 14)      
 local BG_SIDEBAR = Color3.fromRGB(18, 18, 18)
 local BG_SECONDARY = Color3.fromRGB(22, 22, 22) 
@@ -56,7 +95,7 @@ Title.Font = Enum.Font.Code
 Title.TextSize = 15
 Title.Parent = Topbar
 
--- BARRA LATERAL IZQUIERDA (Sidebar Estrecho - 95px)
+-- BARRA LATERAL IZQUIERDA
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
 Sidebar.Size = UDim2.new(0, 95, 1, -40)
@@ -67,7 +106,6 @@ Sidebar.Active = true
 Sidebar.Parent = MainFrame
 local SidebarStroke = Instance.new("UIStroke") SidebarStroke.Thickness = 1 SidebarStroke.Color = Color3.fromRGB(30, 30, 30) SidebarStroke.Parent = Sidebar
 
--- Contenedor interno superior para los botones de juego (Visuals, Murder, Sheriff)
 local SidebarTabsContainer = Instance.new("Frame")
 SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -95)
 SidebarTabsContainer.BackgroundTransparency = 1
@@ -76,7 +114,7 @@ SidebarTabsContainer.Parent = Sidebar
 local SidebarLayout = Instance.new("UIListLayout") SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder SidebarLayout.Padding = UDim.new(0, 4) SidebarLayout.Parent = SidebarTabsContainer
 local SidebarPadding = Instance.new("UIPadding") SidebarPadding.PaddingTop = UDim.new(0, 8) SidebarPadding.PaddingLeft = UDim.new(0, 6) SidebarPadding.PaddingRight = UDim.new(0, 6) SidebarPadding.Parent = SidebarTabsContainer
 
--- CONTENEDOR DE PÁGINAS (Área derecha de contenido)
+-- CONTENEDOR DE PÁGINAS
 local ContentContainer = Instance.new("Frame")
 ContentContainer.Name = "ContentContainer"
 ContentContainer.Size = UDim2.new(1, -95, 1, -40)
@@ -85,8 +123,12 @@ ContentContainer.BackgroundTransparency = 1
 ContentContainer.Active = true
 ContentContainer.Parent = MainFrame
 
--- Inicialización de los Marcos de cada Pestaña
-local VisualsFrame = Instance.new("Frame")
+local VisualsFrame = Instance.new("ScrollingFrame")
+VisualsFrame.ScrollBarThickness = 3
+VisualsFrame.ScrollBarImageColor3 = ACCENT_GREEN
+VisualsFrame.CanvasSize = UDim2.new(0, 0, 0, 340)
+VisualsFrame.BackgroundTransparency = 1
+
 local MurderFrame = Instance.new("Frame")
 local SheriffFrame = Instance.new("Frame")
 local SettingsFrame = Instance.new("Frame")
@@ -111,7 +153,6 @@ for name, frame in pairs(frames) do
     local s = Instance.new("UIStroke") s.Thickness = 1 s.Color = Color3.fromRGB(32, 32, 32) s.Parent = frame
 end
 
--- SISTEMA DINÁMICO DE NAVEGACIÓN
 local currentTab = "Visuals"
 local tabButtons = {}
 
@@ -145,12 +186,10 @@ local function createTabBtn(text, order)
     end)
 end
 
--- Crear pestañas de categorías en la parte superior
 createTabBtn("Visuals", 1)
 createTabBtn("Murder", 2)
 createTabBtn("Sheriff", 3)
 
--- BOTÓN DE SETTINGS
 local SettingsBtn = Instance.new("TextButton")
 SettingsBtn.Name = "SettingsTabButton"
 SettingsBtn.Size = UDim2.new(1, -12, 0, 32)
@@ -170,9 +209,7 @@ SettingsBtn.MouseButton1Click:Connect(function()
     updateTabVisuals("Settings")
 end)
 
--- FABRICA DE COMPONENTES INTERNOS (Constructores del Menu)
-
--- 1. CREADOR DE TOGGLES
+-- FABRICA DE COMPONENTES INTERNOS CON MEMORIA
 local function createToggle(name, text, position, parent, callback)
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Name = name
@@ -205,16 +242,21 @@ local function createToggle(name, text, position, parent, callback)
     Indicator.Parent = ToggleButton
     local IndicatorCorner = Instance.new("UICorner") IndicatorCorner.CornerRadius = UDim.new(0, 3) IndicatorCorner.Parent = Indicator
 
-    local state = false
+    local state = Config[name] or false
+    Indicator.BackgroundColor3 = state and ACCENT_GREEN or Color3.fromRGB(45, 45, 45)
+    ToggleLabel.TextColor3 = state and TEXT_WHITE or TEXT_MUTED
+    task.spawn(function() callback(state) end)
+
     ToggleButton.MouseButton1Click:Connect(function()
         state = not state
+        Config[name] = state
+        saveConfig()
         TweenService:Create(Indicator, TweenInfo.new(0.15), {BackgroundColor3 = state and ACCENT_GREEN or Color3.fromRGB(45, 45, 45)}):Play()
         ToggleLabel.TextColor3 = state and TEXT_WHITE or TEXT_MUTED
         callback(state)
     end)
 end
 
--- 2. CREADOR DE SLIDERS
 local function createSlider(name, text, position, parent, callback)
     local SliderFrame = Instance.new("Frame")
     SliderFrame.Name = name
@@ -238,7 +280,6 @@ local function createSlider(name, text, position, parent, callback)
     ValueLabel.Size = UDim2.new(0, 40, 0, 20)
     ValueLabel.Position = UDim2.new(1, -40, 0, 0)
     ValueLabel.BackgroundTransparency = 1
-    ValueLabel.Text = "100%"
     ValueLabel.TextColor3 = ACCENT_GREEN
     ValueLabel.Font = Enum.Font.Code
     ValueLabel.TextSize = 12
@@ -252,11 +293,10 @@ local function createSlider(name, text, position, parent, callback)
     Track.Text = ""
     Track.AutoButtonColor = false
     Track.Active = true 
-    Track.Parent = SliderFrame
+    Track.Parent = Track
     local TrackCorner = Instance.new("UICorner") TrackCorner.CornerRadius = UDim.new(0, 2) TrackCorner.Parent = Track
 
     local Fill = Instance.new("Frame")
-    Fill.Size = UDim2.new(1, 0, 1, 0) 
     Fill.BackgroundColor3 = ACCENT_GREEN
     Fill.BorderSizePixel = 0
     Fill.Parent = Track
@@ -264,19 +304,26 @@ local function createSlider(name, text, position, parent, callback)
 
     local Knob = Instance.new("Frame")
     Knob.Size = UDim2.new(0, 10, 0, 10)
-    Knob.Position = UDim2.new(1, -5, 0.5, -5)
     Knob.BackgroundColor3 = TEXT_WHITE
     Knob.Active = true
     Knob.Parent = Track
     local KnobCorner = Instance.new("UICorner") KnobCorner.CornerRadius = UDim.new(1, 0) KnobCorner.Parent = Knob
     local KnobStroke = Instance.new("UIStroke") KnobStroke.Thickness = 1 KnobStroke.Color = Color3.fromRGB(0, 0, 0) KnobStroke.Parent = Knob
 
+    local percentage = Config[name] or 1
+    Fill.Size = UDim2.new(percentage, 0, 1, 0)
+    Knob.Position = UDim2.new(percentage, -5, 0.5, -5)
+    ValueLabel.Text = math.floor(percentage * 100) .. "%"
+    task.spawn(function() callback(percentage) end)
+
     local function updateSlider(input)
-        local percentage = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
-        Fill.Size = UDim2.new(percentage, 0, 1, 0)
-        Knob.Position = UDim2.new(percentage, -5, 0.5, -5)
-        ValueLabel.Text = math.floor(percentage * 100) .. "%"
-        callback(percentage)
+        local computedPercent = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
+        Config[name] = computedPercent
+        saveConfig()
+        Fill.Size = UDim2.new(computedPercent, 0, 1, 0)
+        Knob.Position = UDim2.new(computedPercent, -5, 0.5, -5)
+        ValueLabel.Text = math.floor(computedPercent * 100) .. "%"
+        callback(computedPercent)
     end
 
     local sliding = false
@@ -310,7 +357,7 @@ createSlider("MenuOpacity", "Menu Transparency", UDim2.new(0, 12, 0, 15), Settin
     SettingsFrame.BackgroundTransparency = alpha
 end)
 
--- BOTÓN FLOTANTE DINÁMICO (Cambia entre "K" y "H")
+-- BOTÓN FLOTANTE DINÁMICO
 local OpenCloseBtn = Instance.new("TextButton")
 OpenCloseBtn.Name = "KillerHubToggle"
 OpenCloseBtn.Size = UDim2.new(0, 45, 0, 45)
@@ -337,72 +384,48 @@ local menuVisible = true
 OpenCloseBtn.MouseButton1Click:Connect(function()
     menuVisible = not menuVisible
     MainFrame.Visible = menuVisible
-    
-    if menuVisible then
-        OpenCloseBtn.Text = "H"
-        OpenCloseBtn.TextColor3 = ACCENT_GREEN
-    else
-        OpenCloseBtn.Text = "K"
-        OpenCloseBtn.TextColor3 = TEXT_WHITE
-    end
+    OpenCloseBtn.Text = menuVisible and "H" or "K"
+    OpenCloseBtn.TextColor3 = menuVisible and ACCENT_GREEN or TEXT_WHITE
 end)
 
 -- ARRASTRE MULTITOUCH DEL BOTÓN FLOTANTE
 local dragStart = nil local startPos = nil local draggingInput = nil
-
 OpenCloseBtn.InputBegan:Connect(function(input)
     if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        draggingInput = input
-        dragStart = input.Position
-        startPos = OpenCloseBtn.Position
+        draggingInput = input; dragStart = input.Position; startPos = OpenCloseBtn.Position
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if input == draggingInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         OpenCloseBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-
-OpenCloseBtn.InputEnded:Connect(function(input)
-    if input == draggingInput then draggingInput = nil end
-end)
-
+OpenCloseBtn.InputEnded:Connect(function(input) if input == draggingInput then draggingInput = nil end end)
 
 -- ============================================================================
--- 🧠 INYECCIÓN AUTOMÁTICA DE VISUALES & ESCANEO DE ROLES (PAOLO OPTIMIZED)
+-- 🧠 MOTOR DE DETECCIÓN INSTANTÁNEA CORE
 -- ============================================================================
--- Módulo integrado de forma nativa al final del script para evitar archivos secundarios.
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local Camera = Workspace.CurrentCamera
-
 local rolesPartida = {}
-local visualState = {
-    Highlights = false,
-    Boxes = false,
-    Names = false,
-    Tracers = false
-}
 
--- Paleta de colores según los roles interceptados
+-- Tabla de colores globales (Inocente, Asesino, Sheriff y Héroe Oscurito)
 local ColoresESP = {
-    Murder = Color3.fromRGB(255, 35, 35),
-    Sheriff = Color3.fromRGB(35, 120, 255),
-    Innocent = Color3.fromRGB(35, 200, 95)
+    Murder = Color3.fromRGB(215, 25, 25),
+    Sheriff = Color3.fromRGB(25, 100, 225),
+    Hero = Color3.fromRGB(215, 160, 0),
+    Innocent = Color3.fromRGB(25, 175, 80)
 }
 
 local function obtenerColorJugador(playerName)
     local rol = rolesPartida[playerName] or "Innocent"
     if rol == "Murderer" then return ColoresESP.Murder end
     if rol == "Sheriff" then return ColoresESP.Sheriff end
+    if rol == "Hero" then return ColoresESP.Hero end
     return ColoresESP.Innocent
 end
 
--- Interceptor del leak instantáneo
+-- Interceptor nativo original super rápido
 local playerDataRemote = ReplicatedStorage:FindFirstChild("PlayerDataChanged", true)
 if playerDataRemote then
     playerDataRemote.OnClientEvent:Connect(function(roundData)
@@ -417,11 +440,11 @@ if playerDataRemote then
     end)
 end
 
--- Motor del Highlight (Siluetas) en segundo plano ligero
+-- Motor de Siluetas (Highlights) pasivo
 task.spawn(function()
     while true do
         task.wait(0.3)
-        if not visualState.Highlights then
+        if not Config.Highlights then
             for _, p in pairs(Players:GetPlayers()) do
                 if p.Character and p.Character:FindFirstChild("KillerHub_Highlight") then
                     p.Character.KillerHub_Highlight:Destroy()
@@ -447,121 +470,150 @@ task.spawn(function()
     end
 end)
 
--- Motor 2D Ultra Optimizado (Cajas finas, nombres compactos y tracers delgados)
-local function iniciarMotorESP2D()
-    local folder = CoreGui:FindFirstChild("KillerHub_ESP_Folder")
-    if folder then folder:Destroy() end
-    
-    folder = Instance.new("Folder", CoreGui)
-    folder.Name = "KillerHub_ESP_Folder"
-
-    local function crearObjetosESP(p)
-        if p == LocalPlayer then return end
+-- ============================================================================
+-- 📡 PROCESADOR VISUAL 3D (RENDER LOOP)
+-- ============================================================================
+RunService.RenderStepped:Connect(function()
+    -- 1. ESP JUGADORES (Cajas y Nombres con Roles Dinámicos)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        local char = p.Character
         
-        local espGui = Instance.new("ScreenGui", folder)
-        espGui.Name = "ESP_" .. p.Name
-        
-        -- Configuración de Tracers (Línea ultra delgada de 1 pixel)
-        local line = Instance.new("Frame", espGui)
-        line.Size = UDim2.new(0, 1, 0, 0)
-        line.BorderSizePixel = 0
-        line.AnchorPoint = Vector2.new(0.5, 0)
-        line.Visible = false
-        
-        -- Configuración de Cajas (Borde limpio de 1 pixel)
-        local box = Instance.new("Frame", espGui)
-        box.BackgroundTransparency = 1
-        box.BorderSizePixel = 1
-        box.AnchorPoint = Vector2.new(0.5, 0.5)
-        box.Visible = false
-        
-        -- Configuración de Nombres (Compacto y legible)
-        local nameLabel = Instance.new("TextLabel", espGui)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextSize = 12
-        nameLabel.Font = Enum.Font.SourceSansBold
-        nameLabel.TextStrokeTransparency = 0
-        nameLabel.AnchorPoint = Vector2.new(0.5, 1)
-        nameLabel.Visible = false
-
-        local renderConnection
-        renderConnection = RunService.RenderStepped:Connect(function()
-            if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then
-                line.Visible = false; box.Visible = false; nameLabel.Visible = false
-                return
-            end
-            
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+            local hrp = char.HumanoidRootPart
             local color = obtenerColorJugador(p.Name)
-            local hrp = p.Character.HumanoidRootPart
-            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local rol = rolesPartida[p.Name] or "Innocent"
             
-            -- Control de visibilidad según los estados booleanos de los botones
-            line.Visible = onScreen and visualState.Tracers
-            box.Visible = onScreen and visualState.Boxes
-            nameLabel.Visible = onScreen and visualState.Names
-            
-            if not onScreen then return end
-            
-            -- Dibujar líneas delgadas desde el centro inferior
-            if visualState.Tracers then
-                line.BackgroundColor3 = color
-                local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                local dist = (Vector2.new(pos.X, pos.Y) - startPos).Magnitude
-                line.Size = UDim2.new(0, 1, 0, dist)
-                line.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
-                line.Rotation = math.atan2(pos.Y - startPos.Y, pos.X - startPos.X) * (180 / math.pi) - 90
-            end
-            
-            -- Dibujar cajas y nombres proporcionales a la distancia
-            if visualState.Boxes or visualState.Names then
-                local sizeVec = Vector3.new(2, 3, 0)
-                local sizePos = Camera:WorldToViewportPoint(hrp.Position + sizeVec)
-                local w = math.abs(sizePos.X - pos.X) * 2
-                local h = math.abs(sizePos.Y - pos.Y) * 2
-                
-                if visualState.Boxes then
-                    box.Size = UDim2.new(0, w, 0, h)
-                    box.Position = UDim2.new(0, pos.X, 0, pos.Y)
-                    box.BorderColor3 = color
+            -- Caja ESP Estilo Fino Adaptado
+            local box = char:FindFirstChild("KH_BoxGui")
+            if Config.Boxes then
+                if not box then
+                    box = Instance.new("BillboardGui")
+                    box.Name = "KH_BoxGui"
+                    box.AlwaysOnTop = true
+                    box.Size = UDim2.new(4.5, 0, 6, 0)
+                    box.Parent = char
+                    
+                    local f = Instance.new("Frame")
+                    f.Size = UDim2.new(1, 0, 1, 0)
+                    f.BackgroundTransparency = 1
+                    f.Parent = box
+                    
+                    local stroke = Instance.new("UIStroke")
+                    stroke.Thickness = 1
+                    stroke.Parent = f
                 end
-                
-                if visualState.Names then
-                    nameLabel.Text = p.Name
-                    nameLabel.TextColor3 = color
-                    nameLabel.Position = UDim2.new(0, pos.X, 0, pos.Y - (h / 2) - 5)
+                box.Adornee = hrp
+                box.Frame.UIStroke.Color = color
+            else
+                if box then box:Destroy() end
+            end
+            
+            -- Nombres con Slider
+            local nameEs = char:FindFirstChild("KH_NameGui")
+            if Config.Names then
+                if not nameEs then
+                    nameEs = Instance.new("BillboardGui")
+                    nameEs.Name = "KH_NameGui"
+                    nameEs.AlwaysOnTop = true
+                    nameEs.Size = UDim2.new(0, 120, 0, 25)
+                    nameEs.StudsOffset = Vector3.new(0, 3, 0)
+                    nameEs.Parent = char
+                    
+                    local tl = Instance.new("TextLabel")
+                    tl.Size = UDim2.new(1, 0, 1, 0)
+                    tl.BackgroundTransparency = 1
+                    tl.Font = Enum.Font.SourceSansBold
+                    tl.TextStrokeTransparency = 0
+                    tl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                    tl.Parent = nameEs
                 end
+                local calculatedSize = math.floor(10 + ((Config.NameSize or 0.3) * 14))
+                nameEs.Adornee = hrp
+                nameEs.TextLabel.Text = p.Name .. " [" .. rol .. "]"
+                nameEs.TextLabel.TextColor3 = color
+                nameEs.TextLabel.TextSize = calculatedSize
+            else
+                if nameEs then nameEs:Destroy() end
             end
-        end)
-        
-        -- Limpieza automática si el jugador abandona
-        p.AncestryChanged:Connect(function(_, parent)
-            if not parent then
-                renderConnection:Disconnect()
-                espGui:Destroy()
+        else
+            if char then
+                if char:FindFirstChild("KH_BoxGui") then char.KH_BoxGui:Destroy() end
+                if char:FindFirstChild("KH_NameGui") then char.KH_NameGui:Destroy() end
             end
-        end)
+        end
     end
 
-    for _, p in pairs(Players:GetPlayers()) do crearObjetosESP(p) end
-    Players.PlayerAdded:Connect(crearObjetosESP)
-end
+    -- 2. ESP PARA LA PISTOLA (GUN DROP - AJUSTADA SIN BORDES BLANCOS)
+    local pistolaModel = Workspace:FindFirstChild("GunDrop", true)
+    if pistolaModel then
+        local gunPosition = nil
+        if pistolaModel:IsA("BasePart") then
+            gunPosition = pistolaModel.Position
+        elseif pistolaModel:IsA("Model") then
+            local realPart = pistolaModel:FindFirstChild("Handle") or pistolaModel:FindFirstChildWhichIsA("BasePart")
+            if realPart then gunPosition = realPart.Position else gunPosition = pistolaModel:GetPivot().Position end
+        end
 
--- Inicializar el motor visual básico
-iniciarMotorESP2D()
+        if gunPosition then
+            -- Highlight de la pistola (Bordes Negros + Centro Rojo Sangre)
+            local gunHl = pistolaModel:FindFirstChild("KH_GunHighlight")
+            if Config.GunHighlight then
+                if not gunHl then 
+                    gunHl = Instance.new("Highlight")
+                    gunHl.Name = "KH_GunHighlight"
+                    gunHl.Parent = pistolaModel 
+                end
+                gunHl.FillColor = Color3.fromRGB(180, 0, 0)     -- Centro Rojo Sangre
+                gunHl.OutlineColor = Color3.fromRGB(0, 0, 0)    -- Borde Negro Puro (Cero bordes blancos)
+                gunHl.FillTransparency = 0.25
+                gunHl.OutlineTransparency = 0
+            else
+                if gunHl then gunHl:Destroy() end
+            end
 
--- Creación de los Toggles dentro de tu VisualsFrame de manera ordenada e impecable
-createToggle("EspHighlights", "Instant Highlight Roles", UDim2.new(0, 12, 0, 15), VisualsFrame, function(state)
-    visualState.Highlights = state
+            -- Nombre exacto: GUN DROP 🇦🇱
+            local gunNameEs = pistolaModel:FindFirstChild("KH_GunNameGui")
+            if Config.GunEspName then
+                if not gunNameEs then
+                    gunNameEs = Instance.new("BillboardGui")
+                    gunNameEs.Name = "KH_GunNameGui"
+                    gunNameEs.AlwaysOnTop = true
+                    gunNameEs.Size = UDim2.new(0, 150, 0, 30)
+                    gunNameEs.StudsOffset = Vector3.new(0, 2, 0)
+                    gunNameEs.Parent = pistolaModel
+                    
+                    local tl = Instance.new("TextLabel")
+                    tl.Size = UDim2.new(1, 0, 1, 0)
+                    tl.BackgroundTransparency = 1
+                    tl.Font = Enum.Font.Code 
+                    tl.TextSize = 16
+                    tl.TextColor3 = Color3.fromRGB(200, 0, 0) 
+                    tl.TextStrokeTransparency = 0
+                    tl.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+                    tl.Text = "GUN DROP 🇦🇱" 
+                    tl.Parent = gunNameEs
+                end
+            else
+                if gunNameEs then gunNameEs:Destroy() end
+            end
+        end
+    else
+        local globalHl = Workspace:FindFirstChild("KH_GunHighlight", true)
+        if globalHl then globalHl:Destroy() end
+        local globalGui = Workspace:FindFirstChild("KH_GunNameGui", true)
+        if globalGui then globalGui:Destroy() end
+    end
 end)
 
-createToggle("EspBoxes", "ESP Box (Roles Colored)", UDim2.new(0, 12, 0, 65), VisualsFrame, function(state)
-    visualState.Boxes = state
-end)
+-- ============================================================================
+-- 💉 INYECCIÓN DE LOS CONTROLES DE LA INTERFAZ (UI)
+-- ============================================================================
+createToggle("Highlights", "Instant Highlight Roles", UDim2.new(0, 12, 0, 15), VisualsFrame, function(s) end)
+createToggle("Boxes", "ESP Box (Thin Outline)", UDim2.new(0, 12, 0, 65), VisualsFrame, function(s) end)
+createToggle("Names", "ESP Name (Roles Colored)", UDim2.new(0, 12, 0, 115), VisualsFrame, function(s) end)
+createSlider("NameSize", "ESP Name Text Size", UDim2.new(0, 12, 0, 165), VisualsFrame, function(val) end)
+createToggle("GunHighlight", "Gun Drop Highlight (Blood Red)", UDim2.new(0, 12, 0, 215), VisualsFrame, function(s) end)
+createToggle("GunEspName", "Gun Drop ESP Name 🇦🇱", UDim2.new(0, 12, 0, 265), VisualsFrame, function(s) end)
 
-createToggle("EspNames", "ESP Name (Roles Colored)", UDim2.new(0, 12, 0, 115), VisualsFrame, function(state)
-    visualState.Names = state
-end)
-
-createToggle("EspTracers", "ESP Tracers (Thin Lines)", UDim2.new(0, 12, 0, 165), VisualsFrame, function(state)
-    visualState.Tracers = state
-end)
+warn("✅ [KillerHub | Premium] - Configuración guardada, Héroe asignado y Gun Drop sin bordes blancos.")
