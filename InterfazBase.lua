@@ -23,7 +23,7 @@ local ACCENT_GREEN = Color3.fromRGB(0, 230, 115)
 local TEXT_WHITE = Color3.fromRGB(240, 240, 240)
 local TEXT_MUTED = Color3.fromRGB(130, 130, 130)
 
--- VENTANA PRINCIPAL (Con bloqueo de cámara nativo para evitar giros)
+-- VENTANA PRINCIPAL
 local MainFrame = Instance.new("Frame") 
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 520, 0, 340)
@@ -69,7 +69,7 @@ local SidebarStroke = Instance.new("UIStroke") SidebarStroke.Thickness = 1 Sideb
 
 -- Contenedor interno superior para los botones de juego (Visuals, Murder, Sheriff)
 local SidebarTabsContainer = Instance.new("Frame")
-SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -50)
+SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -95) -- Ajustado para dar espacio a la nueva posición de Settings
 SidebarTabsContainer.BackgroundTransparency = 1
 SidebarTabsContainer.Parent = Sidebar
 
@@ -132,7 +132,7 @@ local function createTabBtn(text, order)
     btn.Text = text
     btn.TextColor3 = (text == currentTab) and ACCENT_GREEN or TEXT_MUTED
     btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 13
+    btn.TextSize = 15 -- ¡Aumentado para mayor claridad!
     btn.LayoutOrder = order
     btn.Active = true
     btn.Parent = SidebarTabsContainer
@@ -150,16 +150,16 @@ createTabBtn("Visuals", 1)
 createTabBtn("Murder", 2)
 createTabBtn("Sheriff", 3)
 
--- BOTÓN DE SETTINGS (Forzado a posicionarse abajo del todo)
+-- BOTÓN DE SETTINGS (Posicionado idealmente más arriba del fondo)
 local SettingsBtn = Instance.new("TextButton")
 SettingsBtn.Name = "SettingsTabButton"
 SettingsBtn.Size = UDim2.new(1, -12, 0, 32)
-SettingsBtn.Position = UDim2.new(0, 6, 1, -38) -- Separación exacta del borde inferior
+SettingsBtn.Position = UDim2.new(0, 6, 1, -55) -- Subido ligeramente para que no quede tan abajo
 SettingsBtn.BackgroundTransparency = 1
 SettingsBtn.Text = "Settings"
 SettingsBtn.TextColor3 = TEXT_MUTED
 SettingsBtn.Font = Enum.Font.SourceSansBold
-SettingsBtn.TextSize = 13
+SettingsBtn.TextSize = 15 -- ¡Aumentado al mismo tamaño de las otras letras!
 SettingsBtn.Active = true
 SettingsBtn.Parent = Sidebar
 
@@ -172,7 +172,7 @@ end)
 
 -- FABRICA DE COMPONENTES INTERNOS (Constructores del Menu)
 
--- 1. CREADOR DE TOGGLES (Interruptores)
+-- 1. CREADOR DE TOGGLES
 local function createToggle(name, text, position, parent, callback)
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Name = name
@@ -214,7 +214,7 @@ local function createToggle(name, text, position, parent, callback)
     end)
 end
 
--- 2. CREADOR DE SLIDERS (Deslizadores con Anti-Giro de cámara)
+-- 2. CREADOR DE SLIDERS
 local function createSlider(name, text, position, parent, callback)
     local SliderFrame = Instance.new("Frame")
     SliderFrame.Name = name
@@ -298,7 +298,7 @@ local function createSlider(name, text, position, parent, callback)
     end)
 end
 
--- COMPONENTES BASE DE CONFIGURACIÓN (Controladores de la UI)
+-- COMPONENTES BASE DE CONFIGURACIÓN
 createSlider("MenuOpacity", "Menu Transparency", UDim2.new(0, 12, 0, 15), SettingsFrame, function(val)
     local alpha = 1 - val
     MainFrame.BackgroundTransparency = alpha
@@ -316,7 +316,7 @@ OpenCloseBtn.Name = "KillerHubToggle"
 OpenCloseBtn.Size = UDim2.new(0, 45, 0, 45)
 OpenCloseBtn.Position = UDim2.new(0, 20, 0, 20) 
 OpenCloseBtn.BackgroundColor3 = BG_MAIN
-OpenCloseBtn.Text = "H" -- Inicia en H porque el menú se ejecuta abierto
+OpenCloseBtn.Text = "H" 
 OpenCloseBtn.TextColor3 = ACCENT_GREEN
 OpenCloseBtn.Font = Enum.Font.SourceSansBold
 OpenCloseBtn.TextSize = 20 
@@ -338,7 +338,6 @@ OpenCloseBtn.MouseButton1Click:Connect(function()
     menuVisible = not menuVisible
     MainFrame.Visible = menuVisible
     
-    -- Intercambio dinámico de letras
     if menuVisible then
         OpenCloseBtn.Text = "H"
         OpenCloseBtn.TextColor3 = ACCENT_GREEN
@@ -366,29 +365,15 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
+OpenCloseBtn.InputEnded:Connect(function(input)
     if input == draggingInput then draggingInput = nil end
 end)
-
 
 -- ============================================================================
 -- 📝 GUÍA DE EJEMPLO: ¿CÓMO AÑADIR NUEVAS FUNCIONES DESDE TU GITHUB?
 -- ============================================================================
--- Cuando quieras meter una opción, solo escribe líneas como estas abajo del script:
---
--- EJEMPLO 1: Para meter un Toggle (Activar/Desactivar algo) en la pestaña "Murder"
+-- EJEMPLO:
 -- createToggle("AutoKillToggle", "Kill Everyone", UDim2.new(0, 12, 0, 15), MurderFrame, function(estado)
---     if estado == true then
---         print("Script activado: Aquí pones la función para matar")
---     else
---         print("Script desactivado: Detienes el bucle de ataque")
---     end
--- end)
---
--- EJEMPLO 2: Para meter un Slider (Ajuste numérico) en la pestaña "Sheriff"
--- createSlider("AimDistance", "Silent Aim Distance", UDim2.new(0, 12, 0, 15), SheriffFrame, function(valor)
---     -- 'valor' devuelve un número decimal de 0 a 1. Multiplícalo para escalar el rango.
---     local distanciaReal = math.floor(valor * 500) 
---     print("Distancia ajustada a: " .. distanciaReal .. " studs")
+--     print("Estado cambiado")
 -- end)
 -- ============================================================================
