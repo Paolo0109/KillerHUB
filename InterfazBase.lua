@@ -69,7 +69,7 @@ local SidebarStroke = Instance.new("UIStroke") SidebarStroke.Thickness = 1 Sideb
 
 -- Contenedor interno superior para los botones de juego (Visuals, Murder, Sheriff)
 local SidebarTabsContainer = Instance.new("Frame")
-SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -95) -- Ajustado para dar espacio a la nueva posición de Settings
+SidebarTabsContainer.Size = UDim2.new(1, 0, 1, -95)
 SidebarTabsContainer.BackgroundTransparency = 1
 SidebarTabsContainer.Parent = Sidebar
 
@@ -132,7 +132,7 @@ local function createTabBtn(text, order)
     btn.Text = text
     btn.TextColor3 = (text == currentTab) and ACCENT_GREEN or TEXT_MUTED
     btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 15 -- ¡Aumentado para mayor claridad!
+    btn.TextSize = 15
     btn.LayoutOrder = order
     btn.Active = true
     btn.Parent = SidebarTabsContainer
@@ -150,16 +150,16 @@ createTabBtn("Visuals", 1)
 createTabBtn("Murder", 2)
 createTabBtn("Sheriff", 3)
 
--- BOTÓN DE SETTINGS (Posicionado idealmente más arriba del fondo)
+-- BOTÓN DE SETTINGS
 local SettingsBtn = Instance.new("TextButton")
 SettingsBtn.Name = "SettingsTabButton"
 SettingsBtn.Size = UDim2.new(1, -12, 0, 32)
-SettingsBtn.Position = UDim2.new(0, 6, 1, -55) -- Subido ligeramente para que no quede tan abajo
+SettingsBtn.Position = UDim2.new(0, 6, 1, -55)
 SettingsBtn.BackgroundTransparency = 1
 SettingsBtn.Text = "Settings"
 SettingsBtn.TextColor3 = TEXT_MUTED
 SettingsBtn.Font = Enum.Font.SourceSansBold
-SettingsBtn.TextSize = 15 -- ¡Aumentado al mismo tamaño de las otras letras!
+SettingsBtn.TextSize = 15
 SettingsBtn.Active = true
 SettingsBtn.Parent = Sidebar
 
@@ -369,11 +369,199 @@ OpenCloseBtn.InputEnded:Connect(function(input)
     if input == draggingInput then draggingInput = nil end
 end)
 
+
 -- ============================================================================
--- 📝 GUÍA DE EJEMPLO: ¿CÓMO AÑADIR NUEVAS FUNCIONES DESDE TU GITHUB?
+-- 🧠 INYECCIÓN AUTOMÁTICA DE VISUALES & ESCANEO DE ROLES (PAOLO OPTIMIZED)
 -- ============================================================================
--- EJEMPLO:
--- createToggle("AutoKillToggle", "Kill Everyone", UDim2.new(0, 12, 0, 15), MurderFrame, function(estado)
---     print("Estado cambiado")
--- end)
--- ===========================================================================
+-- Módulo integrado de forma nativa al final del script para evitar archivos secundarios.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local Camera = Workspace.CurrentCamera
+
+local rolesPartida = {}
+local visualState = {
+    Highlights = false,
+    Boxes = false,
+    Names = false,
+    Tracers = false
+}
+
+-- Paleta de colores según los roles interceptados
+local ColoresESP = {
+    Murder = Color3.fromRGB(255, 35, 35),
+    Sheriff = Color3.fromRGB(35, 120, 255),
+    Innocent = Color3.fromRGB(35, 200, 95)
+}
+
+local function obtenerColorJugador(playerName)
+    local rol = rolesPartida[playerName] or "Innocent"
+    if rol == "Murderer" then return ColoresESP.Murder end
+    if rol == "Sheriff" then return ColoresESP.Sheriff end
+    return ColoresESP.Innocent
+end
+
+-- Interceptor del leak instantáneo
+local playerDataRemote = ReplicatedStorage:FindFirstChild("PlayerDataChanged", true)
+if playerDataRemote then
+    playerDataRemote.OnClientEvent:Connect(function(roundData)
+        if type(roundData) == "table" then
+            rolesPartida = {} 
+            for playerName, info in pairs(roundData) do
+                if type(info) == "table" and info.Role then
+                    rolesPartida[playerName] = info.Role
+                end
+            end
+        end
+    end)
+end
+
+-- Motor del Highlight (Siluetas) en segundo plano ligero
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if not visualState.Highlights then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p.Character and p.Character:FindFirstChild("KillerHub_Highlight") then
+                    p.Character.KillerHub_Highlight:Destroy()
+                end
+            end
+            continue
+        end
+
+        for _, p in pairs(Players:GetPlayers()) do
+            if p == LocalPlayer or not p.Character then continue end
+            local color = obtenerColorJugador(p.Name)
+            local hl = p.Character:FindFirstChild("KillerHub_Highlight")
+            if not hl then
+                hl = Instance.new("Highlight")
+                hl.Name = "KillerHub_Highlight"
+                hl.FillTransparency = 0.5
+                hl.OutlineTransparency = 0.2
+                hl.Parent = p.Character
+            end
+            hl.FillColor = color
+            hl.OutlineColor = color
+        end
+    end
+end)
+
+-- Motor 2D Ultra Optimizado (Cajas finas, nombres compactos y tracers delgados)
+local function iniciarMotorESP2D()
+    local folder = CoreGui:FindFirstChild("KillerHub_ESP_Folder")
+    if folder then folder:Destroy() end
+    
+    folder = Instance.new("Folder", CoreGui)
+    folder.Name = "KillerHub_ESP_Folder"
+
+    local function crearObjetosESP(p)
+        if p == LocalPlayer then return end
+        
+        local espGui = Instance.new("ScreenGui", folder)
+        espGui.Name = "ESP_" .. p.Name
+        
+        -- Configuración de Tracers (Línea ultra delgada de 1 pixel)
+        local line = Instance.new("Frame", espGui)
+        line.Size = UDim2.new(0, 1, 0, 0)
+        line.BorderSizePixel = 0
+        line.AnchorPoint = Vector2.new(0.5, 0)
+        line.Visible = false
+        
+        -- Configuración de Cajas (Borde limpio de 1 pixel)
+        local box = Instance.new("Frame", espGui)
+        box.BackgroundTransparency = 1
+        box.BorderSizePixel = 1
+        box.AnchorPoint = Vector2.new(0.5, 0.5)
+        box.Visible = false
+        
+        -- Configuración de Nombres (Compacto y legible)
+        local nameLabel = Instance.new("TextLabel", espGui)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextSize = 12
+        nameLabel.Font = Enum.Font.SourceSansBold
+        nameLabel.TextStrokeTransparency = 0
+        nameLabel.AnchorPoint = Vector2.new(0.5, 1)
+        nameLabel.Visible = false
+
+        local renderConnection
+        renderConnection = RunService.RenderStepped:Connect(function()
+            if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then
+                line.Visible = false; box.Visible = false; nameLabel.Visible = false
+                return
+            end
+            
+            local color = obtenerColorJugador(p.Name)
+            local hrp = p.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            
+            -- Control de visibilidad según los estados booleanos de los botones
+            line.Visible = onScreen and visualState.Tracers
+            box.Visible = onScreen and visualState.Boxes
+            nameLabel.Visible = onScreen and visualState.Names
+            
+            if not onScreen then return end
+            
+            -- Dibujar líneas delgadas desde el centro inferior
+            if visualState.Tracers then
+                line.BackgroundColor3 = color
+                local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                local dist = (Vector2.new(pos.X, pos.Y) - startPos).Magnitude
+                line.Size = UDim2.new(0, 1, 0, dist)
+                line.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
+                line.Rotation = math.atan2(pos.Y - startPos.Y, pos.X - startPos.X) * (180 / math.pi) - 90
+            end
+            
+            -- Dibujar cajas y nombres proporcionales a la distancia
+            if visualState.Boxes or visualState.Names then
+                local sizeVec = Vector3.new(2, 3, 0)
+                local sizePos = Camera:WorldToViewportPoint(hrp.Position + sizeVec)
+                local w = math.abs(sizePos.X - pos.X) * 2
+                local h = math.abs(sizePos.Y - pos.Y) * 2
+                
+                if visualState.Boxes then
+                    box.Size = UDim2.new(0, w, 0, h)
+                    box.Position = UDim2.new(0, pos.X, 0, pos.Y)
+                    box.BorderColor3 = color
+                end
+                
+                if visualState.Names then
+                    nameLabel.Text = p.Name
+                    nameLabel.TextColor3 = color
+                    nameLabel.Position = UDim2.new(0, pos.X, 0, pos.Y - (h / 2) - 5)
+                end
+            end
+        end)
+        
+        -- Limpieza automática si el jugador abandona
+        p.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                renderConnection:Disconnect()
+                espGui:Destroy()
+            end
+        end)
+    end
+
+    for _, p in pairs(Players:GetPlayers()) do crearObjetosESP(p) end
+    Players.PlayerAdded:Connect(crearObjetosESP)
+end
+
+-- Inicializar el motor visual básico
+iniciarMotorESP2D()
+
+-- Creación de los Toggles dentro de tu VisualsFrame de manera ordenada e impecable
+createToggle("EspHighlights", "Instant Highlight Roles", UDim2.new(0, 12, 0, 15), VisualsFrame, function(state)
+    visualState.Highlights = state
+end)
+
+createToggle("EspBoxes", "ESP Box (Roles Colored)", UDim2.new(0, 12, 0, 65), VisualsFrame, function(state)
+    visualState.Boxes = state
+end)
+
+createToggle("EspNames", "ESP Name (Roles Colored)", UDim2.new(0, 12, 0, 115), VisualsFrame, function(state)
+    visualState.Names = state
+end)
+
+createToggle("EspTracers", "ESP Tracers (Thin Lines)", UDim2.new(0, 12, 0, 165), VisualsFrame, function(state)
+    visualState.Tracers = state
+end)
