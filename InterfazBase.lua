@@ -293,7 +293,8 @@ local function createSlider(name, text, position, parent, callback)
     Track.Text = ""
     Track.AutoButtonColor = false
     Track.Active = true 
-    Track.Parent = Track
+    Track.Parent = SliderFrame
+
     local TrackCorner = Instance.new("UICorner") TrackCorner.CornerRadius = UDim.new(0, 2) TrackCorner.Parent = Track
 
     local Fill = Instance.new("Frame")
@@ -404,12 +405,11 @@ end)
 OpenCloseBtn.InputEnded:Connect(function(input) if input == draggingInput then draggingInput = nil end end)
 
 -- ============================================================================
--- 🧠 MOTOR DE DETECCIÓN INSTANTÁNEA CORE
+-- 🧠 MOTOR DE DETECCIÓN INSTANTÁNEA CORE (Bypass de Lag del Servidor)
 -- ============================================================================
 local RunService = game:GetService("RunService")
 local rolesPartida = {}
 
--- Tabla de colores globales (Inocente, Asesino, Sheriff y Héroe Oscurito)
 local ColoresESP = {
     Murder = Color3.fromRGB(215, 25, 25),
     Sheriff = Color3.fromRGB(25, 100, 225),
@@ -417,12 +417,24 @@ local ColoresESP = {
     Innocent = Color3.fromRGB(25, 175, 80)
 }
 
-local function obtenerColorJugador(playerName)
+-- Función avanzada: Devuelve el color e intercepta el rol al instante inspeccionando el inventario físico
+local function obtenerColorYRolJugador(playerName)
     local rol = rolesPartida[playerName] or "Innocent"
-    if rol == "Murderer" then return ColoresESP.Murder end
-    if rol == "Sheriff" then return ColoresESP.Sheriff end
-    if rol == "Hero" then return ColoresESP.Hero end
-    return ColoresESP.Innocent
+    local p = Players:FindFirstChild(playerName)
+    
+    -- DETECCIÓN INSTANTÁNEA: Si el servidor dice que es inocente o no sabe, pero físicamente tiene la pistola, ¡Es el Héroe!
+    if p and rol ~= "Murderer" and rol ~= "Sheriff" then
+        local char = p.Character
+        local backpack = p:FindFirstChild("Backpack")
+        if (char and char:FindFirstChild("Gun")) or (backpack and backpack:FindFirstChild("Gun")) then
+            rol = "Hero"
+        end
+    end
+
+    if rol == "Murderer" then return ColoresESP.Murder, "Murderer" end
+    if rol == "Sheriff" then return ColoresESP.Sheriff, "Sheriff" end
+    if rol == "Hero" then return ColoresESP.Hero, "Hero" end
+    return ColoresESP.Innocent, "Innocent"
 end
 
 -- Interceptor nativo original super rápido
@@ -443,7 +455,7 @@ end
 -- Motor de Siluetas (Highlights) pasivo
 task.spawn(function()
     while true do
-        task.wait(0.3)
+        task.wait(0.1) -- Bajado a 0.1 para que refresque las siluetas el triple de rápido
         if not Config.Highlights then
             for _, p in pairs(Players:GetPlayers()) do
                 if p.Character and p.Character:FindFirstChild("KillerHub_Highlight") then
@@ -455,7 +467,7 @@ task.spawn(function()
 
         for _, p in pairs(Players:GetPlayers()) do
             if p == LocalPlayer or not p.Character then continue end
-            local color = obtenerColorJugador(p.Name)
+            local color = obtenerColorYRolJugador(p.Name)
             local hl = p.Character:FindFirstChild("KillerHub_Highlight")
             if not hl then
                 hl = Instance.new("Highlight")
@@ -471,7 +483,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- 📡 PROCESADOR VISUAL 3D (RENDER LOOP)
+-- 📡 PROCESADOR VISUAL 3D (RENDER LOOP - MÁXIMA VELOCIDAD)
 -- ============================================================================
 RunService.RenderStepped:Connect(function()
     -- 1. ESP JUGADORES (Cajas y Nombres con Roles Dinámicos)
@@ -481,8 +493,7 @@ RunService.RenderStepped:Connect(function()
         
         if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
             local hrp = char.HumanoidRootPart
-            local color = obtenerColorJugador(p.Name)
-            local rol = rolesPartida[p.Name] or "Innocent"
+            local color, rol = obtenerColorYRolJugador(p.Name) -- Obtiene rol y color en tiempo real sin lag
             
             -- Caja ESP Estilo Fino Adaptado
             local box = char:FindFirstChild("KH_BoxGui")
@@ -495,6 +506,7 @@ RunService.RenderStepped:Connect(function()
                     box.Parent = char
                     
                     local f = Instance.new("Frame")
+                    f.Name = "BoxFrame"
                     f.Size = UDim2.new(1, 0, 1, 0)
                     f.BackgroundTransparency = 1
                     f.Parent = box
@@ -504,7 +516,9 @@ RunService.RenderStepped:Connect(function()
                     stroke.Parent = f
                 end
                 box.Adornee = hrp
-                box.Frame.UIStroke.Color = color
+                if box:FindFirstChild("BoxFrame") and box.BoxFrame:FindFirstChildWhichIsA("UIStroke") then
+                    box.BoxFrame.UIStroke.Color = color
+                end
             else
                 if box then box:Destroy() end
             end
@@ -616,4 +630,4 @@ createSlider("NameSize", "ESP Name Text Size", UDim2.new(0, 12, 0, 165), Visuals
 createToggle("GunHighlight", "Gun Drop Highlight (Blood Red)", UDim2.new(0, 12, 0, 215), VisualsFrame, function(s) end)
 createToggle("GunEspName", "Gun Drop ESP Name 🇦🇱", UDim2.new(0, 12, 0, 265), VisualsFrame, function(s) end)
 
-warn("✅ [KillerHub | Premium] - Configuración guardada, Héroe asignado y Gun Drop sin bordes blancos.")
+warn("✅ [KillerHub | Premium] - Detección física del Héroe añadida. Cero retrasos de servidor.")
