@@ -23,16 +23,14 @@ local Config = {
     Boxes = false,
     Names = false,
     Tracers = false,
-    MenuOpacity = 1,     -- 1 significa 100% visible (0% transparencia)
+    MenuOpacity = 1,
     ButtonOpacity = 1
 }
 
 local function saveConfig()
     if writefile then
         local success, json = pcall(function() return HttpService:JSONEncode(Config) end)
-        if success then
-            writefile(FILE_NAME, json)
-        end
+        if success then writefile(FILE_NAME, json) end
     end
 end
 
@@ -42,15 +40,12 @@ local function loadConfig()
         if success then
             local success2, data = pcall(function() return HttpService:JSONDecode(json) end)
             if success2 and type(data) == "table" then
-                for k, v in pairs(data) do
-                    Config[k] = v
-                end
+                for k, v in pairs(data) do Config[k] = v end
             end
         end
     end
 end
 
--- Cargar configuración guardada antes de pintar la interfaz
 loadConfig()
 
 -- CONTENEDOR PRINCIPAL
@@ -59,7 +54,7 @@ ScreenGui.Name = "KillerHub_MM2"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
--- PALETA DE COLORES (Estilo Dark Premium)
+-- PALETA DE COLORES DE LA INTERFAZ (Intacta, estilo Dark Premium)
 local BG_MAIN = Color3.fromRGB(14, 14, 14)      
 local BG_SIDEBAR = Color3.fromRGB(18, 18, 18)
 local BG_SECONDARY = Color3.fromRGB(22, 22, 22) 
@@ -67,12 +62,11 @@ local ACCENT_GREEN = Color3.fromRGB(0, 230, 115)
 local TEXT_WHITE = Color3.fromRGB(240, 240, 240)
 local TEXT_MUTED = Color3.fromRGB(130, 130, 130)
 
--- COLORES DE ROLES PARA EL ESP
+-- 🎨 NUEVOS COLORES OSCUROS PARA EL ESP DE JUGADORES
 local ColoresESP = {
-    Murderer = Color3.fromRGB(255, 35, 35),
-    Sheriff = Color3.fromRGB(35, 115, 255),
-    Innocent = Color3.fromRGB(0, 230, 115),
-    GunDrop = Color3.fromRGB(255, 215, 0)
+    Murderer = Color3.fromRGB(140, 15, 15),   -- Rojo Carmesí Oscuro
+    Sheriff = Color3.fromRGB(15, 50, 140),    -- Azul Marino Profundo
+    Innocent = Color3.fromRGB(10, 100, 45)    -- Verde Bosque Oscuro
 }
 
 -- VENTANA PRINCIPAL
@@ -189,9 +183,7 @@ local function createTabBtn(text, order)
     local corner = Instance.new("UICorner") corner.CornerRadius = UDim.new(0, 4) corner.Parent = btn
     tabButtons[text] = btn
     
-    btn.MouseButton1Click:Connect(function()
-        updateTabVisuals(text)
-    end)
+    btn.MouseButton1Click:Connect(function() updateTabVisuals(text) end)
 end
 
 createTabBtn("Visuals", 1)
@@ -213,11 +205,9 @@ SettingsBtn.Parent = Sidebar
 local SettingsBtnCorner = Instance.new("UICorner") SettingsBtnCorner.CornerRadius = UDim.new(0, 4) SettingsBtnCorner.Parent = SettingsBtn
 tabButtons["Settings"] = SettingsBtn
 
-SettingsBtn.MouseButton1Click:Connect(function()
-    updateTabVisuals("Settings")
-end)
+SettingsBtn.MouseButton1Click:Connect(function() updateTabVisuals("Settings") end)
 
--- 🛠️ FÁBRICA DE COMPONENTES CON MEMORIA INTEGRADA
+-- FABRICA DE COMPONENTES CON MEMORIA
 local function createToggle(configKey, text, position, parent, callback)
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Name = configKey
@@ -248,17 +238,15 @@ local function createToggle(configKey, text, position, parent, callback)
     Indicator.Parent = ToggleButton
     local IndicatorCorner = Instance.new("UICorner") IndicatorCorner.CornerRadius = UDim.new(0, 3) IndicatorCorner.Parent = Indicator
 
-    -- Cargar estado inicial desde el archivo guardado
     local state = Config[configKey] or false
     Indicator.BackgroundColor3 = state and ACCENT_GREEN or Color3.fromRGB(45, 45, 45)
     ToggleLabel.TextColor3 = state and TEXT_WHITE or TEXT_MUTED
-    task.spawn(function() callback(state) end) -- Ejecutar la función directo si estaba prendida
+    task.spawn(function() callback(state) end)
 
     ToggleButton.MouseButton1Click:Connect(function()
         state = not state
         Config[configKey] = state
-        saveConfig() -- Guardar en el almacenamiento local al cambiar
-        
+        saveConfig()
         TweenService:Create(Indicator, TweenInfo.new(0.15), {BackgroundColor3 = state and ACCENT_GREEN or Color3.fromRGB(45, 45, 45)}):Play()
         ToggleLabel.TextColor3 = state and TEXT_WHITE or TEXT_MUTED
         callback(state)
@@ -316,9 +304,7 @@ local function createSlider(configKey, text, position, parent, callback)
     Knob.Active = true
     Knob.Parent = Track
     local KnobCorner = Instance.new("UICorner") KnobCorner.CornerRadius = UDim.new(1, 0) KnobCorner.Parent = Knob
-    local KnobStroke = Instance.new("UIStroke") KnobStroke.Thickness = 1 KnobStroke.Color = Color3.fromRGB(0, 0, 0) KnobStroke.Parent = Knob
 
-    -- Cargar porcentaje inicial guardado
     local percentage = Config[configKey] or 1
     Fill.Size = UDim2.new(percentage, 0, 1, 0)
     Knob.Position = UDim2.new(percentage, -5, 0.5, -5)
@@ -328,8 +314,7 @@ local function createSlider(configKey, text, position, parent, callback)
     local function updateSlider(input)
         percentage = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
         Config[configKey] = percentage
-        saveConfig() -- Guardar cambio de barra flotante
-        
+        saveConfig()
         Fill.Size = UDim2.new(percentage, 0, 1, 0)
         Knob.Position = UDim2.new(percentage, -5, 0.5, -5)
         ValueLabel.Text = math.floor(percentage * 100) .. "%"
@@ -339,8 +324,7 @@ local function createSlider(configKey, text, position, parent, callback)
     local sliding = false
     Track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliding = true 
-            updateSlider(input)
+            sliding = true updateSlider(input)
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -355,7 +339,6 @@ local function createSlider(configKey, text, position, parent, callback)
     end)
 end
 
--- CONTROLADORES DE TRANSPARENCIA EN AJUSTES
 createSlider("MenuOpacity", "Menu Transparency", UDim2.new(0, 12, 0, 15), SettingsFrame, function(val)
     local alpha = 1 - val
     MainFrame.BackgroundTransparency = alpha
@@ -393,22 +376,15 @@ local menuVisible = true
 OpenCloseBtn.MouseButton1Click:Connect(function()
     menuVisible = not menuVisible
     MainFrame.Visible = menuVisible
-    if menuVisible then
-        OpenCloseBtn.Text = "H"
-        OpenCloseBtn.TextColor3 = ACCENT_GREEN
-    else
-        OpenCloseBtn.Text = "K"
-        OpenCloseBtn.TextColor3 = TEXT_WHITE
-    end
+    OpenCloseBtn.Text = menuVisible and "H" or "K"
+    OpenCloseBtn.TextColor3 = menuVisible and ACCENT_GREEN or TEXT_WHITE
 end)
 
 -- ARRASTRE DEL BOTÓN FLOTANTE
 local dragStart = nil local startPos = nil local draggingInput = nil
 OpenCloseBtn.InputBegan:Connect(function(input)
     if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        draggingInput = input
-        dragStart = input.Position
-        startPos = OpenCloseBtn.Position
+        draggingInput = input dragStart = input.Position startPos = OpenCloseBtn.Position
     end
 end)
 UserInputService.InputChanged:Connect(function(input)
@@ -417,12 +393,10 @@ UserInputService.InputChanged:Connect(function(input)
         OpenCloseBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-OpenCloseBtn.InputEnded:Connect(function(input)
-    if input == draggingInput then draggingInput = nil end
-end)
+OpenCloseBtn.InputEnded:Connect(function(input) if input == draggingInput then draggingInput = nil end end)
 
 -- ============================================================================
--- 📡 ENGINE DE ROLES Y LOGICA ESP (Auto-Sincronizado)
+-- 📡 ENGINE ESP MEJORADO (Jugadores Oscuros + Pistola Caída Especial)
 -- ============================================================================
 local SwappedStates = { Highlights = false, Boxes = false, Names = false, Tracers = false }
 local linesCache = {}
@@ -439,7 +413,13 @@ local function conseguirRol(p)
     return "Innocent"
 end
 
+-- Buscador en tiempo real de la pistola tirada en el suelo
+local function buscarPistolaCaida()
+    return Workspace:FindFirstChild("GunDrop", true)
+end
+
 RunService.RenderStepped:Connect(function()
+    -- 1. RENDERIZADO DE JUGADORES (Colores Oscuros)
     for _, p in pairs(Players:GetPlayers()) do
         if p == LocalPlayer then continue end
         local char = p.Character
@@ -450,86 +430,45 @@ RunService.RenderStepped:Connect(function()
             local color = ColoresESP[role]
             local vector, enPantalla = Camera:WorldToViewportPoint(hrp.Position)
             
-            -- 1. HIGHLIGHTS SYSTEM
+            -- Highlights
             local hl = char:FindFirstChild("KH_Highlight")
             if SwappedStates.Highlights then
-                if not hl then
-                    hl = Instance.new("Highlight")
-                    hl.Name = "KH_Highlight"
-                    hl.Parent = char
-                end
-                hl.FillColor = color
-                hl.OutlineColor = color
-                hl.FillTransparency = 0.5
-                hl.OutlineTransparency = 0.2
+                if not hl then hl = Instance.new("Highlight") hl.Name = "KH_Highlight" hl.Parent = char end
+                hl.FillColor = color hl.OutlineColor = color hl.FillTransparency = 0.5 hl.OutlineTransparency = 0.2
             else
                 if hl then hl:Destroy() end
             end
             
-            -- 2. BOX SYSTEM
+            -- Boxes
             local box = char:FindFirstChild("KH_BoxGui")
             if SwappedStates.Boxes then
                 if not box then
-                    box = Instance.new("BillboardGui")
-                    box.Name = "KH_BoxGui"
-                    box.AlwaysOnTop = true
-                    box.Size = UDim2.new(4.5, 0, 6, 0)
-                    box.Parent = char
-                    
-                    local f = Instance.new("Frame")
-                    f.Size = UDim2.new(1, 0, 1, 0)
-                    f.BackgroundTransparency = 1
-                    f.Parent = box
-                    
-                    local stroke = Instance.new("UIStroke")
-                    stroke.Thickness = 2
-                    stroke.Parent = f
+                    box = Instance.new("BillboardGui") box.Name = "KH_BoxGui" box.AlwaysOnTop = true box.Size = UDim2.new(4.5, 0, 6, 0) box.Parent = char
+                    local f = Instance.new("Frame") f.Size = UDim2.new(1, 0, 1, 0) f.BackgroundTransparency = 1 f.Parent = box
+                    local stroke = Instance.new("UIStroke") stroke.Thickness = 2 stroke.Parent = f
                 end
-                box.Adornee = hrp
-                box.Frame.UIStroke.Color = color
+                box.Adornee = hrp box.Frame.UIStroke.Color = color
             else
                 if box then box:Destroy() end
             end
             
-            -- 3. NAMES SYSTEM
+            -- Names
             local nameEs = char:FindFirstChild("KH_NameGui")
             if SwappedStates.Names then
                 if not nameEs then
-                    nameEs = Instance.new("BillboardGui")
-                    nameEs.Name = "KH_NameGui"
-                    nameEs.AlwaysOnTop = true
-                    nameEs.Size = UDim2.new(0, 100, 0, 20)
-                    nameEs.StudsOffset = Vector3.new(0, 3.5, 0)
-                    nameEs.Parent = char
-                    
-                    local tl = Instance.new("TextLabel")
-                    tl.Size = UDim2.new(1, 0, 1, 0)
-                    tl.BackgroundTransparency = 1
-                    tl.Font = Enum.Font.SourceSansBold
-                    tl.TextSize = 14
-                    tl.TextStrokeTransparency = 0
-                    tl.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-                    tl.Parent = nameEs
+                    nameEs = Instance.new("BillboardGui") nameEs.Name = "KH_NameGui" nameEs.AlwaysOnTop = true nameEs.Size = UDim2.new(0, 100, 0, 20) nameEs.StudsOffset = Vector3.new(0, 3.5, 0) nameEs.Parent = char
+                    local tl = Instance.new("TextLabel") tl.Size = UDim2.new(1, 0, 1, 0) tl.BackgroundTransparency = 1 tl.Font = Enum.Font.SourceSansBold tl.TextSize = 14 tl.TextStrokeTransparency = 0 tl.TextStrokeColor3 = Color3.fromRGB(0,0,0) tl.Parent = nameEs
                 end
-                nameEs.Adornee = hrp
-                nameEs.TextLabel.Text = p.Name .. " [" .. role .. "]"
-                nameEs.TextLabel.TextColor3 = color
+                nameEs.Adornee = hrp nameEs.TextLabel.Text = p.Name .. " [" .. role .. "]" nameEs.TextLabel.TextColor3 = color
             else
                 if nameEs then nameEs:Destroy() end
             end
             
-            -- 4. TRACERS SYSTEM
+            -- Tracers
             if SwappedStates.Tracers and enPantalla then
                 local line = linesCache[p.Name]
-                if not line then
-                    line = Drawing.Line.new()
-                    line.Thickness = 1.5
-                    linesCache[p.Name] = line
-                end
-                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                line.To = Vector2.new(vector.X, vector.Y)
-                line.Color = color
-                line.Visible = true
+                if not line then line = Drawing.Line.new() line.Thickness = 1.5 linesCache[p.Name] = line end
+                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) line.To = Vector2.new(vector.X, vector.Y) line.Color = color line.Visible = true
             else
                 if linesCache[p.Name] then linesCache[p.Name].Visible = false end
             end
@@ -542,17 +481,58 @@ RunService.RenderStepped:Connect(function()
             if linesCache[p.Name] then linesCache[p.Name].Visible = false end
         end
     end
-end)
 
-Players.PlayerRemoving:Connect(function(p)
-    if linesCache[p.Name] then
-        linesCache[p.Name]:Remove()
-        linesCache[p.Name] = nil
+    -- 2. RENDERIZADO EXCLUSIVO PARA LA PISTOLA CAÍDA (Highlight Rojo Sangre + Tracer Negro)
+    local pistola = buscarPistolaCaida()
+    if pistola then
+        local parteObjetivo = pistola:IsA("Model") and (pistola.PrimaryPart or pistola:FindFirstChildWhichIsA("BasePart")) or pistola
+        if parteObjetivo then
+            local vectorPistola, enPantallaPistola = Camera:WorldToViewportPoint(parteObjetivo.Position)
+            
+            -- A) Highlight Rojo Sangre
+            local gunHl = pistola:FindFirstChild("KH_GunHighlight")
+            if SwappedStates.Highlights then
+                if not gunHl then
+                    gunHl = Instance.new("Highlight")
+                    gunHl.Name = "KH_GunHighlight"
+                    gunHl.Parent = pistola
+                end
+                gunHl.FillColor = Color3.fromRGB(150, 0, 0)       -- Rojo Sangre puro
+                gunHl.OutlineColor = Color3.fromRGB(255, 0, 0)    -- Borde de advertencia
+                gunHl.FillTransparency = 0.35
+                gunHl.OutlineTransparency = 0.1
+            else
+                if gunHl then gunHl:Destroy() end
+            end
+
+            -- B) Tracer Negro Impenetrable
+            if SwappedStates.Tracers and enPantallaPistola then
+                local gunLine = linesCache["__GunDropLine__"]
+                if not gunLine then
+                    gunLine = Drawing.Line.new()
+                    gunLine.Thickness = 2.5                       -- Un poco más gruesa para que resalte la línea negra
+                    linesCache["__GunDropLine__"] = gunLine
+                end
+                gunLine.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                gunLine.To = Vector2.new(vectorPistola.X, vectorPistola.Y)
+                gunLine.Color = Color3.fromRGB(0, 0, 0)           -- Negro Sólido
+                gunLine.Visible = true
+            else
+                if linesCache["__GunDropLine__"] then linesCache["__GunDropLine__"].Visible = false end
+            end
+        end
+    else
+        -- Ocultar tracer de la pistola si es recogida o no existe
+        if linesCache["__GunDropLine__"] then linesCache["__GunDropLine__"].Visible = false end
     end
 end)
 
+Players.PlayerRemoving:Connect(function(p)
+    if linesCache[p.Name] then linesCache[p.Name]:Remove() linesCache[p.Name] = nil end
+end)
+
 -- ============================================================================
--- 💉 INYECCIÓN DE BOTONES CON MEMORIA AUTOMÁTICA
+-- 💉 INYECCIÓN DE BOTONES CON CONEXIÓN CONFIABLE
 -- ============================================================================
 createToggle("Highlights", "Instant Highlight Roles", UDim2.new(0, 12, 0, 15), VisualsFrame, function(state)
     SwappedStates.Highlights = state
@@ -573,4 +553,4 @@ createToggle("Tracers", "ESP Tracers (Thin Lines)", UDim2.new(0, 12, 0, 165), Vi
     end
 end)
 
-print("💾 [KillerHub] - Auto-guardado activado. Tu configuración se cargará sola siempre.")
+print("✅ [KillerHub] Sincronizado: Jugadores oscuros, Pistola en Rojo Sangre y Tracer Negro.")
