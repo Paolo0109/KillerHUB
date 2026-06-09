@@ -376,4 +376,4 @@ end)
 -- createToggle("AutoKillToggle", "Kill Everyone", UDim2.new(0, 12, 0, 15), MurderFrame, function(estado)
 --     print("Estado cambiado")
 -- end)
--- ============================================================================
+-- ===========================================================================
