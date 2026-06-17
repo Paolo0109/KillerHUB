@@ -1,130 +1,124 @@
 -- ============================================================================
--- 🚀 SCRIPT PRINCIPAL (EJEMPLO DE INTEGRACIÓN COMPLETA DESDE GITHUB)
+-- 👻 KILLER HUB | EJEMPLO DE INTEGRACIÓN COMPLETA DESDE GITHUB
 -- ============================================================================
--- Este script simula cómo un usuario llamaría a tu API guardada en GitHub
--- y activaría absolutamente todas las funciones de KillerHub.
+-- Este script jala tu librería directamente desde tu repositorio de GitHub 
+-- y muestra cómo crear y usar cada componente disponible.
 
--- 1. Cargar la librería de forma externa (Haciendo uso del 'return KillerHub')
-local KillerHub = loadstring(game:HttpGet("https://raw.githubusercontent.com/TuUsuario/TuRepositorio/main/KillerHubLibrary.lua"))()
+-- 1. CARGAR TU LIBRERÍA EXTERNA (Gracias al 'return KillerHub' al final de tu API)
+local KillerHub = loadstring(game:HttpGet("https://raw.githubusercontent.com/Paolo0109/KillerHUB/refs/heads/main/InterfazBase.lua"))()
 
--- 2. Crear las pestañas principales (Tabs)
--- Argumentos: ("Nombre de Pestaña", "ID del Icono de Roblox")
+-- 2. CREAR PESTAÑAS (Tabs)
+-- Argumentos: ("Nombre de Pestaña", "ID del Icono de Roblox [Opcional]")
 local CombatTab = KillerHub:CreateTab("Combate", "rbxassetid://10747373142")
 local VisualsTab = KillerHub:CreateTab("Visuales", "rbxassetid://10747372517")
 local MiscTab = KillerHub:CreateTab("Misceláneos", "rbxassetid://10747373142")
 
--- ============================================================================
--- ⚔️ PESTAÑA: COMBATE (Ejemplos de Toggles, Sliders, Dropdowns y Multi-Dropdowns)
--- ============================================================================
 
-CombatTab:CreateSection("Automatizaciones Principales")
+-- ============================================================================
+-- ⚔️ PESTAÑA 1: COMBATE (Secciones, Toggles, Sliders, Dropdowns y Multi-Dropdowns)
+-- ============================================================================
+CombatTab:CreateSection("Automatizaciones de Combate")
 
--- [COMPONENTE 1: TOGGLE] -> Interruptor On/Off con autoguardado por bandera (flag)
+-- [COMPONENTE: TOGGLE] -> Interruptor On/Off con autoguardado por bandera (flag)
 -- Argumentos: ("NombreFlag", "Texto Visual", callback)
 local KAAuraToggle = CombatTab:CreateToggle("KillAuraActive", "Activar Kill Aura Universal", function(estado)
     print("⚔️ Kill Aura cambiado a:", estado)
 end)
 
--- Nota: Puedes forzar o cambiar el estado de un Toggle desde el código usando:
--- KAAuraToggle:Set(true) 
+-- Pista: Puedes cambiar el estado de un Toggle desde tu código con: 
+-- KAAuraToggle:Set(true)
 
--- [COMPONENTE 2: SLIDER] -> Barra deslizadora numérica
+-- [COMPONENTE: SLIDER] -> Barra deslizadora numérica
 -- Argumentos: ("NombreFlag", "Texto Visual", ValorMínimo, ValorMáximo, callback)
 local RangeSlider = CombatTab:CreateSlider("AuraRange", "Rango de Ataque (Distancia)", 5, 100, function(valor)
     print("📏 Rango de golpe ajustado a:", math.floor(valor))
 end)
 
--- Nota: Puedes forzar un valor en el Slider desde código usando:
+-- Pista: Puedes forzar un valor en el Slider desde tu código con: 
 -- RangeSlider:Set(50)
 
-CombatTab:CreateSection("Selectores de Objetivo")
+CombatTab:CreateSection("Filtros y Objetivos")
 
--- [COMPONENTE 3: DROPDOWN] -> Menú desplegable de selección única (Corregido sin bugs de UIListLayout)
+-- [COMPONENTE: DROPDOWN] -> Selección única corregido (No se esconde con el UIListLayout)
 -- Argumentos: ("NombreFlag", "Texto Visual", {"Opciones"}, callback)
 local TargetDropdown = CombatTab:CreateDropdown("AuraTarget", "Prioridad de Objetivo:", {"Más Cercano", "Menos Vida", "Solo Enemigos", "Todos"}, function(seleccionado)
     print("🎯 Prioridad fijada en:", seleccionado)
 end)
 
--- Nota: Si necesitas actualizar las opciones de un Dropdown en tiempo real (por ejemplo, una lista de jugadores):
--- TargetDropdown:Refresh({"NuevoJugador1", "NuevoJugador2", "Todos"})
+-- Pista: Si quieres refrescar las opciones (ej. lista de jugadores del server):
+-- TargetDropdown:Refresh({"Jugador1", "Jugador2", "Todos"})
 
--- [COMPONENTE 4: MULTI-DROPDOWN] -> Selección múltiple simultánea sin cerrarse
+-- [COMPONENTE: MULTI-DROPDOWN] -> Selección múltiple que permite activar varias opciones a la vez
 -- Argumentos: ("NombreFlag", "Texto Visual", {"Opciones"}, callback)
-CombatTab:CreateMultiDropdown("IgnoredTeams", "Ignorar Equipos (Múltiple):", {"Amigos", "Staff/Admins", "Neutrales", "Criminales"}, function(tablaFlags)
-    print("--- 📑 Estado Actual de Filtros Múltiples ---")
-    if tablaFlags["Amigos"] then print("-> Omitiendo Amigos: [SÍ]") else print("-> Omitiendo Amigos: [NO]") end
-    if tablaFlags["Staff/Admins"] then print("-> Omitiendo Staff: [SÍ]") end
+CombatTab:CreateMultiDropdown("IgnoredTeams", "Ignorar Equipos (Múltiple):", {"Amigos", "Staff/Admins", "Neutrales"}, function(tablaFlags)
+    print("--- 📑 Filtros Múltiples Actualizados ---")
+    if tablaFlags["Amigos"] then print("-> Ignorando Amigos: SÍ") else print("-> Ignorando Amigos: NO") end
 end)
 
 
 -- ============================================================================
--- 👁️ PESTAÑA: VISUALES (Ejemplo de Párrafos y Selector de Color Avanzado con Toggle)
+-- 👁️ PESTAÑA 2: VISUALES (Párrafos Informativos y Toggle Color Picker Avanzado)
 -- ============================================================================
+VisualsTab:CreateSection("Mensajes de Sistema")
 
-VisualsTab:CreateSection("Mensajes del Servidor")
-
--- [COMPONENTE 5: PARAGRAPH] -> Bloque de texto informativo dinámico
+-- [COMPONENTE: PARAGRAPH] -> Bloque de texto descriptivo o avisos dinámicos
 -- Argumentos: ("Título", "Contenido del texto")
-local InfoParagraph = VisualsTab:CreateParagraph("Estado del Renderizado", "Los efectos visuales y de ESP consumen recursos. Si experimentas bajones de FPS, reduce el rango de renderizado en la pestaña de configuraciones.")
+local InfoParagraph = VisualsTab:CreateParagraph("Rendimiento", "El renderizado de cuadros consume recursos del procesador. Desactívalo si notas tirones.")
 
--- Nota: Puedes modificar dinámicamente un párrafo usando sus métodos dedicados:
--- InfoParagraph:SetTitle("Nuevo Título de Alerta")
--- InfoParagraph:SetText("El texto ha cambiado dinámicamente.")
+-- Pista: Puedes modificar un párrafo en tiempo real con sus métodos:
+-- InfoParagraph:SetTitle("Nuevo Título")
+-- InfoParagraph:SetText("Nuevo contenido de texto.")
 
-VisualsTab:CreateSection("Renderizado de Entidades")
+VisualsTab:CreateSection("Colores de Interfaz")
 
--- [COMPONENTE 6: TOGGLE COLOR PICKER] -> Toggle + Selector RGB Integrado en un solo bloque
+-- [COMPONENTE: TOGGLE COLOR PICKER] -> Toggle + Selector RGB Avanzado en una sola línea
 -- Argumentos: ("FlagToggle", "FlagColor", "Texto Visual", Color3Predeterminado, CallbackToggle, CallbackColor)
 VisualsTab:CreateToggleColorPicker(
     "EspJugadores", 
     "ColorDeLosVisuales", 
     "Visualizar Cuadros (ESP Boxes)", 
-    Color3.fromRGB(255, 35, 35), -- Color por defecto (Rojo Crimson)
+    Color3.fromRGB(255, 35, 35), -- Rojo por defecto
     function(estadoToggle)
-        print("👁️ ESP Boxes activadas/desactivadas:", estadoToggle)
+        print("👁️ Estado del ESP:", estadoToggle)
     end,
     function(colorSeleccionado)
-        -- Retorna un objeto Color3 nativo de Roblox directamente utilizable
-        print("🎨 Nuevo color RGB seleccionado: ", colorSeleccionado)
+        -- Devuelve un objeto Color3 nativo de Roblox listo para usar en ESPs o UI
+        print("🎨 Nuevo color RGB:", colorSeleccionado)
     end
 )
 
 
 -- ============================================================================
--- ⚙️ PESTAÑA: MISCELÁNEOS (Ejemplos de Text Inputs, Buttons y Keybinds rápidos)
+-- ⚙️ PESTAÑA 3: MISCELÁNEOS (Inputs, Botones y Keybinds Rápidos)
 -- ============================================================================
+MiscTab:CreateSection("Enlaces Externos")
 
-MiscTab:CreateSection("Configuración Externa")
-
--- [COMPONENTE 7: INPUT / TEXTBOX] -> Caja para escribir cadenas de texto o números manuales
--- Argumentos: ("NombreFlag", "Texto Visual", "Texto de Marcador de Posición (Placeholder)", callback)
-MiscTab:CreateInput("WebhookDiscord", "Discord Webhook Logger", "Pega la URL de tu canal aquí...", function(textoIngresado)
+-- [COMPONENTE: INPUT / TEXTBOX] -> Caja de texto libre para guardar configuraciones
+-- Argumentos: ("NombreFlag", "Texto Visual", "Marcador de Posición", callback)
+MiscTab:CreateInput("WebhookDiscord", "Discord Webhook Logger", "Pega el link aquí...", function(textoIngresado)
     print("📩 URL de Webhook guardada:", textoIngresado)
 end)
 
 MiscTab:CreateSection("Acciones Directas")
 
--- [COMPONENTE 8: BUTTON] -> Botón de ejecución instantánea
+-- [COMPONENTE: BUTTON] -> Botón clásico ejecutor de funciones
 -- Argumentos: ("Texto del Botón", callback)
-MiscTab:CreateButton("Forzar Re-Sincronización de Datos", function()
-    print("⚡ Botón presionado: Re-sincronizando inventario con el servidor...")
+MiscTab:CreateButton("Re-Sincronizar Servidor", function()
+    print("⚡ Sincronizando datos con el servidor de juego...")
 end)
 
--- [COMPONENTE 9: KEYBIND] -> Asignador de teclas rápidas para ejecutar funciones internas
+-- [COMPONENTE: KEYBIND] -> Asignador de teclado interactivo para ejecutar atajos
 -- Argumentos: ("NombreFlag", "Texto Visual", Enum.KeyCode.TeclaPredeterminada, callback)
-MiscTab:CreateKeybind("TeleportKey", "Tecla de Teletransporte Rápido", Enum.KeyCode.E, function(teclaAsignada)
-    -- Retorna el objeto KeyCode presionado
-    print("⚡ ¡Función ejecutada al presionar la tecla asignada!: " .. teclaAsignada.Name)
+MiscTab:CreateKeybind("TeleportKey", "Atajo de Teletransporte", Enum.KeyCode.E, function(teclaAsignada)
+    print("⚡ ¡Presionaste la tecla de acción rápida!: " .. teclaAsignada.Name)
 end)
 
 
 -- ============================================================================
--- 💡 TIPS ÚTILES DE ACCESO GLOBAL DESDE TU SCRIPT:
+-- 💡 TIP PRO DE ACCESO GLOBAL:
 -- ============================================================================
--- Como tu framework expone la tabla KillerHub a nivel global ('getgenv().KillerHub'),
--- si en algún bucle (por ejemplo, un 'task.spawn' o un 'Stepped') necesitas leer
--- los valores de las banderas en tiempo real sin esperar los callbacks, haz esto:
+-- Si necesitas leer el valor actual de un flag dentro de un bucle infinito
+-- o un evento del juego sin usar los callbacks, puedes consultar la tabla global:
 --
--- local isActive = getgenv().KillerHub.Flags["KillAuraActive"].CurrentValue
--- local currentRange = getgenv().KillerHub.Flags["AuraRange"].CurrentValue
--- local colorRGB = getgenv().KillerHub.Flags["ColorDeLosVisuales"].CurrentValue
+-- local kaActivado = getgenv().KillerHub.Flags["KillAuraActive"].CurrentValue
+-- local colorActual = getgenv().KillerHub.Flags["ColorDeLosVisuales"].CurrentValue
