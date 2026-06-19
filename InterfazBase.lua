@@ -1,7 +1,7 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.3 - FIXED)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.2)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 🛡️ Fix: Corrección de sintaxis en Keybinds y Escudo Anti-Crash para Sliders
+-- 📱 Fix: Dropdowns, Sliders interactivos con teclado y personalización avanzada
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,7 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE TEMAS PREMIUM V2.3)
+-- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE TEMAS PREMIUM V2.2)
 -- ============================================================================
 local Themes = {
     ["Crimson Dark"] = {
@@ -61,6 +61,7 @@ local Themes = {
         TEXT_MUTED = Color3.fromRGB(130, 130, 130),
         BORDER = Color3.fromRGB(40, 40, 40)
     },
+    -- ✨ NUEVOS TEMAS PREMIUM ✨
     ["Ametista Premium"] = {
         BG_MAIN = Color3.fromRGB(13, 10, 18),
         BG_SIDEBAR = Color3.fromRGB(16, 12, 22),
@@ -156,6 +157,7 @@ local function updateGuiSize()
 end
 updateGuiSize()
 
+-- Topbar
 local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, Active = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, Topbar)
 local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0}, Topbar)
@@ -167,6 +169,7 @@ local Title = create("TextLabel", {
 }, Topbar)
 local DecorLine = create("Frame", {Size = UDim2.new(0, 50, 0, 2), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
 
+-- Contador Híbrido de Rendimiento
 local PerformanceLabel = create("TextLabel", {
     Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(1, -15, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1,
     Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED,
@@ -191,6 +194,7 @@ task.spawn(function()
     end
 end)
 
+-- Arrastre de Ventana
 local mainDragStart, mainStartPos, mainDraggingInput
 Topbar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -205,6 +209,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 Topbar.InputEnded:Connect(function(input) if input == mainDraggingInput then mainDraggingInput = nil end end)
 
+-- Panel Lateral
 local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
 local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(24, 24, 28), BorderSizePixel = 0}, Sidebar)
 
@@ -225,12 +230,14 @@ create("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 6), 
 local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
 local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
 
+-- Botón Flotante Alternador de UI
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
 local FloatingStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, OpenCloseBtn)
 local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://79918418184450", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, BtnIcon)
 
+-- Funciones Dinámicas de Opacidad y Escala del Botón
 local function updateUiOpacity()
     local trans = 1 - (Config.UiOpacity or 1)
     MainFrame.BackgroundTransparency = trans
@@ -260,6 +267,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
+-- Arrastre del Botón Flotante
 local dragStart, startPos, draggingInput
 OpenCloseBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -386,12 +394,8 @@ function TabMethods:CreateToggle(flagName, text, callback)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
 
+-- 📌 SLIDER INTELIGENTE Y FIJADO (Soporta entrada manual de teclado y reseteos limpios)
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
-    if type(min) ~= "number" or type(max) ~= "number" then
-        warn(string.format("⚠️ [KILLER HUB]: Slider Flag '%s' tiene rango inválido. Auto-ajustado.", tostring(flagName)))
-        min = tonumber(min) or 0 max = tonumber(max) or 100
-    end
-
     if Config[flagName] == nil then Config[flagName] = min end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
@@ -413,9 +417,14 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         pcall(callback, v)
     end
     
+    -- Evento FocusLost para procesar entrada manual por teclado
     ValueBox.FocusLost:Connect(function()
         local inputNum = tonumber(ValueBox.Text)
-        runSliderValue(inputNum or Flags[flagName].CurrentValue)
+        if not inputNum then
+            runSliderValue(Flags[flagName].CurrentValue) -- Si borran todo o es inválido, regresa al valor previo
+        else
+            runSliderValue(inputNum) -- Mueve el slider visualmente y actualiza de pana
+        end
     end)
     
     local sliding = false
@@ -440,6 +449,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     return {Set = function(_, value) runSliderValue(value) end}
 end
 
+-- 📌 DROPDOWN FIJADO
 function TabMethods:CreateDropdown(flagName, text, options, callback)
     if Config[flagName] == nil then Config[flagName] = options[1] or "" end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -494,6 +504,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     return {Refresh = function(_, newOptions) options = newOptions makeOptions() end}
 end
 
+-- 📌 MULTI-DROPDOWN FIJADO
 function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     if Config[flagName] == nil or type(Config[flagName]) ~= "table" then Config[flagName] = {} end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -767,7 +778,7 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.3)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.2)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
@@ -786,5 +797,26 @@ SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar 
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
 
 getgenv().KillerHub = KillerHub
-warn("🤖 [KILLER HUB]: Loaded By Paolo")
+warn([[
+  _  _  _  _  _                     _    _         _       
+ | |/ / (_)| | |                   | |  | |       | |      
+ | ' /   _ | | |  ___  _ __        | |__| |_   _  | |__    
+ |  <   | || | | / _ \| '__|       |  __  | | | | | '_ \   
+ | . \  | || | ||  __/| |          | |  | | |_| | | |_) |  
+ |_|\_\ |_||_|_| \___||_|          |_|  |_|\__,_| |_.__/   
+                                                           
+                ____   __     __                           
+               |  _ \  \ \   / /                           
+               | |_) |  \ \_/ /                            
+               |  _ <    \   /                             
+               | |_) |    | |                              
+               |____/     |_|                              
+                                                           
+  _____                 _                                  
+ |  __ \               | |                                 
+ | |__) | __ _   ___   | |  ___                            
+ |  ___/ / _` | / _ \  | | / _ \                           
+ | |    | (_| || (_) | | || (_) |                          
+ |_|     \__,_| \___/  |_| \___/                           
+]])
 return KillerHub
