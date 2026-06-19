@@ -1,7 +1,7 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.2)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.3)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 📱 Fix: Dropdowns, Sliders interactivos con teclado y personalización avanzada
+-- 🛡️ Fix: Sistema Anti-Crash con Auto-Diagnóstico para Sliders mal configurados
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,7 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE TEMAS PREMIUM V2.2)
+-- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE TEMAS PREMIUM V2.3)
 -- ============================================================================
 local Themes = {
     ["Crimson Dark"] = {
@@ -61,7 +61,6 @@ local Themes = {
         TEXT_MUTED = Color3.fromRGB(130, 130, 130),
         BORDER = Color3.fromRGB(40, 40, 40)
     },
-    -- ✨ NUEVOS TEMAS PREMIUM ✨
     ["Ametista Premium"] = {
         BG_MAIN = Color3.fromRGB(13, 10, 18),
         BG_SIDEBAR = Color3.fromRGB(16, 12, 22),
@@ -157,7 +156,6 @@ local function updateGuiSize()
 end
 updateGuiSize()
 
--- Topbar
 local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, Active = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, Topbar)
 local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0}, Topbar)
@@ -169,7 +167,6 @@ local Title = create("TextLabel", {
 }, Topbar)
 local DecorLine = create("Frame", {Size = UDim2.new(0, 50, 0, 2), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
 
--- Contador Híbrido de Rendimiento
 local PerformanceLabel = create("TextLabel", {
     Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(1, -15, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1,
     Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED,
@@ -194,7 +191,6 @@ task.spawn(function()
     end
 end)
 
--- Arrastre de Ventana
 local mainDragStart, mainStartPos, mainDraggingInput
 Topbar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -209,7 +205,6 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 Topbar.InputEnded:Connect(function(input) if input == mainDraggingInput then mainDraggingInput = nil end end)
 
--- Panel Lateral
 local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
 local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(24, 24, 28), BorderSizePixel = 0}, Sidebar)
 
@@ -230,14 +225,12 @@ create("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 6), 
 local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
 local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
 
--- Botón Flotante Alternador de UI
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
 local FloatingStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, OpenCloseBtn)
 local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://79918418184450", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, BtnIcon)
 
--- Funciones Dinámicas de Opacidad y Escala del Botón
 local function updateUiOpacity()
     local trans = 1 - (Config.UiOpacity or 1)
     MainFrame.BackgroundTransparency = trans
@@ -267,7 +260,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- Arrastre del Botón Flotante
 local dragStart, startPos, draggingInput
 OpenCloseBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -394,8 +386,15 @@ function TabMethods:CreateToggle(flagName, text, callback)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
 
--- 📌 SLIDER INTELIGENTE Y FIJADO (Soporta entrada manual de teclado y reseteos limpios)
+-- 📌 SLIDER MEJORADO CON ESCUDO ANTICRASH DIAGNÓSTICO V2.3
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
+    -- 🛡️ ESCUDO ANTICRASH (Detecta si Paolo mandó un dato NIL desde su script)
+    if type(min) ~= "number" or type(max) ~= "number" then
+        warn(string.format("⚠️ [KILLER HUB DIAGNÓSTICO]: ¡Encontré el detalle en tu script! El slider con Flag: '%s' (Texto: '%s') tiene el valor Min o Max en NIL o inválido. He aplicado de 0 a 100 de emergencia para no romper el juego. ¡Revisa ese apartado en tu código!", tostring(flagName), tostring(text)))
+        min = tonumber(min) or 0
+        max = tonumber(max) or 100
+    end
+
     if Config[flagName] == nil then Config[flagName] = min end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
@@ -417,13 +416,12 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         pcall(callback, v)
     end
     
-    -- Evento FocusLost para procesar entrada manual por teclado
     ValueBox.FocusLost:Connect(function()
         local inputNum = tonumber(ValueBox.Text)
         if not inputNum then
-            runSliderValue(Flags[flagName].CurrentValue) -- Si borran todo o es inválido, regresa al valor previo
+            runSliderValue(Flags[flagName].CurrentValue)
         else
-            runSliderValue(inputNum) -- Mueve el slider visualmente y actualiza de pana
+            runSliderValue(inputNum)
         end
     end)
     
@@ -449,7 +447,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     return {Set = function(_, value) runSliderValue(value) end}
 end
 
--- 📌 DROPDOWN FIJADO
 function TabMethods:CreateDropdown(flagName, text, options, callback)
     if Config[flagName] == nil then Config[flagName] = options[1] or "" end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -504,7 +501,6 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     return {Refresh = function(_, newOptions) options = newOptions makeOptions() end}
 end
 
--- 📌 MULTI-DROPDOWN FIJADO
 function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     if Config[flagName] == nil or type(Config[flagName]) ~= "table" then Config[flagName] = {} end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -689,7 +685,7 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     
     local listening = false
     BBtn.MouseButton1Click:Connect(function() listening = true BBtn.Text = "..." playUISound() end)
-    UserInputService.InputBegan:Connect(function(input, gp)
+    UserInputService.InputBegan:Connect(function, gp)
         if listening and input.UserInputType == Enum.UserInputType.Keyboard then
             listening = false Config[flagName] = input.KeyCode.Name Flags[flagName].CurrentValue = input.KeyCode.Name
             saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
@@ -778,7 +774,7 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.2)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.3)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
