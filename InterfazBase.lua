@@ -1,7 +1,7 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.3)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.3 - FIXED)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 🛡️ Fix: Sistema Anti-Crash con Auto-Diagnóstico para Sliders mal configurados
+-- 🛡️ Fix: Corrección de sintaxis en Keybinds y Escudo Anti-Crash para Sliders
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -386,13 +386,10 @@ function TabMethods:CreateToggle(flagName, text, callback)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
 
--- 📌 SLIDER MEJORADO CON ESCUDO ANTICRASH DIAGNÓSTICO V2.3
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
-    -- 🛡️ ESCUDO ANTICRASH (Detecta si Paolo mandó un dato NIL desde su script)
     if type(min) ~= "number" or type(max) ~= "number" then
-        warn(string.format("⚠️ [KILLER HUB DIAGNÓSTICO]: ¡Encontré el detalle en tu script! El slider con Flag: '%s' (Texto: '%s') tiene el valor Min o Max en NIL o inválido. He aplicado de 0 a 100 de emergencia para no romper el juego. ¡Revisa ese apartado en tu código!", tostring(flagName), tostring(text)))
-        min = tonumber(min) or 0
-        max = tonumber(max) or 100
+        warn(string.format("⚠️ [KILLER HUB]: Slider Flag '%s' tiene rango inválido. Auto-ajustado.", tostring(flagName)))
+        min = tonumber(min) or 0 max = tonumber(max) or 100
     end
 
     if Config[flagName] == nil then Config[flagName] = min end
@@ -418,11 +415,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     
     ValueBox.FocusLost:Connect(function()
         local inputNum = tonumber(ValueBox.Text)
-        if not inputNum then
-            runSliderValue(Flags[flagName].CurrentValue)
-        else
-            runSliderValue(inputNum)
-        end
+        runSliderValue(inputNum or Flags[flagName].CurrentValue)
     end)
     
     local sliding = false
@@ -685,7 +678,7 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     
     local listening = false
     BBtn.MouseButton1Click:Connect(function() listening = true BBtn.Text = "..." playUISound() end)
-    UserInputService.InputBegan:Connect(function, gp)
+    UserInputService.InputBegan:Connect(function(input, gp)
         if listening and input.UserInputType == Enum.UserInputType.Keyboard then
             listening = false Config[flagName] = input.KeyCode.Name Flags[flagName].CurrentValue = input.KeyCode.Name
             saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
@@ -793,26 +786,5 @@ SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar 
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
 
 getgenv().KillerHub = KillerHub
-warn([[
-  _  _  _  _  _                     _    _         _       
- | |/ / (_)| | |                   | |  | |       | |      
- | ' /   _ | | |  ___  _ __        | |__| |_   _  | |__    
- |  <   | || | | / _ \| '__|       |  __  | | | | | '_ \   
- | . \  | || | ||  __/| |          | |  | | |_| | | |_) |  
- |_|\_\ |_||_|_| \___||_|          |_|  |_|\__,_| |_.__/   
-                                                           
-                ____   __     __                           
-               |  _ \  \ \   / /                           
-               | |_) |  \ \_/ /                            
-               |  _ <    \   /                             
-               | |_) |    | |                              
-               |____/     |_|                              
-                                                           
-  _____                 _                                  
- |  __ \               | |                                 
- | |__) | __ _   ___   | |  ___                            
- |  ___/ / _` | / _ \  | | / _ \                           
- | |    | (_| || (_) | | || (_) |                          
- |_|     \__,_| \___/  |_| \___/                           
-]])
+warn("🤖 [KILLER HUB]: Loaded By Paolo")
 return KillerHub
