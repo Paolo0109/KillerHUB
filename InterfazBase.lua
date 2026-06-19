@@ -1,7 +1,7 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.1)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.2)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 📱 Fix: Dropdowns completamente funcionales y visibles
+-- 📱 Fix: Dropdowns, Sliders interactivos con teclado y personalización avanzada
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,7 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 SINOPSIS DE TEMAS VISUALES
+-- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE TEMAS PREMIUM V2.2)
 -- ============================================================================
 local Themes = {
     ["Crimson Dark"] = {
@@ -60,6 +60,34 @@ local Themes = {
         TEXT_WHITE = Color3.fromRGB(245, 245, 245),
         TEXT_MUTED = Color3.fromRGB(130, 130, 130),
         BORDER = Color3.fromRGB(40, 40, 40)
+    },
+    -- ✨ NUEVOS TEMAS PREMIUM ✨
+    ["Ametista Premium"] = {
+        BG_MAIN = Color3.fromRGB(13, 10, 18),
+        BG_SIDEBAR = Color3.fromRGB(16, 12, 22),
+        BG_SECONDARY = Color3.fromRGB(22, 17, 30),
+        ACCENT = Color3.fromRGB(157, 78, 221),
+        TEXT_WHITE = Color3.fromRGB(245, 240, 250),
+        TEXT_MUTED = Color3.fromRGB(130, 115, 145),
+        BORDER = Color3.fromRGB(45, 32, 60)
+    },
+    ["Glitch Gold"] = {
+        BG_MAIN = Color3.fromRGB(14, 13, 10),
+        BG_SIDEBAR = Color3.fromRGB(18, 16, 13),
+        BG_SECONDARY = Color3.fromRGB(24, 22, 17),
+        ACCENT = Color3.fromRGB(255, 186, 8),
+        TEXT_WHITE = Color3.fromRGB(250, 248, 240),
+        TEXT_MUTED = Color3.fromRGB(145, 135, 115),
+        BORDER = Color3.fromRGB(50, 42, 25)
+    },
+    ["Sakura Blossom"] = {
+        BG_MAIN = Color3.fromRGB(16, 12, 14),
+        BG_SIDEBAR = Color3.fromRGB(20, 15, 18),
+        BG_SECONDARY = Color3.fromRGB(26, 20, 24),
+        ACCENT = Color3.fromRGB(255, 143, 163),
+        TEXT_WHITE = Color3.fromRGB(255, 240, 243),
+        TEXT_MUTED = Color3.fromRGB(150, 120, 128),
+        BORDER = Color3.fromRGB(50, 30, 38)
     }
 }
 
@@ -71,7 +99,7 @@ local CurrentTheme = Themes["Crimson Dark"]
 local CONFIG_FILE = "KillerHub_Universal_Config.json"
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Crimson Dark",
-    GuiWidth = 0.466, GuiHeight = 0.4
+    GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 1, ToggleBtnSize = 46
 }
 local Config = {} local Flags = {}
 
@@ -132,7 +160,7 @@ updateGuiSize()
 -- Topbar
 local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, Active = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, Topbar)
-create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0}, Topbar)
+local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0}, Topbar)
 
 local Title = create("TextLabel", {
     Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1,
@@ -208,6 +236,23 @@ create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
 local FloatingStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, OpenCloseBtn)
 local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://79918418184450", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, BtnIcon)
+
+-- Funciones Dinámicas de Opacidad y Escala del Botón
+local function updateUiOpacity()
+    local trans = 1 - (Config.UiOpacity or 1)
+    MainFrame.BackgroundTransparency = trans
+    Topbar.BackgroundTransparency = trans
+    TopbarPatch.BackgroundTransparency = trans
+    Sidebar.BackgroundTransparency = trans
+end
+
+local function updateButtonSize()
+    local s = Config.ToggleBtnSize or 46
+    OpenCloseBtn.Size = UDim2.new(0, s, 0, s)
+end
+
+updateUiOpacity()
+updateButtonSize()
 
 local menuVisible = true
 local function setMenuVisibility(visible)
@@ -349,6 +394,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
 
+-- 📌 SLIDER INTELIGENTE Y FIJADO (Soporta entrada manual de teclado y reseteos limpios)
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
     if Config[flagName] == nil then Config[flagName] = min end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -370,6 +416,16 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
         pcall(callback, v)
     end
+    
+    -- Evento FocusLost para procesar entrada manual por teclado
+    ValueBox.FocusLost:Connect(function()
+        local inputNum = tonumber(ValueBox.Text)
+        if not inputNum then
+            runSliderValue(Flags[flagName].CurrentValue) -- Si borran todo o es inválido, regresa al valor previo
+        else
+            runSliderValue(inputNum) -- Mueve el slider visualmente y actualiza de pana
+        end
+    end)
     
     local sliding = false
     local function snap(input)
@@ -393,7 +449,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     return {Set = function(_, value) runSliderValue(value) end}
 end
 
--- 📌 DROPDOWN FIJADO (Ya no elimina el UIListLayout interno)
+-- 📌 DROPDOWN FIJADO
 function TabMethods:CreateDropdown(flagName, text, options, callback)
     if Config[flagName] == nil then Config[flagName] = options[1] or "" end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -722,14 +778,16 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.2)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Crimson Dark", "Midnight Emerald", "Cyberpunk Violet", "Classic Dark"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Crimson Dark", "Midnight Emerald", "Cyberpunk Violet", "Classic Dark", "Ametista Premium", "Glitch Gold", "Sakura Blossom"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateSlider("UiOpacity", "Opacidad de la Interfaz", 0.1, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl)
+SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, function(v) updateButtonSize() end)
 SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
 SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
@@ -740,7 +798,6 @@ SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() Kille
 
 getgenv().KillerHub = KillerHub
 warn([[
-
   _  _  _  _  _                     _    _         _       
  | |/ / (_)| | |                   | |  | |       | |      
  | ' /   _ | | |  ___  _ __        | |__| |_   _  | |__    
@@ -761,7 +818,5 @@ warn([[
  |  ___/ / _` | / _ \  | | / _ \                           
  | |    | (_| || (_) | | || (_) |                          
  |_|     \__,_| \___/  |_| \___/                           
-                                                           
-
 ]])
 return KillerHub
