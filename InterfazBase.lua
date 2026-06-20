@@ -234,7 +234,7 @@ local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
 local FloatingStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, OpenCloseBtn)
-local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://79918418184450", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
+local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://84689030731870", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, BtnIcon)
 
 -- Funciones Dinámicas de Opacidad y Escala del Botón
@@ -798,6 +798,7 @@ SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() Kille
 
 getgenv().KillerHub = KillerHub
 warn([[
+
   _  _  _  _  _                     _    _         _       
  | |/ / (_)| | |                   | |  | |       | |      
  | ' /   _ | | |  ___  _ __        | |__| |_   _  | |__    
@@ -818,5 +819,6 @@ warn([[
  |  ___/ / _` | / _ \  | | / _ \                           
  | |    | (_| || (_) | | || (_) |                          
  |_|     \__,_| \___/  |_| \___/                           
+
 ]])
 return KillerHub
