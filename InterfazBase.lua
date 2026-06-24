@@ -1,7 +1,8 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.3)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.4)
 -- 🧑‍💻 Desarrollado por: Paolo
 -- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
+-- ⚡ Upgrade V2.4: Drag Unificado (Móvil/PC), Safe Area, Sistema Maid/Trash e Inteligencia de Textos.
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -24,9 +25,18 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE NUEVO TEMA PREMIUM BLOOD)
+-- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE NUEVO TEMA PREMIUM VOID)
 -- ============================================================================
 local Themes = {
+    ["Void Premium"] = {
+        BG_MAIN = Color3.fromRGB(8, 5, 12),
+        BG_SIDEBAR = Color3.fromRGB(11, 8, 16),
+        BG_SECONDARY = Color3.fromRGB(15, 11, 22),
+        ACCENT = Color3.fromRGB(138, 43, 226),
+        TEXT_WHITE = Color3.fromRGB(245, 240, 255),
+        TEXT_MUTED = Color3.fromRGB(130, 115, 145),
+        BORDER = Color3.fromRGB(40, 20, 65)
+    },
     ["Crimson Dark"] = {
         BG_MAIN = Color3.fromRGB(11, 11, 13),
         BG_SIDEBAR = Color3.fromRGB(14, 14, 16),
@@ -101,14 +111,14 @@ local Themes = {
     }
 }
 
-local CurrentTheme = Themes["Crimson Dark"]
+local CurrentTheme = Themes["Void Premium"]
 
 -- ============================================================================
 -- 💾 SISTEMA DE CONFIGURACIÓN Y RECOLECTOR DE SEÑALES (ANTI-LEAKS)
 -- ============================================================================
 local CONFIG_FILE = "KillerHub_Universal_Config.json"
 local DefaultConfig = {
-    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Crimson Dark",
+    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Void Premium",
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 1, ToggleBtnSize = 46
 }
 local Config = {} local Flags = {}
@@ -154,18 +164,18 @@ local function playUISound()
 end
 
 -- ============================================================================
--- 🖥 INTERFAZ BASE TOTALMENTE ADAPTABLE
+-- 🖥 INTERFAZ BASE TOTALMENTE ADAPTABLE (UPGRADED INSETS & ZINDEX)
 -- ============================================================================
-local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
+local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
 local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0)}, ScreenGui)
 local MainStroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, MainFrame)
 
 local BordeGradient = create("UIGradient", {
     Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 55)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 35, 45)),
         ColorSequenceKeypoint.new(0.5, CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 30))
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 15, 25))
     }), Rotation = 45
 }, MainStroke)
 
@@ -209,28 +219,45 @@ task.spawn(function()
     end
 end)
 
-local mainDragStart, mainStartPos, mainDraggingInput
-connect(Topbar.InputBegan, function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        mainDraggingInput = input mainDragStart = input.Position mainStartPos = MainFrame.Position
-    end
-end)
-connect(UserInputService.InputChanged, function(input)
-    if input == mainDraggingInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - mainDragStart
-        local screenSize = Camera.ViewportSize
-        local frameSize = MainFrame.AbsoluteSize
-        
-        local absoluteX = (screenSize.X * 0.5) + (mainStartPos.X.Offset + delta.X)
-        local absoluteY = (screenSize.Y * 0.5) + (mainStartPos.Y.Offset + delta.Y)
-        
-        local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
-        local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
-        
-        MainFrame.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
-    end
-end)
-connect(Topbar.InputEnded, function(input) if input == mainDraggingInput then mainDraggingInput = nil end end)
+-- ⚡ MEJORA: MOTOR DE ARRASTRE MULTIPLATAFORMA UNIFICADO Y ULTRA-SUAVE
+local function makeDraggable(clickObject, dragObject)
+    local dragging, dragStart, startPos
+    connect(clickObject.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = dragObject.Position
+        end
+    end)
+    connect(UserInputService.InputChanged, function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            task.defer(function()
+                local delta = input.Position - dragStart
+                local screenSize = Camera.ViewportSize
+                if dragObject == MainFrame then
+                    local frameSize = MainFrame.AbsoluteSize
+                    local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
+                    local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
+                    local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
+                    local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
+                    dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
+                else
+                    local btnSize = dragObject.AbsoluteSize
+                    local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
+                    local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
+                    dragObject.Position = UDim2.new(0, newX, 0, newY)
+                end
+            end)
+        end
+    end)
+    connect(UserInputService.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+makeDraggable(Topbar, MainFrame)
 
 local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
 local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(24, 24, 28), BorderSizePixel = 0}, Sidebar)
@@ -257,6 +284,8 @@ create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
 local FloatingStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, OpenCloseBtn)
 local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://84689030731870", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, BtnIcon)
+
+makeDraggable(OpenCloseBtn, OpenCloseBtn)
 
 local function updateUiOpacity()
     local trans = 1 - (Config.UiOpacity or 1)
@@ -287,35 +316,27 @@ connect(UserInputService.InputBegan, function(input, gp)
     end
 end)
 
-local dragStart, startPos, draggingInput
-connect(OpenCloseBtn.InputBegan, function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingInput = input dragStart = input.Position startPos = OpenCloseBtn.Position
-    end
-end)
-connect(UserInputService.InputChanged, function(input)
-    if draggingInput and input == draggingInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        local screenSize = Camera.ViewportSize
-        local btnSize = OpenCloseBtn.AbsoluteSize
-        local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
-        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
-        OpenCloseBtn.Position = UDim2.new(0, newX, 0, newY)
-    end
-end)
-connect(OpenCloseBtn.InputEnded, function(input) if input == draggingInput then draggingInput = nil end end)
-
 -- ============================================================================
--- 📦 API CORE Y MOTOR DE REDISEÑO REACTIVO CENTRAL
+-- 📦 API CORE Y MOTOR DE REDISEÑO REACTIVO CENTRAL (GARBAGE COLLECTOR)
 -- ============================================================================
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
-    CurrentTab = nil, AllElements = {}, TargetThemeElements = {}
+    CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {}
 }
+
+function KillerHub:AddTask(obj)
+    table.insert(self._Trash, obj)
+    return obj
+end
 
 function KillerHub:Unload()
     for _, conn in ipairs(Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
+    end
+    for _, item in ipairs(self._Trash) do
+        if typeof(item) == "RBXScriptConnection" then pcall(function() item:Disconnect() end)
+        elseif type(item) == "thread" then pcall(function() task.cancel(item) end)
+        elseif typeof(item) == "Instance" then pcall(function() item:Destroy() end) end
     end
     if ScreenGui then ScreenGui:Destroy() end
     warn("❌ KillerHub desunificado por completo y memoria liberada.")
@@ -342,9 +363,9 @@ function KillerHub:SetTheme(themeName)
     BtnIcon.ImageColor3 = menuVisible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
     
     BordeGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 55)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 35, 45)),
         ColorSequenceKeypoint.new(0.5, CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 30))
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 15, 25))
     })
 
     for _, refreshCallback in ipairs(KillerHub.TargetThemeElements) do
@@ -406,7 +427,9 @@ function TabMethods:CreateToggle(flagName, text, callback)
     
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagName].CurrentValue
-        Flags[flagName].CurrentValue = nextState Config[flagName] = nextState saveConfig() playUISound() stateUpdate() pcall(callback, nextState)
+        Flags[flagName].CurrentValue = nextState Config[flagName] = nextState saveConfig() playUISound()
+        task.spawn(function() stateUpdate() end)
+        task.spawn(callback, nextState)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
@@ -437,8 +460,10 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     local function runSliderValue(v)
         v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
-        Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -6, 0.5, -6)
-        if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
+        task.spawn(function()
+            Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -6, 0.5, -6)
+            if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
+        end)
         pcall(callback, v)
     end
     
@@ -453,7 +478,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         runSliderValue(min + (pct * (max - min)))
     end
     
-    -- Eventos locales e inteligentes auto-desconectables para optimizar Mobile
     local dragConn, endConn
     connect(Knob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -466,6 +490,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                     snap(changedInput)
                 end
             end)
+            KillerHub:AddTask(dragConn)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
                 if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -474,6 +499,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                     if endConn then endConn:Disconnect() endConn = nil end
                 end
             end)
+            KillerHub:AddTask(endConn)
         end
     end)
     
@@ -499,7 +525,6 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     
     local Trigger = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Text = ""}, DDFrame)
     
-    -- Ajuste 50/50 y TextTruncate anti-choques visuales
     local Label = create("TextLabel", {Size = UDim2.new(0.5, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Trigger)
     local SelLabel = create("TextLabel", {Size = UDim2.new(0.5, -38, 1, 0), Position = UDim2.new(1, -38, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = Flags[flagName].CurrentValue, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, TextTruncate = Enum.TextTruncate.AtEnd}, Trigger)
     local Arrow = create("TextLabel", {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -22, 0.5, -10), BackgroundTransparency = 1, Text = "▼", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 11}, Trigger)
@@ -512,9 +537,11 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         open = not open playUISound()
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
         
-        TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + (open and 6 or 0))}):Play()
-        TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
-        TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
+        task.spawn(function()
+            TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + (open and 6 or 0))}):Play()
+            TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
+            TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
+        end)
         
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end)
@@ -527,13 +554,15 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
             
-            -- Se usa el conector nativo para evitar fugas de memoria críticas al actualizar opciones
-            OptBtn.MouseButton1Click:Connect(function()
+            local btnConn = OptBtn.MouseButton1Click:Connect(function()
                 Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name playUISound() open = false
-                TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play()
-                TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
+                task.spawn(function()
+                    TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play()
+                    TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
+                end)
                 pcall(callback, name) makeOptions()
             end)
+            KillerHub:AddTask(btnConn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -563,7 +592,6 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     
     local Trigger = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Text = ""}, MFrame)
     
-    -- FIXED: Ajuste estricto 50/50 y TextTruncate. Ataja el bug de superposición de la captura 1000570498.jpg
     local Label = create("TextLabel", {Size = UDim2.new(0.5, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Trigger)
     local SelLabel = create("TextLabel", {Size = UDim2.new(0.5, -38, 1, 0), Position = UDim2.new(1, -38, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = "...", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right, TextTruncate = Enum.TextTruncate.AtEnd}, Trigger)
     local Arrow = create("TextLabel", {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -22, 0.5, -10), BackgroundTransparency = 1, Text = "▼", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 11}, Trigger)
@@ -571,10 +599,17 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     local OptsScroll = create("ScrollingFrame", {Size = UDim2.new(1, -16, 0, 0), Position = UDim2.new(0, 8, 0, 42), BackgroundTransparency = 1, ScrollBarThickness = 2}, MFrame)
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, OptsScroll)
 
+    -- ⚡ MEJORA: VIRTUALIZACIÓN DE TEXTO CON FILTRO MÁXIMO INTELIGENTE
     local function updateText()
         local selected = {}
         for _, opt in ipairs(options) do if Config[flagName][opt] then table.insert(selected, opt) end end
-        SelLabel.Text = (#selected == 0) and "Ninguno" or table.concat(selected, ", ")
+        if #selected == 0 then
+            SelLabel.Text = "Ninguno"
+        elseif #selected > 2 then
+            SelLabel.Text = "[" .. tostring(#selected) .. " Seleccionados]"
+        else
+            SelLabel.Text = table.concat(selected, ", ")
+        end
     end
 
     local open = false
@@ -582,9 +617,11 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
         open = not open playUISound()
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
         
-        TweenService:Create(MFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + (open and 6 or 0))}):Play()
-        TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
-        TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
+        task.spawn(function()
+            TweenService:Create(MFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + (open and 6 or 0))}):Play()
+            TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
+            TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
+        end)
         
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end)
@@ -598,11 +635,11 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = isChosen and CurrentTheme.BG_MAIN or Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = isChosen and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
             
-            -- Interconexión limpia sin leaks
-            OptBtn.MouseButton1Click:Connect(function()
+            local mConn = OptBtn.MouseButton1Click:Connect(function()
                 Config[flagName][name] = not Config[flagName][name]
                 saveConfig() playUISound() updateText() makeList() pcall(callback, Config[flagName])
             end)
+            KillerHub:AddTask(mConn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -653,7 +690,9 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
 
     connect(MainTrigger.MouseButton1Click, function()
         Flags[flagToggle].CurrentValue = not Flags[flagToggle].CurrentValue
-        Config[flagToggle] = Flags[flagToggle].CurrentValue saveConfig() playUISound() stateUpdate() pcall(callbackToggle, Flags[flagToggle].CurrentValue)
+        Config[flagToggle] = Flags[flagToggle].CurrentValue saveConfig() playUISound()
+        task.spawn(function() stateUpdate() end)
+        pcall(callbackToggle, Flags[flagToggle].CurrentValue)
     end)
 
     local function createMiniSlider(labelTxt, colorValueIndex, sliderColor)
@@ -675,9 +714,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
             Config[flagColor][colorValueIndex] = pct updateColor()
         end
         
-        -- Throttling dinámico de arrastre para evitar lag de hilos en Color Pickers móviles
         local dragConn, endConn
-        KnobS.InputBegan:Connect(function(input)
+        local inputConn = KnobS.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isSliding = true snap(input)
                 if dragConn then dragConn:Disconnect() end
@@ -688,6 +726,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                         snap(changedInput)
                     end
                 end)
+                KillerHub:AddTask(dragConn)
                 
                 endConn = UserInputService.InputEnded:Connect(function(endedInput)
                     if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -696,8 +735,10 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                         if endConn then endConn:Disconnect() endConn = nil end
                     end
                 end)
+                KillerHub:AddTask(endConn)
             end
         end)
+        KillerHub:AddTask(inputConn)
     end
 
     createMiniSlider("R", 1, Color3.fromRGB(235, 40, 40))
@@ -707,7 +748,9 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local open = false
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
-        TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)}):Play()
+        task.spawn(function()
+            TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)}):Play()
+        end)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
@@ -797,7 +840,6 @@ function KillerHub:CreateTab(name, iconId)
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)}, frame)
     create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, frame)
     
-    -- Trackeo seguro para desvincular al descargar de memoria
     local sizeChangedConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
         frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20) 
     end)
@@ -863,14 +905,15 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
             if el.Instance and el.Label then el.Instance.Visible = (q == "") and true or (string.find(string.lower(el.Label.Text or ""), q) and true or false) end
         end
     end)
+    KillerHub:AddTask(searchThread)
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.3)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.4)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Crimson Dark", "Midnight Emerald", "Cyberpunk Violet", "Classic Dark", "Ametista Premium", "Glitch Gold", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Void Premium", "Crimson Dark", "Midnight Emerald", "Cyberpunk Violet", "Classic Dark", "Ametista Premium", "Glitch Gold", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 SettingsTab:CreateSlider("UiOpacity", "Opacidad de la Interfaz", 0.1, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
@@ -895,9 +938,9 @@ warn([[
  |_|\_\ |_||_|_| \___||_|          |_|  |_|\__,_| |_.__/   
                                                            
                 ____   __     __                           
-               |  _ \  \ \   / /                           
-               | |_) |  \ \_/ /                            
-               |  _ <    \   /                             
+               |  _ \  \\ \   / /                           
+               | |_) |  \\ \\_/ /                            
+               |  _ <    \\   /                             
                | |_) |    | |                              
                |____/     |_|                              
                                                            
