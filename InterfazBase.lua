@@ -1,21 +1,31 @@
 -- ============================================================================
--- 🩸 KILLER HUB UNIVERSAL FRAMEWORK | MASTER EXPERT EDITION (V3.1)
+-- 🩸 KILLER HUB UNIVERSAL FRAMEWORK | MASTER EXPERT EDITION (V3.1 - PATCHED)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 🚀 Parches: Inyección de Color Picker nativo con Canales RGB y Guardado JSON Seguro
+-- 🚀 Parches: Protección de inicio, Corrección de fugas, FPS reales y arrastre dinámico
 -- ============================================================================
 
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local Debris = game:GetService("Debris")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
+local RunService = game:GetService("RunService")
 
-local TargetParent = (gethui and gethui()) or (pcall(function() return CoreGui.Name end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+-- Asegurar la carga asíncrona del LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
+-- Intento seguro de obtener CoreGui sin provocar un crash de identidad
+local successCore, coreGuiObj = pcall(function() return game:GetService("CoreGui") end)
+local CoreGui = successCore and coreGuiObj or nil
+
+-- Entorno gráfico seguro inteligente
+local TargetParent = (gethui and gethui()) or (CoreGui and pcall(function() return CoreGui.Name end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
 
 if TargetParent:FindFirstChild("KillerHub_Universal") then
     TargetParent.KillerHub_Universal:Destroy()
@@ -66,7 +76,7 @@ local Themes = {
 local CurrentTheme = Themes["Void Premium"]
 
 -- ============================================================================
--- 💾 ALMACENAMIENTO DE PARÁMETROS LOCALES (ESCALAS PRECISAS)
+-- 💾 ALMACENAMIENTO DE PARÁMETROS LOCALES
 -- ============================================================================
 local CONFIG_FILE = "KillerHub_Universal_Config.json"
 local DefaultConfig = {
@@ -148,10 +158,14 @@ local Title = create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UD
 local DecorLine = create("Frame", {Size = UDim2.new(0, 50, 0, 2), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
 local PerformanceLabel = create("TextLabel", {Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(1, -15, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamMedium, TextSize = 11}, Topbar)
 
+-- Parche 2: Cálculo de FPS real desvinculado de las físicas limitadas
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.5) do
         if ScreenGui and ScreenGui.Parent then
-            local fps = math.floor(Workspace:GetRealPhysicsFPS())
+            local fps = 60
+            pcall(function()
+                fps = math.floor(1 / RunService.RenderStepped:Wait())
+            end)
             local ping = 0
             pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
             PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", fps, ping)
@@ -184,10 +198,11 @@ local function makeDraggable(clickObject, dragObject)
                     local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
                     dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
                 else
+                    -- Parche 3: Respetar la propiedad Scale original del botón flotante para evitar saltos bruscos
                     local btnSize = dragObject.AbsoluteSize
                     local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
                     local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
-                    dragObject.Position = UDim2.new(0, newX, 0, newY)
+                    dragObject.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
                 end
             end)
         end
@@ -274,15 +289,16 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
     end
 end)
 
+-- Parche 1: Se remueve el almacenamiento innecesario de eventos de interfaz en la tabla global
+-- Roblox gestiona la desconexión de eventos nativos automáticamente al usar :Destroy()
 function Killer:ApplyHover(instance, getNormalColor, getHoverColor, property)
     property = property or "BackgroundColor3"
-    local cEnter = instance.MouseEnter:Connect(function()
+    instance.MouseEnter:Connect(function()
         TweenService:Create(instance, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[property] = getHoverColor()}):Play()
     end)
-    local cLeave = instance.MouseLeave:Connect(function()
+    instance.MouseLeave:Connect(function()
         TweenService:Create(instance, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[property] = getNormalColor()}):Play()
     end)
-    table.insert(Connections, cEnter) table.insert(Connections, cLeave)
 end
 
 function Killer:Unload()
@@ -317,7 +333,8 @@ function TabMethods:CreateSection(text)
     local Container = create("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1}, self.Frame)
     local Label = create("TextLabel", {Size = UDim2.new(1, 0, 0, 14), BackgroundTransparency = 1, Text = text:upper(), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, Container)
     
-    local Line = create("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 0, 16), BackgroundColor3 = Color3.fromRGB(255, 255, 255)}, Container)
+    -- Parche 5: Se asigna explicitamente BorderSizePixel = 0 para limpiar el degradado de la línea
+    local Line = create("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 0, 16), BackgroundColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0}, Container)
     local Gradient = create("UIGradient", {
         Color = ColorSequence.new(CurrentTheme.ACCENT),
         Transparency = NumberSequence.new({
@@ -608,7 +625,7 @@ function TabMethods:CreateParagraph(title, text)
 end
 
 -- ============================================================================
--- 🎨 NUEVO COMPONENTE INTEGRADO: COLOR PICKER PREMIUM (V3.1 EXCLUSIVO)
+-- 🎨 COLOR PICKER PREMIUM (V3.1 EXCLUSIVO)
 -- ============================================================================
 function TabMethods:CreateColorPicker(flagName, text, defaultColor, callback)
     if Config[flagName] == nil then 
@@ -756,7 +773,8 @@ local HomeTab = Killer:CreateTab("Home", "rbxassetid://10747383845")
 HomeTab:CreateSection("Panel De Control Principal")
 
 local WelcomeCard = create("Frame", {Size = UDim2.new(1, 0, 0, 70), BackgroundColor3 = CurrentTheme.BG_MAIN}, HomeTab.Frame)
-create("UICorner", {CornerRadius = UDim.new(0, 8)}, WelcomeCard) create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, WelcomeCard)
+create("UICorner", {CornerRadius = UDim.new(0, 8)}, WelcomeCard) 
+local WelcomeStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, WelcomeCard)
 
 local AvatarImage = create("ImageLabel", {Size = UDim2.new(0, 50, 0, 50), Position = UDim2.new(0, 10, 0.5, -25), BackgroundColor3 = CurrentTheme.BG_SECONDARY, Image = "rbxassetid://0"}, WelcomeCard)
 create("UICorner", {CornerRadius = UDim.new(1, 0)}, AvatarImage)
@@ -771,17 +789,25 @@ end)
 local UserWelcomeLabel = create("TextLabel", {Size = UDim2.new(1, -80, 0, 20), Position = UDim2.new(0, 70, 0, 15), BackgroundTransparency = 1, Text = "Hola, " .. LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")", TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, WelcomeCard)
 local StatusLabel = create("TextLabel", {Size = UDim2.new(1, -80, 0, 16), Position = UDim2.new(0, 70, 0, 33), BackgroundTransparency = 1, Text = "Estatus: Premium Activo 💎", TextColor3 = Color3.fromRGB(0, 230, 115), Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left}, WelcomeCard)
 
-local ExecName = (identifyexecutor and identifyexecutor()) or "Mobile/PC Executor"
+-- Detección segura de Ejecutor con encapsulado asíncrono
+local ExecName = "Mobile/PC Executor"
+if identifyexecutor then
+    local successExec, resultExec = pcall(identifyexecutor)
+    if successExec and type(resultExec) == "string" then
+        ExecName = resultExec
+    end
+end
+
 HomeTab:CreateSection("Información De Execution")
 HomeTab:CreateParagraph("Software Detectado:", "Estás ejecutando Killer Hub mediante: " .. tostring(ExecName))
 HomeTab:CreateParagraph("Soporte Técnico Universal:", "Librería gráfica optimizada al 100% con protector perimetral contra pérdida de UI.")
 
 table.insert(Killer.TargetThemeElements, function()
-    WelcomeCard.BackgroundColor3 = CurrentTheme.BG_MAIN WelcomeCard.UIStroke.Color = CurrentTheme.BORDER UserWelcomeLabel.TextColor3 = CurrentTheme.TEXT_WHITE
+    WelcomeCard.BackgroundColor3 = CurrentTheme.BG_MAIN WelcomeStroke.Color = CurrentTheme.BORDER UserWelcomeLabel.TextColor3 = CurrentTheme.TEXT_WHITE
 end)
 
 -- ============================================================================
--- ⚙️ PESTAÑA DE AJUSTES GLOBALES (ESCALAS ESTRICTAS DE 1 EN 1)
+-- ⚙️ PESTAÑA DE AJUSTES GLOBALES
 -- ============================================================================
 local SettingsTab = Killer:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
