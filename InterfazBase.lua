@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.5)
--- 🧑‍💻 Desarrollado por: Paolo
+-- 🧑‍💻 Desarrollado por: Paolo DETRUCTOR de puchas peludas 🥵
 -- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
 -- ⚡ Upgrade V2.5: Drag Unificado sin conflicto de cámara, Sidebar Tabs Scrollable (Settings Estático) & Autosave Aislado Premium.
 -- ============================================================================
