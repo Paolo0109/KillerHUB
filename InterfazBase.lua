@@ -1,8 +1,8 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.4)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.5)
 -- 🧑‍💻 Desarrollado por: Paolo
 -- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
--- ⚡ Upgrade V2.4: Drag Unificado (Móvil/PC), Safe Area, Sistema Maid/Trash e Inteligencia de Textos.
+-- ⚡ Upgrade V2.5: Corrección crítica de fugas de memoria en Sliders/ColorPickers y Drag optimizado.
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -482,15 +482,14 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     connect(Knob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             sliding = true snap(input)
-            if dragConn then dragConn:Disconnect() end
-            if endConn then endConn:Disconnect() end
+            if dragConn then dragConn:Disconnect() dragConn = nil end
+            if endConn then endConn:Disconnect() endConn = nil end
             
             dragConn = UserInputService.InputChanged:Connect(function(changedInput)
                 if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                     snap(changedInput)
                 end
             end)
-            KillerHub:AddTask(dragConn)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
                 if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -499,7 +498,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                     if endConn then endConn:Disconnect() endConn = nil end
                 end
             end)
-            KillerHub:AddTask(endConn)
         end
     end)
     
@@ -715,18 +713,17 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         end
         
         local dragConn, endConn
-        local inputConn = KnobS.InputBegan:Connect(function(input)
+        KnobS.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isSliding = true snap(input)
-                if dragConn then dragConn:Disconnect() end
-                if endConn then endConn:Disconnect() end
+                if dragConn then dragConn:Disconnect() dragConn = nil end
+                if endConn then endConn:Disconnect() endConn = nil end
                 
                 dragConn = UserInputService.InputChanged:Connect(function(changedInput)
                     if isSliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
                         snap(changedInput)
                     end
                 end)
-                KillerHub:AddTask(dragConn)
                 
                 endConn = UserInputService.InputEnded:Connect(function(endedInput)
                     if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -735,10 +732,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                         if endConn then endConn:Disconnect() endConn = nil end
                     end
                 end)
-                KillerHub:AddTask(endConn)
             end
         end)
-        KillerHub:AddTask(inputConn)
     end
 
     createMiniSlider("R", 1, Color3.fromRGB(235, 40, 40))
@@ -909,7 +904,7 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.4)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.5)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
