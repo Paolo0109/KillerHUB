@@ -1,7 +1,7 @@
 -- ============================================================================
--- 🩸 KILLER HUB UNIVERSAL FRAMEWORK | MASTER EXPERT EDITION (V3.1 - MASTER)
+-- 🩸 KILLER HUB UNIVERSAL FRAMEWORK | MASTER EXPERT EDITION (V3.2 - OPTIMIZED)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 🚀 Parches: Color Picker RGB, Protección de Inicio, FPS Reales y Arrastre Suave
+-- 🚀 Parches: Garbage Collector Optimizado, FPS Reales, Arrastre Centralizado
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -20,11 +20,9 @@ if not LocalPlayer then
     LocalPlayer = Players.LocalPlayer
 end
 
--- Intento seguro de obtener CoreGui sin provocar un crash de identidad
+-- Entorno gráfico seguro inteligente
 local successCore, coreGuiObj = pcall(function() return game:GetService("CoreGui") end)
 local CoreGui = successCore and coreGuiObj or nil
-
--- Entorno gráfico seguro inteligente
 local TargetParent = (gethui and gethui()) or (CoreGui and pcall(function() return CoreGui.Name end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
 
 if TargetParent:FindFirstChild("KillerHub_Universal") then
@@ -76,8 +74,12 @@ local Themes = {
 local CurrentTheme = Themes["Void Premium"]
 
 -- ============================================================================
--- 💾 ALMACENAMIENTO DE PARÁMETROS LOCALES
+-- 💾 CACHÉ DE ANIMACIONES Y SISTEMA DE ALMACENAMIENTO
 -- ============================================================================
+local TweenFast = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TweenState = TweenInfo.new(0.18, Enum.EasingStyle.Quad)
+local TweenKnob = TweenInfo.new(0.18, Enum.EasingStyle.Back)
+
 local CONFIG_FILE = "KillerHub_Universal_Config.json"
 local DefaultConfig = {
     Volume = 50, ToggleKey = "RightControl", SelectedTheme = "Void Premium",
@@ -154,28 +156,53 @@ local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, Topbar)
 local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0}, Topbar)
 
-local Title = create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1, Text = "Killer Hub | Premium v3.1 👻", TextColor3 = CurrentTheme.ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14}, Topbar)
+local Title = create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1, Text = "Killer Hub | Premium v3.2 👻", TextColor3 = CurrentTheme.ACCENT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14}, Topbar)
 local DecorLine = create("Frame", {Size = UDim2.new(0, 50, 0, 2), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
 local PerformanceLabel = create("TextLabel", {Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(1, -15, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamMedium, TextSize = 11}, Topbar)
 
--- Cálculo de FPS real desvinculado de las físicas
+-- Cálculo de FPS reales preciso basado en acumulación por ciclo
+local frameCount = 0
+local lastUpdate = os.clock()
+local fpsConn = RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+end)
+table.insert(Connections, fpsConn)
+
 task.spawn(function()
-    while task.wait(0.5) do
-        if ScreenGui and ScreenGui.Parent then
-            local fps = 60
-            pcall(function()
-                fps = math.floor(1 / RunService.RenderStepped:Wait())
-            end)
-            local ping = 0
-            pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+    while ScreenGui and ScreenGui.Parent do
+        task.wait(0.5)
+        local now = os.clock()
+        local dt = now - lastUpdate
+        if dt == 0 then dt = 0.5 end
+        local fps = math.floor(frameCount / dt)
+        frameCount = 0
+        lastUpdate = now
+        
+        local ping = 0
+        pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+        if PerformanceLabel and PerformanceLabel.Parent then
             PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", fps, ping)
         else break end
     end
 end)
 
 -- ============================================================================
--- 🕹️ MOTOR DE ARRASTRE SIN DESFASES
+-- 🕹️ MOTOR DE ARRASTRE CENTRALIZADO (SIN FUGAS DE MEMORIA)
 -- ============================================================================
+local ActiveSlider = nil
+
+connect(UserInputService.InputChanged, function(input)
+    if ActiveSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        ActiveSlider.Snap(input)
+    end
+end)
+
+connect(UserInputService.InputEnded, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        ActiveSlider = nil
+    end
+end)
+
 local function makeDraggable(clickObject, dragObject)
     local dragging, dragStart, startPos
     connect(clickObject.InputBegan, function(input)
@@ -279,32 +306,30 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
     local query = SearchInput.Text:lower()
     for _, element in ipairs(Killer.AllElements) do
         if element.Label and element.Instance then
-            if query == "" or element.Label.Text:lower():find(query) then
-                element.Instance.Visible = true
-            else
-                element.Instance.Visible = false
-            end
+            element.Instance.Visible = (query == "" or element.Label.Text:lower():find(query)) and true or false
         end
     end
 end)
 
 function Killer:ApplyHover(instance, getNormalColor, getHoverColor, property)
     property = property or "BackgroundColor3"
-    instance.MouseEnter:Connect(function()
-        TweenService:Create(instance, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[property] = getHoverColor()}):Play()
+    connect(instance.MouseEnter, function()
+        TweenService:Create(instance, TweenFast, {[property] = getHoverColor()}):Play()
     end)
-    instance.MouseLeave:Connect(function()
-        TweenService:Create(instance, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[property] = getNormalColor()}):Play()
+    connect(instance.MouseLeave, function()
+        TweenService:Create(instance, TweenFast, {[property] = getNormalColor()}):Play()
     end)
 end
 
 function Killer:Unload()
+    ActiveSlider = nil
     for _, conn in ipairs(Connections) do if conn then pcall(function() conn:Disconnect() end) end end
     for _, item in ipairs(self._Trash) do
         if typeof(item) == "RBXScriptConnection" then pcall(function() item:Disconnect() end)
         elseif typeof(item) == "Instance" then pcall(function() item:Destroy() end) end
     end
     if ScreenGui then ScreenGui:Destroy() end
+    if getgenv().Killer == self then getgenv().Killer = nil end
 end
 
 function Killer:SetTheme(themeName)
@@ -361,8 +386,8 @@ function TabMethods:CreateToggle(flagName, text, callback)
     local function stateUpdate()
         local active = Flags[flagName].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        TweenService:Create(Track, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)}):Play()
-        TweenService:Create(Knob, TweenInfo.new(0.18, Enum.EasingStyle.Back), {Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
+        TweenService:Create(Track, TweenState, {BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)}):Play()
+        TweenService:Create(Knob, TweenKnob, {Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
     end
     
     connect(ToggleButton.MouseButton1Click, function()
@@ -411,25 +436,15 @@ function TabMethods:CreateSlider(flagName, text, min, max, step, callback)
         if not inputNum then runSliderValue(Flags[flagName].CurrentValue) else runSliderValue(inputNum) end
     end)
     
-    local sliding = false
     local function snap(input)
         local pct = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
         runSliderValue(min + (pct * (max - min)))
     end
     
-    local dragConn, endConn
     connect(Knob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliding = true snap(input)
-            if dragConn then dragConn:Disconnect() end if endConn then endConn:Disconnect() end
-            dragConn = UserInputService.InputChanged:Connect(function(changedInput)
-                if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then snap(changedInput) end
-            end)
-            endConn = UserInputService.InputEnded:Connect(function(endedInput)
-                if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
-                    sliding = false if dragConn then dragConn:Disconnect() dragConn = nil end if endConn then endConn:Disconnect() endConn = nil end
-                end
-            end)
+            ActiveSlider = { Snap = snap }
+            snap(input)
         end
     end)
     
@@ -467,8 +482,8 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
             
             connect(OptBtn.MouseButton1Click, function()
                 Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name playUISound() open = false
-                TweenService:Create(DDFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 0, 38)}):Play()
-                TweenService:Create(Arrow, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Rotation = 0}):Play()
+                TweenService:Create(DDFrame, TweenFast, {Size = UDim2.new(1, 0, 0, 38)}):Play()
+                TweenService:Create(Arrow, TweenFast, {Rotation = 0}):Play()
                 pcall(callback, name) makeOptions()
             end)
             Killer:ApplyHover(OptBtn, function() return CurrentTheme.BG_MAIN end, function() return CurrentTheme.BG_SECONDARY end)
@@ -479,9 +494,9 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     connect(Trigger.MouseButton1Click, function()
         open = not open playUISound()
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
-        TweenService:Create(DDFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 0, 38 + targetH + (open and 6 or 0))}):Play()
-        TweenService:Create(OptsScroll, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
-        TweenService:Create(Arrow, TweenInfo.new(0.15, Enum.EasingStyle.Back), {Rotation = open and 180 or 0}):Play()
+        TweenService:Create(DDFrame, TweenFast, {Size = UDim2.new(1, 0, 0, 38 + targetH + (open and 6 or 0))}):Play()
+        TweenService:Create(OptsScroll, TweenFast, {Size = UDim2.new(1, -16, 0, targetH)}):Play()
+        TweenService:Create(Arrow, TweenKnob, {Rotation = open and 180 or 0}):Play()
     end)
 
     table.insert(Killer.TargetThemeElements, function()
@@ -536,9 +551,9 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     connect(Trigger.MouseButton1Click, function()
         open = not open playUISound()
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
-        TweenService:Create(DDFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 0, 38 + targetH + (open and 6 or 0))}):Play()
-        TweenService:Create(OptsScroll, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
-        TweenService:Create(Arrow, TweenInfo.new(0.15, Enum.EasingStyle.Back), {Rotation = open and 180 or 0}):Play()
+        TweenService:Create(DDFrame, TweenFast, {Size = UDim2.new(1, 0, 0, 38 + targetH + (open and 6 or 0))}):Play()
+        TweenService:Create(OptsScroll, TweenFast, {Size = UDim2.new(1, -16, 0, targetH)}):Play()
+        TweenService:Create(Arrow, TweenKnob, {Rotation = open and 180 or 0}):Play()
     end)
 
     table.insert(Killer.TargetThemeElements, function()
@@ -621,7 +636,7 @@ function TabMethods:CreateParagraph(title, text)
 end
 
 -- ============================================================================
--- 🎨 COLOR PICKER PREMIUM (V3.1 EXCLUSIVO - RECONSTRUIDO Y COMPLETO)
+-- 🎨 COLOR PICKER PREMIUM (V3.2 ENRUTADO AL ARRASTRE CENTRALIZADO)
 -- ============================================================================
 function TabMethods:CreateColorPicker(flagName, text, defaultColor, callback)
     if Config[flagName] == nil then 
@@ -666,7 +681,6 @@ function TabMethods:CreateColorPicker(flagName, text, defaultColor, callback)
         
         local ValLbl = create("TextLabel", {Size = UDim2.new(0, 30, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = tostring(initVal), TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right}, Row)
 
-        local sliding = false
         local function snap(input)
             local pct = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
             local val = math.round(pct * 255)
@@ -676,16 +690,8 @@ function TabMethods:CreateColorPicker(flagName, text, defaultColor, callback)
 
         connect(Knob.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                sliding = true snap(input)
-                local drag, drop
-                drag = UserInputService.InputChanged:Connect(function(changed)
-                    if sliding and (changed.UserInputType == Enum.UserInputType.MouseMovement or changed.UserInputType == Enum.UserInputType.Touch) then snap(changed) end
-                end)
-                drop = UserInputService.InputEnded:Connect(function(ended)
-                    if ended.UserInputType == Enum.UserInputType.MouseButton1 or ended.UserInputType == Enum.UserInputType.Touch then
-                        sliding = false drag:Disconnect() drop:Disconnect()
-                    end
-                end)
+                ActiveSlider = { Snap = snap }
+                snap(input)
             end
         end)
         table.insert(Killer.TargetThemeElements, function() ValLbl.TextColor3 = CurrentTheme.TEXT_MUTED end)
@@ -698,7 +704,7 @@ function TabMethods:CreateColorPicker(flagName, text, defaultColor, callback)
     local open = false
     connect(Trigger.MouseButton1Click, function()
         open = not open playUISound()
-        TweenService:Create(CPFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 0, open and 135 or 38)}):Play()
+        TweenService:Create(CPFrame, TweenFast, {Size = UDim2.new(1, 0, 0, open and 135 or 38)}):Play()
     end)
 
     table.insert(Killer.TargetThemeElements, function()
@@ -795,7 +801,7 @@ table.insert(Killer.TargetThemeElements, function()
 end)
 
 -- ============================================================================
--- ⚙️ PESTAÑA DE AJUSTES GLOBALES (ESCALAS ESTRICTAS DE 1 EN 1)
+-- ⚙️ PESTAÑA DE AJUSTES GLOBALES
 -- ============================================================================
 local SettingsTab = Killer:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
