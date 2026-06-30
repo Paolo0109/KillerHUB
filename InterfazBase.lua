@@ -1,8 +1,8 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.6)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.6.1-FIXED)
 -- 🧑‍💻 Desarrollado por: Paolo
--- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
--- ⚡ Upgrade V2.6: ¡SISTEMA DE COLOR PICKER CON PALETA Y SLIDERS MANUALES RGB PARA MÓVIL!
+-- 📱 Fix: Solución definitiva a inputs fantasma y congelamiento en Color Pickers RGB
+-- ⚡ Upgrade: Aislamiento total de contenedores UI y optimización de memoria móvil
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -190,7 +190,7 @@ local PerformanceLabel = create("TextLabel", {
 
 task.spawn(function()
     while task.wait(1) do
-        if ScreenGui and ScreenGui.Parent then
+        if ScreenGui and ScreenGui.Parent and Players.LocalPlayer then
             local fps = math.floor(Workspace:GetRealPhysicsFPS())
             local ping = 0
             local successNetwork = pcall(function()
@@ -224,6 +224,7 @@ local function makeDraggable(clickObject, dragObject)
             task.defer(function()
                 local delta = input.Position - dragStart
                 local screenSize = Camera.ViewportSize
+                
                 if dragObject == MainFrame then
                     local frameSize = MainFrame.AbsoluteSize
                     local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
@@ -530,27 +531,36 @@ function TabMethods:CreateSlider(flagName, text, min, max, default, callback)
     
     local sliding = false
     local function snap(input)
+        if MainFrame and not MainFrame.Visible then return end
         local pct = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
         runSliderValue(min + (pct * (max - min)))
     end
     
     local dragConn, endConn
+    local activeInputObjectStandard = nil
+    
     connect(Knob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliding = true snap(input)
+            if MainFrame and not MainFrame.Visible then return end
+            
+            sliding = true 
+            activeInputObjectStandard = input
+            snap(input)
+            
             if dragConn then dragConn:Disconnect() end
             if endConn then endConn:Disconnect() end
             
             dragConn = UserInputService.InputChanged:Connect(function(changedInput)
-                if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                if sliding and changedInput.UserInputType == activeInputObjectStandard.UserInputType then
                     snap(changedInput)
                 end
             end)
             KillerHub:AddTask(dragConn)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
-                if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
+                if endedInput == activeInputObjectStandard or endedInput.UserInputType == activeInputObjectStandard.UserInputType then
                     sliding = false
+                    activeInputObjectStandard = nil
                     if dragConn then dragConn:Disconnect() dragConn = nil end
                     if endConn then endConn:Disconnect() endConn = nil end
                 end
@@ -739,7 +749,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
 end
 
 -- ============================================================================
--- 🎨 COLOR PICKERS COMPLETAMENTE REHECHOS CON PALETA FLOTANTE RGB MANUAL
+-- 🎨 COLOR PICKERS COMPLETAMENTE FIJADOS Y PREVENIDOS CONTRA CRASHES (V2.6.1)
 -- ============================================================================
 function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text, defaultToggle, defaultColor, callbackToggle, callbackColor)
     local TabSelf = self
@@ -784,10 +794,9 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, ColorBtn)
     local ColorStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ColorBtn)
 
-    -- 🛠 PALETA EXTENSIBLE MODULAR INTEGRADA (SLIDERS R, G, B INDEPENDIENTES)
     local PickerPanel = create("Frame", {Size = UDim2.new(1, -16, 0, 100), Position = UDim2.new(0, 8, 0, 42), BackgroundColor3 = Color3.fromRGB(12, 12, 14), BackgroundTransparency = 0.3}, MasterContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, PickerPanel)
-    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, PickerPanel)
+    local PanelStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, PickerPanel)
 
     local PreviewBox = create("Frame", {Size = UDim2.new(0, 35, 0, 84), Position = UDim2.new(0, 8, 0, 8), BackgroundColor3 = initialColor}, PickerPanel)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, PreviewBox)
@@ -813,6 +822,9 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
     end
 
     local function updatePickedColor(r, g, b)
+        if MainFrame and not MainFrame.Visible then return end
+        if not MasterContainer.Visible then return end
+        
         local nColor = Color3.new(r, g, b)
         Flags[flagColorName].CurrentValue = nColor
         if isSettings then Config[flagColorName] = {r, g, b} saveConfig()
@@ -836,7 +848,13 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
         local ValBox = create("TextLabel", {Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = tostring(math.floor(initialRatio * 255)), TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right}, Row)
 
         local isSlidingRGB = false
+        local dConn, eConn = nil, nil
+        
         local function snapRGB(input)
+            if MainFrame and not MainFrame.Visible then return end
+            if not MasterContainer.Visible then return end
+            if not STrack or not STrack.Parent then return end
+            
             local pct = math.clamp((input.Position.X - STrack.AbsolutePosition.X) / STrack.AbsoluteSize.X, 0, 1)
             SFill.Size = UDim2.new(pct, 0, 1, 0)
             SKnob.Position = UDim2.new(pct, -5, 0.5, -5)
@@ -844,10 +862,13 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
             onSliderMoved(pct)
         end
 
-        local dConn, eConn
         connect(SKnob.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isSlidingRGB = true snapRGB(input)
+                if MainFrame and not MainFrame.Visible then return end
+                
+                isSlidingRGB = true 
+                snapRGB(input)
+                
                 if dConn then dConn:Disconnect() end
                 if eConn then eConn:Disconnect() end
                 
@@ -856,7 +877,7 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
                         snapRGB(cInput)
                     end
                 end)
-                connect(eConn, function() end) -- Wrapper dummy para mantener el Garbage Collector intacto
+                KillerHub:AddTask(dConn)
                 
                 eConn = UserInputService.InputEnded:Connect(function(endInput)
                     if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
@@ -865,6 +886,7 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
                         if eConn then eConn:Disconnect() eConn = nil end
                     end
                 end)
+                KillerHub:AddTask(eConn)
             end
         end)
     end
@@ -890,7 +912,7 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
         MasterContainer.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
         ColorStroke.Color = CurrentTheme.BORDER
-        PickerPanel.BorderStroke.Color = CurrentTheme.BORDER
+        PanelStroke.Color = CurrentTheme.BORDER
         stateUpdate()
     end)
     
@@ -901,15 +923,14 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
 end
 
 function TabMethods:CreateColorPicker(flagColorName, text, defaultColor, callbackColor)
-    -- Genera un Color Picker puro e independiente inhabilitando la fila del toggle visual
     local IndependentContainer = self:CreateToggleColorPicker("KH_IndepToggle_"..flagColorName, flagColorName, text, false, defaultColor, function() end, callbackColor)
     pcall(function()
-        local row = IndependentContainer:FindFirstChild("Frame")
-        if row then
-            local tBtn = row:FindFirstChild("TextButton")
+        local mainRow = IndependentContainer:FindFirstChild("Frame") or IndependentContainer:FindFirstChild("MainRow")
+        if mainRow then
+            local tBtn = mainRow:FindFirstChild("TextButton")
             if tBtn then
-                local track = tBtn:FindFirstChild("Frame")
-                if track then track.Visible = false end -- Oculta el switch de toggle completamente
+                local track = tBtn:FindFirstChild("Frame") or tBtn:FindFirstChild("Track")
+                if track then track.Visible = false end
             end
         end
     end)
@@ -1093,7 +1114,7 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.6)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.6.1)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
