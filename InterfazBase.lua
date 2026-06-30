@@ -624,10 +624,11 @@ function TabMethods:CreateDropdown(flagName, text, options, default, callback)
             if child:IsA("TextButton") then child:Destroy() end
         end
         for i, name in ipairs(options) do
+            -- Optimización: Sin AddTask global en botones reciclables para evitar fugas de memoria
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
             
-            local btnConn = OptBtn.MouseButton1Click:Connect(function()
+            OptBtn.MouseButton1Click:Connect(function()
                 Flags[flagName].CurrentValue = name 
                 
                 if isSettings then
@@ -643,7 +644,6 @@ function TabMethods:CreateDropdown(flagName, text, options, default, callback)
                 end)
                 pcall(callback, name) makeOptions()
             end)
-            KillerHub:AddTask(btnConn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -721,14 +721,13 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = isChosen and CurrentTheme.BG_MAIN or Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = isChosen and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
             
-            local mConn = OptBtn.MouseButton1Click:Connect(function()
+            OptBtn.MouseButton1Click:Connect(function()
                 Flags[flagName].CurrentValue[name] = not Flags[flagName].CurrentValue[name]
                 
-                if isSettings then saveConfig() elseif CustomConfigFile then saveCustomConfig() end
+                if isSettings then saveConfig() elseif CustomConfigFile then saveConfig() end
                 
                 playUISound() updateText() makeList() pcall(callback, Flags[flagName].CurrentValue)
             end)
-            KillerHub:AddTask(mConn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -746,142 +745,110 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     self:RegisterElement(MFrame, Label, self.Frame.Name)
 end
 
-function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, defaultColor, callbackToggle, callbackColor)
-    local isSettings = (self.Frame.Name == "SettingsFrame")
-    local initialToggle = false
-    local initialColor = {defaultColor.R, defaultColor.G, defaultColor.B}
+-- ============================================================================
+-- 🎨 MÉTODOS DE CORRECCIÓN: COLOR PICKERS ULTRA-OPTIMIZADOS PARA MÓVIL
+-- ============================================================================
+function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text, defaultToggle, defaultColor, callbackToggle, callbackColor)
+    local TabSelf = self
+    if type(defaultToggle) == "function" then callbackToggle = defaultToggle defaultToggle = false end
+    if type(defaultColor) == "function" then callbackColor = defaultColor defaultColor = Color3.fromRGB(255, 255, 255) end
+    
+    local initialToggle = defaultToggle
+    local initialColor = defaultColor
+    local isSettings = (TabSelf.Frame.Name == "SettingsFrame")
     
     if isSettings then
-        if Config[flagToggle] == nil then Config[flagToggle] = false end
-        if Config[flagColor] == nil then Config[flagColor] = initialColor end
-        initialToggle = Config[flagToggle] initialColor = Config[flagColor]
-    else
-        if CustomConfigFile then
-            if CustomConfig[flagToggle] == nil then CustomConfig[flagToggle] = false end
-            if CustomConfig[flagColor] == nil then CustomConfig[flagColor] = initialColor end
-            initialToggle = CustomConfig[flagToggle] initialColor = CustomConfig[flagColor]
-        end
+        if Config[flagToggleName] == nil then Config[flagToggleName] = defaultToggle end
+        if Config[flagColorName] == nil then Config[flagColorName] = {defaultColor.R, defaultColor.G, defaultColor.B} end
+        initialToggle = Config[flagToggleName]
+        local savedColor = Config[flagColorName]
+        initialColor = Color3.new(savedColor[1], savedColor[2], savedColor[3])
+    elseif CustomConfigFile then
+        if CustomConfig[flagToggleName] == nil then CustomConfig[flagToggleName] = defaultToggle end
+        if CustomConfig[flagColorName] == nil then CustomConfig[flagColorName] = {defaultColor.R, defaultColor.G, defaultColor.B} end
+        initialToggle = CustomConfig[flagToggleName]
+        local savedColor = CustomConfig[flagColorName]
+        initialColor = Color3.new(savedColor[1], savedColor[2], savedColor[3])
     end
-
-    Flags[flagToggle] = { CurrentValue = initialToggle }
-    Flags[flagColor] = { CurrentValue = Color3.new(unpack(initialColor)) }
-
-    local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, ClipsDescendants = true}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, MasterFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, MasterFrame)
-
-    local MainTrigger = create("TextButton", {Size = UDim2.new(1, -80, 0, 42), BackgroundTransparency = 1, Text = ""}, MasterFrame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Flags[flagToggle].CurrentValue and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
-
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Flags[flagToggle].CurrentValue and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)}, MainTrigger)
+    
+    Flags[flagToggleName] = { CurrentValue = initialToggle }
+    Flags[flagColorName] = { CurrentValue = initialColor }
+    
+    local Container = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, TabSelf.Frame)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, Container)
+    local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Container)
+    
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, -50, 1, 0), BackgroundTransparency = 1, Text = ""}, Container)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = initialToggle and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    
+    local Track = create("Frame", {Size = UDim2.new(0, 32, 0, 16), Position = UDim2.new(1, -45, 0.5, -8), BackgroundColor3 = initialToggle and CurrentTheme.ACCENT or Color3.fromRGB(35, 35, 40)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
-    local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Flags[flagToggle].CurrentValue and UDim2.new(1, -15, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
+    local Knob = create("Frame", {Size = UDim2.new(0, 12, 0, 12), Position = initialToggle and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
-
-    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 26, 0, 18), Position = UDim2.new(1, -38, 0, 12), BackgroundColor3 = Flags[flagColor].CurrentValue, Text = ""}, MasterFrame)
+    
+    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -34, 0.5, -11), BackgroundColor3 = initialColor, Text = ""}, Container)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, ColorBtn)
-
-    local SlidersContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 80), Position = UDim2.new(0, 12, 0, 44), BackgroundTransparency = 1}, MasterFrame)
-    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SlidersContainer)
+    local ColorStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ColorBtn)
 
     local function stateUpdate()
-        local active = Flags[flagToggle].CurrentValue
-        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)
-        Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+        local active = Flags[flagToggleName].CurrentValue
+        local toggleColor = Flags[flagColorName].CurrentValue
+        TweenService:Create(ToggleLabel, TweenInfo.new(0.15), {TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED}):Play()
+        TweenService:Create(Track, TweenInfo.new(0.15), {BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(35, 35, 40)}):Play()
+        TweenService:Create(Knob, TweenInfo.new(0.15), {Position = active and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)}):Play()
+        ColorBtn.BackgroundColor3 = toggleColor
     end
-
-    connect(MainTrigger.MouseButton1Click, function()
-        Flags[flagToggle].CurrentValue = not Flags[flagToggle].CurrentValue
+    
+    connect(ToggleButton.MouseButton1Click, function()
+        local nextState = not Flags[flagToggleName].CurrentValue
+        Flags[flagToggleName].CurrentValue = nextState
         
-        if isSettings then Config[flagToggle] = Flags[flagToggle].CurrentValue saveConfig()
-        elseif CustomConfigFile then CustomConfig[flagToggle] = Flags[flagToggle].CurrentValue saveCustomConfig() end
+        if isSettings then Config[flagToggleName] = nextState saveConfig()
+        elseif CustomConfigFile then CustomConfig[flagToggleName] = nextState saveCustomConfig() end
         
-        playUISound()
-        task.spawn(function() stateUpdate() end)
-        pcall(callbackToggle, Flags[flagToggle].CurrentValue)
+        playUISound() stateUpdate() task.spawn(callbackToggle, nextState)
     end)
-
-    local function createMiniSlider(labelTxt, colorValueIndex, sliderColor)
-        local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1}, SlidersContainer)
-        create("TextLabel", {Size = UDim2.new(0, 15, 1, 0), BackgroundTransparency = 1, Text = labelTxt, TextColor3 = sliderColor, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, Row)
-        local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(30, 30, 35)}, Row)
-        
-        local currentPct = isSettings and Config[flagColor][colorValueIndex] or (CustomConfigFile and CustomConfig[flagColor][colorValueIndex] or initialColor[colorValueIndex])
-        
-        local FillS = create("Frame", {Size = UDim2.new(currentPct, 0, 1, 0), BackgroundColor3 = sliderColor}, TrackS)
-        local KnobS = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(currentPct, -5, 0.5, -5), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = ""}, TrackS)
-        create("UICorner", {CornerRadius = UDim.new(1, 0)}, KnobS)
-
-        local isSliding = false
-        local function updateColor()
-            local r = isSettings and Config[flagColor][1] or (CustomConfigFile and CustomConfig[flagColor][1] or initialColor[1])
-            local g = isSettings and Config[flagColor][2] or (CustomConfigFile and CustomConfig[flagColor][2] or initialColor[2])
-            local b = isSettings and Config[flagColor][3] or (CustomConfigFile and CustomConfig[flagColor][3] or initialColor[3])
-            
-            local col = Color3.new(r, g, b)
-            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col 
-            pcall(callbackColor, col)
-        end
-        local function snap(input)
-            local pct = math.clamp((input.Position.X - TrackS.AbsolutePosition.X) / TrackS.AbsoluteSize.X, 0, 1)
-            FillS.Size = UDim2.new(pct, 0, 1, 0) KnobS.Position = UDim2.new(pct, -5, 0.5, -5)
-            
-            if isSettings then Config[flagColor][colorValueIndex] = pct saveConfig()
-            elseif CustomConfigFile then CustomConfig[flagColor][colorValueIndex] = pct saveCustomConfig() end
-            
-            updateColor()
-        end
-        
-        local dragConn, endConn
-        local inputConn = KnobS.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isSliding = true snap(input)
-                if dragConn then dragConn:Disconnect() end
-                if endConn then endConn:Disconnect() end
-                
-                dragConn = UserInputService.InputChanged:Connect(function(changedInput)
-                    if isSliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
-                        snap(changedInput)
-                    end
-                end)
-                KillerHub:AddTask(dragConn)
-                
-                endConn = UserInputService.InputEnded:Connect(function(endedInput)
-                    if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
-                        isSliding = false
-                        if dragConn then dragConn:Disconnect() dragConn = nil end
-                        if endConn then endConn:Disconnect() endConn = nil end
-                    end
-                end)
-                KillerHub:AddTask(endConn)
-            end
-        end)
-        KillerHub:AddTask(inputConn)
+    
+    local colorPresets = {
+        Color3.fromRGB(185, 15, 15),   -- Rojo Sangre (Insignia Blood)
+        Color3.fromRGB(0, 230, 115),  -- Verde Esmeralda (ESP Seguro)
+        Color3.fromRGB(0, 160, 255),  -- Azul Eléctrico
+        Color3.fromRGB(245, 245, 245),-- Blanco Puro
+        Color3.fromRGB(255, 200, 0),  -- Amarillo Neón
+        Color3.fromRGB(138, 43, 226)  -- Morado Void Premium
+    }
+    local currentColorIndex = 1
+    for i, color in ipairs(colorPresets) do
+        if color.R == initialColor.R and color.G == initialColor.G and color.B == initialColor.B then currentColorIndex = i break end
     end
 
-    createMiniSlider("R", 1, Color3.fromRGB(235, 40, 40))
-    createMiniSlider("G", 2, Color3.fromRGB(40, 235, 40))
-    createMiniSlider("B", 3, Color3.fromRGB(40, 40, 235))
-
-    local open = false
-    connect(ColorBtn.MouseButton1Click, function() 
-        open = not open playUISound() 
-        task.spawn(function()
-            TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)}):Play()
-        end)
+    connect(ColorBtn.MouseButton1Click, function()
+        playUISound()
+        currentColorIndex = (currentColorIndex % #colorPresets) + 1
+        local newColor = colorPresets[currentColorIndex]
+        Flags[flagColorName].CurrentValue = newColor
+        
+        if isSettings then Config[flagColorName] = {newColor.R, newColor.G, newColor.B} saveConfig()
+        elseif CustomConfigFile then CustomConfig[flagColorName] = {newColor.R, newColor.G, newColor.B} saveCustomConfig() end
+        
+        stateUpdate() task.spawn(callbackColor, newColor)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
-        MasterFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+        Container.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
+        ColorStroke.Color = CurrentTheme.BORDER
         stateUpdate()
     end)
+    
+    task.spawn(callbackToggle, Flags[flagToggleName].CurrentValue)
+    task.spawn(callbackColor, Flags[flagColorName].CurrentValue)
+    TabSelf:RegisterElement(Container, ToggleLabel, TabSelf.Frame.Name)
+    return Container
+end
 
-    stateUpdate()
-    task.spawn(callbackToggle, Flags[flagToggle].CurrentValue)
-    task.spawn(callbackColor, Flags[flagColor].CurrentValue)
-    self:RegisterElement(MasterFrame, Label, self.Frame.Name)
+function TabMethods:CreateColorPicker(flagColorName, text, defaultColor, callbackColor)
+    return self:CreateToggleColorPicker("KH_DummyToggle_"..flagColorName, flagColorName, text, false, defaultColor, function() end, callbackColor)
 end
 
 function TabMethods:CreateInput(flagName, text, placeholder, callback)
@@ -1001,7 +968,6 @@ function KillerHub:CreateTab(name, iconId)
     end)
     table.insert(Connections, sizeChangedConn)
 
-    -- Si la pestaña es Settings, se aloja de forma estática en SettingsContainer en vez del contenedor scrollable.
     local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
     local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, btn)
 
