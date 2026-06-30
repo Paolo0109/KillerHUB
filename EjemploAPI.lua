@@ -1,152 +1,127 @@
 -- ============================================================================
--- 👻 KILLER HUB | DOCUMENTACIÓN Y API DE INTEGRACIÓN AVANZADA
+-- 👻 KILLER HUB | EJEMPLO DE INTEGRACIÓN COMPLETA DESDE GITHUB
 -- ============================================================================
--- Diseñado para desarrolladores. Carga dinámica de dependencias y control de estados.
+-- Este script jala tu librería directamente desde tu repositorio de GitHub 
+-- y muestra cómo crear y usar cada componente disponible.
 
--- 1. CARGA DE LA LIBRERÍA CORE
+-- 1. CARGAR TU LIBRERÍA EXTERNA (Gracias al 'return KillerHub' al final de tu API)
 local KillerHub = loadstring(game:HttpGet("https://raw.githubusercontent.com/Paolo0109/KillerHUB/refs/heads/main/InterfazBase.lua"))()
 
--- 2. INICIALIZACIÓN DE PESTAÑAS (Tabs)
--- Argumentos: Base:CreateTab("Texto Visual", "ID_Icono_Roblox")
-local CombatTab  = KillerHub:CreateTab("Combate", "rbxassetid://10747373142")
+-- 2. CREAR PESTAÑAS (Tabs)
+-- Argumentos: ("Nombre de Pestaña", "ID del Icono de Roblox [Opcional]")
+local CombatTab = KillerHub:CreateTab("Combate", "rbxassetid://10747373142")
 local VisualsTab = KillerHub:CreateTab("Visuales", "rbxassetid://10747372517")
-local MiscTab    = KillerHub:CreateTab("Misceláneos", "rbxassetid://10747373142")
+local MiscTab = KillerHub:CreateTab("Misceláneos", "rbxassetid://10747373142")
+
 
 -- ============================================================================
--- ⚔️ VARIACIONES DE COMPONENTES: PESTAÑA COMBATE
+-- ⚔️ PESTAÑA 1: COMBATE (Secciones, Toggles, Sliders, Dropdowns y Multi-Dropdowns)
 -- ============================================================================
-CombatTab:CreateSection("Ajustes del Motor de Predicción")
+CombatTab:CreateSection("Automatizaciones de Combate")
 
--- [COMPONENTE: TOGGLE ESTÁNDAR]
--- Guarda de forma nativa un valor booleano (true/false) en la tabla interna de flags.
-local AimbotToggle = CombatTab:CreateToggle("AimbotActive", "Activar Aim Prediction", function(estado)
-    print("[API] Estado del Aimbot:", estado)
+-- [COMPONENTE: TOGGLE] -> Interruptor On/Off con autoguardado por bandera (flag)
+-- Argumentos: ("NombreFlag", "Texto Visual", callback)
+local KAAuraToggle = CombatTab:CreateToggle("KillAuraActive", "Activar Kill Aura Universal", function(estado)
+    print("⚔️ Kill Aura cambiado a:", estado)
 end)
 
--- 🛠️ MÉTODOS DE TOGGLE:
--- Forzar estado de forma externa: AimbotToggle:Set(true)
+-- Pista: Puedes cambiar el estado de un Toggle desde tu código con: 
+-- KAAuraToggle:Set(true)
 
-
--- [COMPONENTE: SLIDERS - VARIACIONES DE INCREMENTO Y PRECISIÓN]
--- Estructura de argumentos: CreateSlider("Flag", "Texto", Min, Max, Default, Step, Callback)
-
--- Variación A: Precisión Decimal Exrema (0.0 a 1.0 aumentando de 0.1 en 0.1)
--- Ideal para offsets de frames, alphas o suavizados delicados.
-local DecimalSlider = CombatTab:CreateSlider("SmoothOffset", "Suavizado de Cámara (Float)", 0.0, 1.0, 0.2, 0.1, function(valor)
-    print("[API] Desplazamiento decimal ajustado a:", string.format("%.1f", valor))
+-- [COMPONENTE: SLIDER] -> Barra deslizadora numérica
+-- Argumentos: ("NombreFlag", "Texto Visual", ValorMínimo, ValorMáximo, callback)
+local RangeSlider = CombatTab:CreateSlider("AuraRange", "Rango de Ataque (Distancia)", 5, 100, function(valor)
+    print("📏 Rango de golpe ajustado a:", math.floor(valor))
 end)
 
--- Variación B: Incrementos Medios (0 a 100 aumentando de 5 en 5)
--- Ideal para rangos de ataque cortos o velocidad de caminata simulada.
-local WalkSpeedSlider = CombatTab:CreateSlider("CustomSpeed", "Velocidad de Simulación (Step 5)", 10, 150, 16, 5, function(valor)
-    print("[API] Velocidad modificada a enteros de 5 en 5:", valor)
+-- Pista: Puedes forzar un valor en el Slider desde tu código con: 
+-- RangeSlider:Set(50)
+
+CombatTab:CreateSection("Filtros y Objetivos")
+
+-- [COMPONENTE: DROPDOWN] -> Selección única corregido (No se esconde con el UIListLayout)
+-- Argumentos: ("NombreFlag", "Texto Visual", {"Opciones"}, callback)
+local TargetDropdown = CombatTab:CreateDropdown("AuraTarget", "Prioridad de Objetivo:", {"Más Cercano", "Menos Vida", "Solo Enemigos", "Todos"}, function(seleccionado)
+    print("🎯 Prioridad fijada en:", seleccionado)
 end)
 
--- Variación C: Incrementos a Gran Escala (0 a 1000 aumentando de 50 en 50)
--- Ideal para rangos máximos de renderizado (ESP Distance) o delays en milisegundos.
-local MaxDistanceSlider = CombatTab:CreateSlider("RenderDistance", "Distancia Máxima ESP (Step 50)", 0, 1000, 500, 50, function(valor)
-    print("[API] Rango macro ajustado a:", valor)
-end)
+-- Pista: Si quieres refrescar las opciones (ej. lista de jugadores del server):
+-- TargetDropdown:Refresh({"Jugador1", "Jugador2", "Todos"})
 
--- 🛠️ MÉTODOS DE SLIDER:
--- Forzar un valor intermedio: WalkSpeedSlider:Set(55)
-
-
-CombatTab:CreateSection("Sistemas de Filtrado")
-
--- [COMPONENTE: DROPDOWN DE SELECCIÓN ÚNICA]
-local TargetDropdown = CombatTab:CreateDropdown("TargetMode", "Fijar Objetivo en:", {"Asesino", "Sheriff", "Inocentes", "Todos"}, function(seleccionado)
-    print("[API] Nuevo objetivo prioritario:", seleccionado)
-end)
-
--- 🛠️ MÉTODOS DE DROPDOWN:
--- Re-inyectar opciones dinámicamente (Útil si un jugador entra o sale del servidor):
--- TargetDropdown:Refresh({"Jugador_1", "Jugador_2", "Servidor_Completo"})
-
-
--- [COMPONENTE: MULTI-DROPDOWN (SELECCIÓN MÚLTIPLE)]
--- Retorna una estructura de tabla indexada por las opciones con estados booleanos.
-CombatTab:CreateMultiDropdown("TargetFilters", "Filtros de Omisión Múltiple", {"Amigos", "Admins", "Cercanos"}, function(tablaFlags)
-    print("[API] Modificación de Filtros Múltiples:")
-    for opcion, activo in pairs(tablaFlags) do
-        print(string.format("   - Opción [%s] -> Estado: %s", opcion, tostring(activo)))
-    end
+-- [COMPONENTE: MULTI-DROPDOWN] -> Selección múltiple que permite activar varias opciones a la vez
+-- Argumentos: ("NombreFlag", "Texto Visual", {"Opciones"}, callback)
+CombatTab:CreateMultiDropdown("IgnoredTeams", "Ignorar Equipos (Múltiple):", {"Amigos", "Staff/Admins", "Neutrales"}, function(tablaFlags)
+    print("--- 📑 Filtros Múltiples Actualizados ---")
+    if tablaFlags["Amigos"] then print("-> Ignorando Amigos: SÍ") else print("-> Ignorando Amigos: NO") end
 end)
 
 
 -- ============================================================================
--- 👁️ COMPONENTES COMPUESTOS Y TEXTO: PESTAÑA VISUALES
+-- 👁️ PESTAÑA 2: VISUALES (Párrafos Informativos y Toggle Color Picker Avanzado)
 -- ============================================================================
-VisualsTab:CreateSection("Monitor de Rendimiento")
+VisualsTab:CreateSection("Mensajes de Sistema")
 
--- [COMPONENTE: PARAGRAPH (BLOQUE INFORMATIVO COGNITIVO)]
-local StatusParagraph = VisualsTab:CreateParagraph("Estado del Servidor", "Cargando telemetría de la partida actual...")
+-- [COMPONENTE: PARAGRAPH] -> Bloque de texto descriptivo o avisos dinámicos
+-- Argumentos: ("Título", "Contenido del texto")
+local InfoParagraph = VisualsTab:CreateParagraph("Rendimiento", "El renderizado de cuadros consume recursos del procesador. Desactívalo si notas tirones.")
 
--- 🛠️ MÉTODOS DE PARAGRAPH (Actualización en tiempo real desde bucles):
--- StatusParagraph:SetTitle("⚠️ ALERTA DE RIESGO")
--- StatusParagraph:SetText("El Asesino ha desenvainado el arma principal.")
+-- Pista: Puedes modificar un párrafo en tiempo real con sus métodos:
+-- InfoParagraph:SetTitle("Nuevo Título")
+-- InfoParagraph:SetText("Nuevo contenido de texto.")
 
+VisualsTab:CreateSection("Colores de Interfaz")
 
-VisualsTab:CreateSection("Renderizado Avanzado (ESP)")
-
--- [COMPONENTE: TOGGLE COLOR PICKER INTEGRADO]
--- Fusiona el interruptor de encendido con una paleta RGB en una sola línea de interfaz.
+-- [COMPONENTE: TOGGLE COLOR PICKER] -> Toggle + Selector RGB Avanzado en una sola línea
+-- Argumentos: ("FlagToggle", "FlagColor", "Texto Visual", Color3Predeterminado, CallbackToggle, CallbackColor)
 VisualsTab:CreateToggleColorPicker(
-    "ESPBoxes",               -- Flag del interruptor (booleano)
-    "ESPBoxesColor",          -- Flag del color (Color3)
-    "Espesores de Cuadros (ESP)", 
-    Color3.fromRGB(0, 255, 123), -- Color verde neón inicial
+    "EspJugadores", 
+    "ColorDeLosVisuales", 
+    "Visualizar Cuadros (ESP Boxes)", 
+    Color3.fromRGB(255, 35, 35), -- Rojo por defecto
     function(estadoToggle)
-        print("[API] Renderizado de cajas activado:", estadoToggle)
+        print("👁️ Estado del ESP:", estadoToggle)
     end,
     function(colorSeleccionado)
-        -- Retorna un objeto Color3 puro de Roblox API
-        print("[API] Actualización cromática RGB:", colorSeleccionado.R, colorSeleccionado.G, colorSeleccionado.B)
+        -- Devuelve un objeto Color3 nativo de Roblox listo para usar en ESPs o UI
+        print("🎨 Nuevo color RGB:", colorSeleccionado)
     end
 )
 
 
 -- ============================================================================
--- ⚙️ CONFIGURACIÓN Y ENTRADAS DIRECTAS: PESTAÑA MISCELÁNEOS
+-- ⚙️ PESTAÑA 3: MISCELÁNEOS (Inputs, Botones y Keybinds Rápidos)
 -- ============================================================================
-MiscTab:CreateSection("Automatización de Salida")
+MiscTab:CreateSection("Enlaces Externos")
 
--- [COMPONENTE: INPUT / TEXTBOX (ENTRADA DE CADENAS DE TEXTO)]
-MiscTab:CreateInput("CustomWebhook", "Discord Webhook URL", "https://discord.com/api/webhooks/...", function(textoIngresado)
-    print("[API] Nueva dirección de Webhook registrada de manera segura:", textoIngresado)
+-- [COMPONENTE: INPUT / TEXTBOX] -> Caja de texto libre para guardar configuraciones
+-- Argumentos: ("NombreFlag", "Texto Visual", "Marcador de Posición", callback)
+MiscTab:CreateInput("WebhookDiscord", "Discord Webhook Logger", "Pega el link aquí...", function(textoIngresado)
+    print("📩 URL de Webhook guardada:", textoIngresado)
+end)
+
+MiscTab:CreateSection("Acciones Directas")
+
+-- [COMPONENTE: BUTTON] -> Botón clásico ejecutor de funciones
+-- Argumentos: ("Texto del Botón", callback)
+MiscTab:CreateButton("Re-Sincronizar Servidor", function()
+    print("⚡ Sincronizando datos con el servidor de juego...")
+end)
+
+-- [COMPONENTE: KEYBIND] -> Asignador de teclado interactivo para ejecutar atajos
+-- Argumentos: ("NombreFlag", "Texto Visual", Enum.KeyCode.TeclaPredeterminada, callback)
+MiscTab:CreateKeybind("TeleportKey", "Atajo de Teletransporte", Enum.KeyCode.E, function(teclaAsignada)
+    print("⚡ ¡Presionaste la tecla de acción rápida!: " .. teclaAsignada.Name)
 end)
 
 
-MiscTab:CreateSection("Atajos de Ejecución Directa")
-
--- [COMPONENTE: KEYBIND INTERACTIVO]
--- Detecta interacciones físicas del teclado y permite la re-asignación en vivo.
-MiscTab:CreateKeybind("PanicKey", "Tecla de Apagado Rápido (Panic Mode)", Enum.KeyCode.RightControl, function(teclaAsignada)
-    print("[API] Se ha pulsado el atajo de teclado configurado en: " .. teclaAsignada.Name)
-end)
-
-
--- [COMPONENTE: BUTTON (GATILLO DE ACCIONES)]
-MiscTab:CreateButton("Destruir Interfaz (Unload)", function()
-    print("[API] Removiendo elementos del CoreGui de forma limpia...")
-    -- Aquí colocarías tu lógica de KillerHub:Unload() si existiera.
-end)
-
-
 -- ============================================================================
--- 📑 ACCESO A MATRICES GLOBALES DE DATOS (MÉTODOS GETTER)
+-- 💡 TIP PRO DE ACCESO GLOBAL:
 -- ============================================================================
--- Si necesitas consultar el estado exacto de una configuración desde hilos ajenos 
--- a la UI (como un bucle `task.spawn` corriendo el Aimbot), accede a la tabla global de Flags:
+-- Si necesitas leer el valor actual de un flag dentro de un bucle infinito
+-- o un evento del juego sin usar los callbacks, puedes consultar la tabla global:
 --
--- local estadoAimbot = getgenv().KillerHub.Flags["AimbotActive"].CurrentValue
--- local colorActual  = getgenv().KillerHub.Flags["ESPBoxesColor"].CurrentValue
--- local delaySlider  = getgenv().KillerHub.Flags["RenderDistance"].CurrentValue
+-- local kaActivado = getgenv().KillerHub.Flags["KillAuraActive"].CurrentValue
+-- local colorActual = getgenv().KillerHub.Flags["ColorDeLosVisuales"].CurrentValue
 
+Para hacer una cadena de links infinita de Github recuerda poner hasta abajo del código siempre; return KillerHub
 
--- ============================================================================
--- 🔗 RETORNO CRUCIAL PARA ENCADENAMIENTO DE REPOSITORIOS (GITHUB COMPATIBILITY)
--- ============================================================================
--- Este retorno permite que al realizar un loadstring() externo del archivo, la variable
--- contenedora absorba todas las propiedades del objeto creado, facilitando la creación de links.
-return KillerHub
