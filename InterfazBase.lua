@@ -1,8 +1,8 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.5)
--- 🧑‍💻 Desarrollado por: Paolo DETRUCTOR de puchas peludas 🥵
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.6)
+-- 🧑‍💻 Desarrollado por: Paolo
 -- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
--- ⚡ Upgrade V2.5: Drag Unificado sin conflicto de cámara, Sidebar Tabs Scrollable (Settings Estático) & Autosave Aislado Premium.
+-- ⚡ Upgrade V2.6: ¡SISTEMA DE COLOR PICKER CON PALETA Y SLIDERS MANUALES RGB PARA MÓVIL!
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -98,7 +98,6 @@ local Config = {}
 local Flags = {}
 local Connections = {}
 
--- Variables para la persistencia del Script de Terceros (Aimbot, etc.)
 local CustomConfig = {}
 local CustomConfigFile = nil
 
@@ -207,7 +206,6 @@ task.spawn(function()
     end
 end)
 
--- ⚡ MOTOR DE ARRASTRE UNIFICADO OPTIMIZADO (ANTI-CONFLICTO DE CÁMARA MOVIÉNDOSE)
 local function makeDraggable(clickObject, dragObject)
     local dragging = false
     local dragInput, dragStart, startPos
@@ -266,7 +264,6 @@ local SearchInput = create("TextBox", {
     TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false
 }, SearchBoxContainer)
 
--- ⚡ SISTEMA DE SCROLL SEPARADO PARA EVITAR DESBORDAMIENTO DE PESTAÑAS (SETTINGS QUEDA ESTÁTICO ABAJO)
 local SidebarTabsContainer = create("ScrollingFrame", {
     Name = "SidebarTabsContainer", Size = UDim2.new(1, 0, 1, -92), Position = UDim2.new(0, 0, 0, 38),
     BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT,
@@ -624,7 +621,6 @@ function TabMethods:CreateDropdown(flagName, text, options, default, callback)
             if child:IsA("TextButton") then child:Destroy() end
         end
         for i, name in ipairs(options) do
-            -- Optimización: Sin AddTask global en botones reciclables para evitar fugas de memoria
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
             
@@ -723,9 +719,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
             
             OptBtn.MouseButton1Click:Connect(function()
                 Flags[flagName].CurrentValue[name] = not Flags[flagName].CurrentValue[name]
-                
                 if isSettings then saveConfig() elseif CustomConfigFile then saveConfig() end
-                
                 playUISound() updateText() makeList() pcall(callback, Flags[flagName].CurrentValue)
             end)
         end
@@ -735,7 +729,6 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     table.insert(KillerHub.TargetThemeElements, function()
         MFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
-        Label.TextColor3 = CurrentTheme.TEXT_WHITE
         SelLabel.TextColor3 = CurrentTheme.ACCENT
         makeList()
     end)
@@ -746,7 +739,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
 end
 
 -- ============================================================================
--- 🎨 MÉTODOS DE CORRECCIÓN: COLOR PICKERS ULTRA-OPTIMIZADOS PARA MÓVIL
+-- 🎨 COLOR PICKERS COMPLETAMENTE REHECHOS CON PALETA FLOTANTE RGB MANUAL
 -- ============================================================================
 function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text, defaultToggle, defaultColor, callbackToggle, callbackColor)
     local TabSelf = self
@@ -774,11 +767,12 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
     Flags[flagToggleName] = { CurrentValue = initialToggle }
     Flags[flagColorName] = { CurrentValue = initialColor }
     
-    local Container = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, TabSelf.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, Container)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Container)
+    local MasterContainer = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, ClipsDescendants = true}, TabSelf.Frame)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, MasterContainer)
+    local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MasterContainer)
     
-    local ToggleButton = create("TextButton", {Size = UDim2.new(1, -50, 1, 0), BackgroundTransparency = 1, Text = ""}, Container)
+    local MainRow = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1}, MasterContainer)
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, -50, 1, 0), BackgroundTransparency = 1, Text = ""}, MainRow)
     local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = initialToggle and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     
     local Track = create("Frame", {Size = UDim2.new(0, 32, 0, 16), Position = UDim2.new(1, -45, 0.5, -8), BackgroundColor3 = initialToggle and CurrentTheme.ACCENT or Color3.fromRGB(35, 35, 40)}, ToggleButton)
@@ -786,69 +780,140 @@ function TabMethods:CreateToggleColorPicker(flagToggleName, flagColorName, text,
     local Knob = create("Frame", {Size = UDim2.new(0, 12, 0, 12), Position = initialToggle and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
     
-    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -34, 0.5, -11), BackgroundColor3 = initialColor, Text = ""}, Container)
+    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -34, 0.5, -11), BackgroundColor3 = initialColor, Text = ""}, MainRow)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, ColorBtn)
     local ColorStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ColorBtn)
 
+    -- 🛠 PALETA EXTENSIBLE MODULAR INTEGRADA (SLIDERS R, G, B INDEPENDIENTES)
+    local PickerPanel = create("Frame", {Size = UDim2.new(1, -16, 0, 100), Position = UDim2.new(0, 8, 0, 42), BackgroundColor3 = Color3.fromRGB(12, 12, 14), BackgroundTransparency = 0.3}, MasterContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, PickerPanel)
+    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, PickerPanel)
+
+    local PreviewBox = create("Frame", {Size = UDim2.new(0, 35, 0, 84), Position = UDim2.new(0, 8, 0, 8), BackgroundColor3 = initialColor}, PickerPanel)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, PreviewBox)
+    create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(60, 60, 65)}, PreviewBox)
+
+    local SlidersContainer = create("Frame", {Size = UDim2.new(1, -55, 1, -12), Position = UDim2.new(0, 50, 0, 6), BackgroundTransparency = 1}, PickerPanel)
+
+    local pickerOpen = false
+    local function setPickerPanelVisibility(openState)
+        pickerOpen = openState
+        local targetH = pickerOpen and 150 or 42
+        TweenService:Create(MasterContainer, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, targetH)}):Play()
+    end
+
     local function stateUpdate()
         local active = Flags[flagToggleName].CurrentValue
-        local toggleColor = Flags[flagColorName].CurrentValue
+        local cValue = Flags[flagColorName].CurrentValue
         TweenService:Create(ToggleLabel, TweenInfo.new(0.15), {TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED}):Play()
         TweenService:Create(Track, TweenInfo.new(0.15), {BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(35, 35, 40)}):Play()
         TweenService:Create(Knob, TweenInfo.new(0.15), {Position = active and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)}):Play()
-        ColorBtn.BackgroundColor3 = toggleColor
+        ColorBtn.BackgroundColor3 = cValue
+        PreviewBox.BackgroundColor3 = cValue
     end
-    
+
+    local function updatePickedColor(r, g, b)
+        local nColor = Color3.new(r, g, b)
+        Flags[flagColorName].CurrentValue = nColor
+        if isSettings then Config[flagColorName] = {r, g, b} saveConfig()
+        elseif CustomConfigFile then CustomConfig[flagColorName] = {r, g, b} saveCustomConfig() end
+        stateUpdate()
+        task.spawn(callbackColor, nColor)
+    end
+
+    local function buildRGBSlider(labelName, colorAccent, initialRatio, orderIndex, onSliderMoved)
+        local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 24), Position = UDim2.new(0, 0, 0, (orderIndex - 1) * 28), BackgroundTransparency = 1}, SlidersContainer)
+        local Lbl = create("TextLabel", {Size = UDim2.new(0, 15, 1, 0), BackgroundTransparency = 1, Text = labelName, TextColor3 = colorAccent, Font = Enum.Font.GothamBold, TextSize = 11}, Row)
+        
+        local STrack = create("Frame", {Size = UDim2.new(1, -55, 0, 5), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(30, 30, 35)}, Row)
+        create("UICorner", {CornerRadius = UDim.new(1, 0)}, STrack)
+        local SFill = create("Frame", {Size = UDim2.new(initialRatio, 0, 1, 0), BackgroundColor3 = colorAccent}, STrack)
+        create("UICorner", {CornerRadius = UDim.new(1, 0)}, SFill)
+        
+        local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(initialRatio, -5, 0.5, -5), BackgroundColor3 = Color3.fromRGB(240, 240, 240), Text = "", AutoButtonColor = false}, STrack)
+        create("UICorner", {CornerRadius = UDim.new(1, 0)}, SKnob)
+        
+        local ValBox = create("TextLabel", {Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = tostring(math.floor(initialRatio * 255)), TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right}, Row)
+
+        local isSlidingRGB = false
+        local function snapRGB(input)
+            local pct = math.clamp((input.Position.X - STrack.AbsolutePosition.X) / STrack.AbsoluteSize.X, 0, 1)
+            SFill.Size = UDim2.new(pct, 0, 1, 0)
+            SKnob.Position = UDim2.new(pct, -5, 0.5, -5)
+            ValBox.Text = tostring(math.floor(pct * 255))
+            onSliderMoved(pct)
+        end
+
+        local dConn, eConn
+        connect(SKnob.InputBegan, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isSlidingRGB = true snapRGB(input)
+                if dConn then dConn:Disconnect() end
+                if eConn then eConn:Disconnect() end
+                
+                dConn = UserInputService.InputChanged:Connect(function(cInput)
+                    if isSlidingRGB and (cInput.UserInputType == Enum.UserInputType.MouseMovement or cInput.UserInputType == Enum.UserInputType.Touch) then
+                        snapRGB(cInput)
+                    end
+                end)
+                connect(eConn, function() end) -- Wrapper dummy para mantener el Garbage Collector intacto
+                
+                eConn = UserInputService.InputEnded:Connect(function(endInput)
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                        isSlidingRGB = false
+                        if dConn then dConn:Disconnect() dConn = nil end
+                        if eConn then eConn:Disconnect() eConn = nil end
+                    end
+                end)
+            end
+        end)
+    end
+
+    buildRGBSlider("R", Color3.fromRGB(255, 60, 60), initialColor.R, 1, function(p) updatePickedColor(p, Flags[flagColorName].CurrentValue.G, Flags[flagColorName].CurrentValue.B) end)
+    buildRGBSlider("G", Color3.fromRGB(60, 255, 60), initialColor.G, 2, function(p) updatePickedColor(Flags[flagColorName].CurrentValue.R, p, Flags[flagColorName].CurrentValue.B) end)
+    buildRGBSlider("B", Color3.fromRGB(60, 160, 255), initialColor.B, 3, function(p) updatePickedColor(Flags[flagColorName].CurrentValue.R, Flags[flagColorName].CurrentValue.G, p) end)
+
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagToggleName].CurrentValue
         Flags[flagToggleName].CurrentValue = nextState
-        
         if isSettings then Config[flagToggleName] = nextState saveConfig()
         elseif CustomConfigFile then CustomConfig[flagToggleName] = nextState saveCustomConfig() end
-        
         playUISound() stateUpdate() task.spawn(callbackToggle, nextState)
     end)
     
-    local colorPresets = {
-        Color3.fromRGB(185, 15, 15),   -- Rojo Sangre (Insignia Blood)
-        Color3.fromRGB(0, 230, 115),  -- Verde Esmeralda (ESP Seguro)
-        Color3.fromRGB(0, 160, 255),  -- Azul Eléctrico
-        Color3.fromRGB(245, 245, 245),-- Blanco Puro
-        Color3.fromRGB(255, 200, 0),  -- Amarillo Neón
-        Color3.fromRGB(138, 43, 226)  -- Morado Void Premium
-    }
-    local currentColorIndex = 1
-    for i, color in ipairs(colorPresets) do
-        if color.R == initialColor.R and color.G == initialColor.G and color.B == initialColor.B then currentColorIndex = i break end
-    end
-
     connect(ColorBtn.MouseButton1Click, function()
         playUISound()
-        currentColorIndex = (currentColorIndex % #colorPresets) + 1
-        local newColor = colorPresets[currentColorIndex]
-        Flags[flagColorName].CurrentValue = newColor
-        
-        if isSettings then Config[flagColorName] = {newColor.R, newColor.G, newColor.B} saveConfig()
-        elseif CustomConfigFile then CustomConfig[flagColorName] = {newColor.R, newColor.G, newColor.B} saveCustomConfig() end
-        
-        stateUpdate() task.spawn(callbackColor, newColor)
+        setPickerPanelVisibility(not pickerOpen)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
-        Container.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+        MasterContainer.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
         ColorStroke.Color = CurrentTheme.BORDER
+        PickerPanel.BorderStroke.Color = CurrentTheme.BORDER
         stateUpdate()
     end)
     
     task.spawn(callbackToggle, Flags[flagToggleName].CurrentValue)
     task.spawn(callbackColor, Flags[flagColorName].CurrentValue)
-    TabSelf:RegisterElement(Container, ToggleLabel, TabSelf.Frame.Name)
-    return Container
+    TabSelf:RegisterElement(MasterContainer, ToggleLabel, TabSelf.Frame.Name)
+    return MasterContainer
 end
 
 function TabMethods:CreateColorPicker(flagColorName, text, defaultColor, callbackColor)
-    return self:CreateToggleColorPicker("KH_DummyToggle_"..flagColorName, flagColorName, text, false, defaultColor, function() end, callbackColor)
+    -- Genera un Color Picker puro e independiente inhabilitando la fila del toggle visual
+    local IndependentContainer = self:CreateToggleColorPicker("KH_IndepToggle_"..flagColorName, flagColorName, text, false, defaultColor, function() end, callbackColor)
+    pcall(function()
+        local row = IndependentContainer:FindFirstChild("Frame")
+        if row then
+            local tBtn = row:FindFirstChild("TextButton")
+            if tBtn then
+                local track = tBtn:FindFirstChild("Frame")
+                if track then track.Visible = false end -- Oculta el switch de toggle completamente
+            end
+        end
+    end)
+    return IndependentContainer
 end
 
 function TabMethods:CreateInput(flagName, text, placeholder, callback)
@@ -877,10 +942,8 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     
     connect(Box.FocusLost, function() 
         Flags[flagName].CurrentValue = Box.Text 
-        
         if isSettings then Config[flagName] = Box.Text saveConfig()
         elseif CustomConfigFile then CustomConfig[flagName] = Box.Text saveCustomConfig() end
-        
         pcall(callback, Box.Text) 
     end)
     
@@ -933,10 +996,8 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     connect(UserInputService.InputBegan, function(input, gp)
         if listening and input.UserInputType == Enum.UserInputType.Keyboard then
             listening = false Flags[flagName].CurrentValue = input.KeyCode.Name
-            
             if isSettings then Config[flagName] = input.KeyCode.Name saveConfig()
             elseif CustomConfigFile then CustomConfig[flagName] = input.KeyCode.Name saveCustomConfig() end
-            
             BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
         end
     end)
@@ -1032,7 +1093,7 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.5)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.6)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
@@ -1047,32 +1108,8 @@ SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) 
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
-SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria del juego. Todas las funciones de automatización se detendrán.")
+SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria del juego.")
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
 
 getgenv().KillerHub = KillerHub
-warn([[
-
-  _  _  _  _  _                     _    _         _       
- | |/ / (_)| | |                   | |  | |       | |      
- | ' /   _ | | |  ___  _ __        | |__| |_   _  | |__    
- |  <   | || | | / _ \| '__|       |  __  | | | | | '_ \   
- | . \  | || | ||  __/| |          | |  | | |_| | | |_) |  
- |_|\_\ |_||_|_| \___||_|          |_|  |_|\__,_| |_.__/   
-                                                           
-                ____   __     __                           
-               |  _ \  \\ \   / /                           
-               | |_) |  \\ \\_/ /                            
-               |  _ <    \\   /                             
-               | |_) |    | |                              
-               |____/     |_|                              
-                                                           
-  _____                 _                                  
- |  __ \               | |                                 
- | |__) | __ _   ___   | |  ___                            
- |  ___/ / _` | / _ \  | | / _ \                           
- | |    | (_| || (_) | | || (_) |                          
- |_|     \__,_| \___/  |_| \___/                           
-
-]])
 return KillerHub
