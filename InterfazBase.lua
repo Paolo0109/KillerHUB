@@ -1,8 +1,8 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.4)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.4.1)
 -- 🧑‍💻 Desarrollado por: Paolo
 -- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
--- ⚡ Upgrade V2.4: Drag Unificado (Móvil/PC), Safe Area, Sistema Maid/Trash e Inteligencia de Textos.
+-- ⚡ Upgrade V2.4.1: Scroll de pestañas independiente, Fix de arrastre por cámara y Sincronización Automática.
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -25,7 +25,7 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 SINOPSIS DE TEMAS VISUALES (INCLUYE NUEVO TEMA PREMIUM VOID)
+-- 🎨 SINOPSIS DE TEMAS VISUALES (FILTRADO SEGÚN PREFERENCIAS)
 -- ============================================================================
 local Themes = {
     ["Void Premium"] = {
@@ -37,15 +37,6 @@ local Themes = {
         TEXT_MUTED = Color3.fromRGB(130, 115, 145),
         BORDER = Color3.fromRGB(40, 20, 65)
     },
-    ["Crimson Dark"] = {
-        BG_MAIN = Color3.fromRGB(11, 11, 13),
-        BG_SIDEBAR = Color3.fromRGB(14, 14, 16),
-        BG_SECONDARY = Color3.fromRGB(18, 18, 22),
-        ACCENT = Color3.fromRGB(235, 35, 35),
-        TEXT_WHITE = Color3.fromRGB(245, 245, 245),
-        TEXT_MUTED = Color3.fromRGB(140, 130, 130),
-        BORDER = Color3.fromRGB(38, 28, 28)
-    },
     ["Midnight Emerald"] = {
         BG_MAIN = Color3.fromRGB(10, 12, 11),
         BG_SIDEBAR = Color3.fromRGB(13, 16, 14),
@@ -54,15 +45,6 @@ local Themes = {
         TEXT_WHITE = Color3.fromRGB(245, 245, 245),
         TEXT_MUTED = Color3.fromRGB(130, 140, 130),
         BORDER = Color3.fromRGB(28, 38, 32)
-    },
-    ["Cyberpunk Violet"] = {
-        BG_MAIN = Color3.fromRGB(12, 10, 15),
-        BG_SIDEBAR = Color3.fromRGB(16, 13, 20),
-        BG_SECONDARY = Color3.fromRGB(22, 17, 28),
-        ACCENT = Color3.fromRGB(180, 40, 255),
-        TEXT_WHITE = Color3.fromRGB(250, 250, 250),
-        TEXT_MUTED = Color3.fromRGB(140, 130, 150),
-        BORDER = Color3.fromRGB(38, 28, 42)
     },
     ["Classic Dark"] = {
         BG_MAIN = Color3.fromRGB(15, 15, 15),
@@ -81,15 +63,6 @@ local Themes = {
         TEXT_WHITE = Color3.fromRGB(245, 240, 250),
         TEXT_MUTED = Color3.fromRGB(130, 115, 145),
         BORDER = Color3.fromRGB(45, 32, 60)
-    },
-    ["Glitch Gold"] = {
-        BG_MAIN = Color3.fromRGB(14, 13, 10),
-        BG_SIDEBAR = Color3.fromRGB(18, 16, 13),
-        BG_SECONDARY = Color3.fromRGB(24, 22, 17),
-        ACCENT = Color3.fromRGB(255, 186, 8),
-        TEXT_WHITE = Color3.fromRGB(250, 248, 240),
-        TEXT_MUTED = Color3.fromRGB(145, 135, 115),
-        BORDER = Color3.fromRGB(50, 42, 25)
     },
     ["Sakura Blossom"] = {
         BG_MAIN = Color3.fromRGB(16, 12, 14),
@@ -219,19 +192,21 @@ task.spawn(function()
     end
 end)
 
--- ⚡ MEJORA: MOTOR DE ARRASTRE MULTIPLATAFORMA UNIFICADO Y ULTRA-SUAVE
+-- ⚡ MEJORA: MOTOR DE ARRASTRE SIN INTERFERENCIA DE CÁMARA (LOCK POINT DE INPUT)
 local function makeDraggable(clickObject, dragObject)
-    local dragging, dragStart, startPos
+    local dragging, dragStart, startPos, activeInput
     connect(clickObject.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
             dragging = true
+            activeInput = input
             dragStart = input.Position
             startPos = dragObject.Position
         end
     end)
     connect(UserInputService.InputChanged, function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        if dragging and input == activeInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             task.defer(function()
+                if not dragging or activeInput ~= input then return end
                 local delta = input.Position - dragStart
                 local screenSize = Camera.ViewportSize
                 if dragObject == MainFrame then
@@ -251,8 +226,9 @@ local function makeDraggable(clickObject, dragObject)
         end
     end)
     connect(UserInputService.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if input == activeInput then
             dragging = false
+            activeInput = nil
         end
     end)
 end
@@ -272,9 +248,18 @@ local SearchInput = create("TextBox", {
     TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false
 }, SearchBoxContainer)
 
-local SidebarTabsContainer = create("Frame", {Size = UDim2.new(1, 0, 1, -85), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1}, Sidebar)
-create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SidebarTabsContainer)
+-- ⚡ MEJORA: CONTENEDOR DE PESTAÑAS CON SCROLLING SUAVE (SETTINGS EXCLUIDO Y ESTÁTICO)
+local SidebarTabsContainer = create("ScrollingFrame", {
+    Size = UDim2.new(1, 0, 1, -85), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1,
+    ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0
+}, Sidebar)
+local tabsLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SidebarTabsContainer)
 create("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, SidebarTabsContainer)
+
+local tabsSizeConn = tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    SidebarTabsContainer.CanvasSize = UDim2.new(0, 0, 0, tabsLayout.AbsoluteContentSize.Y + 10)
+end)
+table.insert(Connections, tabsSizeConn)
 
 local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
 local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
@@ -438,7 +423,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
         stateUpdate()
     end)
 
-    task.spawn(callback, Flags[flagName].CurrentValue)
+    task.defer(pcall, callback, Flags[flagName].CurrentValue)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
@@ -510,7 +495,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         runSliderValue(Flags[flagName].CurrentValue)
     end)
 
-    runSliderValue(Flags[flagName].CurrentValue)
+    task.defer(runSliderValue, Flags[flagName].CurrentValue)
     self:RegisterElement(SliderFrame, Label, self.Frame.Name)
     return {Set = function(_, value) runSliderValue(value) end}
 end
@@ -577,7 +562,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     end)
 
     makeOptions()
-    task.spawn(callback, Flags[flagName].CurrentValue)
+    task.defer(pcall, callback, Flags[flagName].CurrentValue)
     self:RegisterElement(DDFrame, Label, self.Frame.Name)
     return {Refresh = function(_, newOptions) options = newOptions makeOptions() end}
 end
@@ -599,7 +584,6 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     local OptsScroll = create("ScrollingFrame", {Size = UDim2.new(1, -16, 0, 0), Position = UDim2.new(0, 8, 0, 42), BackgroundTransparency = 1, ScrollBarThickness = 2}, MFrame)
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, OptsScroll)
 
-    -- ⚡ MEJORA: VIRTUALIZACIÓN DE TEXTO CON FILTRO MÁXIMO INTELIGENTE
     local function updateText()
         local selected = {}
         for _, opt in ipairs(options) do if Config[flagName][opt] then table.insert(selected, opt) end end
@@ -615,6 +599,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     local open = false
     connect(Trigger.MouseButton1Click, function()
         open = not open playUISound()
+        -- ⚡ FIX: Cambiado 'open perks' por el conector lógico correcto 'open and'
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
         
         task.spawn(function()
@@ -653,7 +638,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     end)
 
     makeList() updateText()
-    task.spawn(callback, Flags[flagName].CurrentValue)
+    task.defer(pcall, callback, Config[flagName])
     self:RegisterElement(MFrame, Label, self.Frame.Name)
 end
 
@@ -760,8 +745,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     end)
 
     stateUpdate()
-    task.spawn(callbackToggle, Flags[flagToggle].CurrentValue)
-    task.spawn(callbackColor, Flags[flagColor].CurrentValue)
+    task.defer(pcall, callbackToggle, Flags[flagToggle].CurrentValue)
+    task.defer(pcall, callbackColor, Flags[flagColor].CurrentValue)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
 end
 
@@ -782,6 +767,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
         InpFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
     end)
+    task.defer(pcall, callback, Flags[flagName].CurrentValue)
     self:RegisterElement(InpFrame, Label, self.Frame.Name)
 end
 
@@ -822,6 +808,9 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
         KFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
         BBtn.TextColor3 = CurrentTheme.ACCENT
+    end)
+    task.defer(function()
+        pcall(callback, Enum.KeyCode[Flags[flagName].CurrentValue])
     end)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
 end
@@ -909,11 +898,11 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
 end)
 
 -- ============================================================================
--- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.4)
+-- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS ACTUALIZADO V2.4.1)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Void Premium", "Crimson Dark", "Midnight Emerald", "Cyberpunk Violet", "Classic Dark", "Ametista Premium", "Glitch Gold", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Void Premium", "Midnight Emerald", "Classic Dark", "Ametista Premium", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 SettingsTab:CreateSlider("UiOpacity", "Opacidad de la Interfaz", 0.1, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
