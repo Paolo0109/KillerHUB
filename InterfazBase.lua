@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.4.1)
--- 🧑‍💻 Desarrollado por: Paolo
+-- 🧑‍💻 Desarrollado por: Paolo Sexo XD
 -- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
 -- ⚡ Upgrade V2.4.1: Scroll de pestañas independiente, Fix de arrastre por cámara y Sincronización Automática.
 -- ============================================================================
