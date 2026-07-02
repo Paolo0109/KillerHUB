@@ -29,11 +29,11 @@ local Themes = {
         BG_SIDEBAR   = Color3.fromRGB(8, 8, 10),
         BG_SECONDARY = Color3.fromRGB(10, 10, 13),
         BG_ELEMENT   = Color3.fromRGB(18, 18, 24),
-        ACCENT       = Color3.fromRGB(0, 240, 255),
-        ACCENT_GLOW  = Color3.fromRGB(255, 0, 128),
+        ACCENT       = Color3.fromRGB(56, 194, 10),
+        ACCENT_GLOW  = Color3.fromRGB(255, 0, 0),
         TEXT_WHITE   = Color3.fromRGB(245, 245, 250),
         TEXT_MUTED   = Color3.fromRGB(110, 115, 130),
-        BORDER       = Color3.fromRGB(0, 240, 255)
+        BORDER       = Color3.fromRGB(201, 6, 48)
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
