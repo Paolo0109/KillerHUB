@@ -1,8 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.6.0)
--- 🧑‍💻 Desarrollado por: Paolo Sexo XD
--- 📱 Fix: Dropdowns suaves, Anti-Pérdida de UI, Limpieza de memoria completa y Tema Blood
--- ⚡ Upgrade V2.6.0: Botón de Portapapeles Inteligente y Secciones Estilizadas para organización masiva
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | ULTRA-OPTIMIZED MOBILE API (V2.7.2)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -10,7 +7,6 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local Debris = game:GetService("Debris")
-local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
 local TweenService = game:GetService("TweenService")
@@ -25,9 +21,20 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 SINOPSIS DE TEMAS VISUALES (FILTRADO SEGÚN PREFERENCIAS)
+-- 🎨 SINOPSIS DE TEMAS VISUALES
 -- ============================================================================
 local Themes = {
+    ["Cyber OLED"] = {
+        BG_MAIN      = Color3.fromRGB(0, 0, 0),
+        BG_SIDEBAR   = Color3.fromRGB(8, 8, 10),
+        BG_SECONDARY = Color3.fromRGB(10, 10, 13),
+        BG_ELEMENT   = Color3.fromRGB(18, 18, 24),
+        ACCENT       = Color3.fromRGB(0, 240, 255),
+        ACCENT_GLOW  = Color3.fromRGB(255, 0, 128),
+        TEXT_WHITE   = Color3.fromRGB(245, 245, 250),
+        TEXT_MUTED   = Color3.fromRGB(110, 115, 130),
+        BORDER       = Color3.fromRGB(0, 240, 255)
+    },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
         BG_SIDEBAR = Color3.fromRGB(11, 8, 16),
@@ -84,20 +91,20 @@ local Themes = {
     }
 }
 
-local CurrentTheme = Themes["Void Premium"]
+local CurrentTheme = Themes["Cyber OLED"]
 
 -- ============================================================================
 -- 💾 SISTEMA DE CONFIGURACIÓN Y RECOLECTOR DE SEÑALES (ANTI-LEAKS)
 -- ============================================================================
 local CONFIG_FILE = "KillerHub_Universal_Config.json"
 local DefaultConfig = {
-    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Void Premium",
+    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Cyber OLED",
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 1, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0,
-    BtnX = 15, BtnY = 100
+    BtnX = 15, BtnY = 100, ShowWatermark = false,
+    PerformanceMode = false, AutoPerformance = true   
 }
-local Config = {} local Flags = {}
-local Connections = {}
+local Config = {} local Flags = {} local Connections = {}
 
 local function connect(event, callback)
     local conn = event:Connect(callback)
@@ -132,12 +139,96 @@ local function create(instanceType, properties, parent)
     return obj
 end
 
+local function ApplyCyberStyle(frame, isMain)
+    local uiCorner = frame:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 6)
+    uiCorner.Parent = frame
+
+    local uiStroke = frame:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
+    uiStroke.Thickness = 1
+    uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    
+    if isMain then
+        uiStroke.Color = CurrentTheme.BORDER
+        uiStroke.Transparency = 0.4
+    else
+        if Config.SelectedTheme == "Cyber OLED" then
+            uiStroke.Color = Color3.fromRGB(255, 255, 255)
+            uiStroke.Transparency = 0.92
+        else
+            uiStroke.Color = CurrentTheme.BORDER
+            uiStroke.Transparency = 0.5
+        end
+    end
+    uiStroke.Parent = frame
+end
+
+-- ============================================================================
+-- 👾 SISTEMA DE MICRO-EFECTOS SCI-FI (MÁXIMO RENDIMIENTO)
+-- ============================================================================
+local function FormatSciFiText(str)
+    str = str:upper()
+    local formatted = ""
+    for i = 1, #str do
+        local char = str:sub(i, i)
+        if char == " " then
+            formatted = formatted .. "   "
+        else
+            formatted = formatted .. char .. " "
+        end
+    end
+    return formatted:sub(1, -2)
+end
+
+-- Matriz optimizada para evitar corrupción de caracteres multibyte UTF-8
+local GlitchCharsTable = {"0", "1", "X", "Δ", "Ω", "/", "_", "#", "-", "[", "+", "]"}
+
+local function ApplyGlitchText(textLabel, finalString)
+    if Config.PerformanceMode then
+        textLabel.Text = FormatSciFiText(finalString)
+        return
+    end
+    
+    task.spawn(function()
+        local cleanString = finalString:upper()
+        for i = 1, 3 do
+            local randomText = ""
+            for j = 1, #cleanString do
+                if cleanString:sub(j, j) == " " then
+                    randomText = randomText .. "   "
+                else
+                    randomText = randomText .. GlitchCharsTable[math.random(1, #GlitchCharsTable)] .. " "
+                end
+            end
+            textLabel.Text = randomText:sub(1, -2)
+            task.wait(0.04)
+        end
+        textLabel.Text = FormatSciFiText(finalString)
+    end)
+end
+
+-- ============================================================================
+-- ⚡ MOTOR DE ANIMACIÓN INTELIGENTE ADAPTATIVO
+-- ============================================================================
+local function safeTween(instance, tweenInfo, propertyTable)
+    if not instance or not instance.Parent then return nil end
+    if Config.PerformanceMode then
+        for prop, val in pairs(propertyTable) do
+            pcall(function() instance[prop] = val end)
+        end
+        return nil
+    else
+        local tween = TweenService:Create(instance, tweenInfo, propertyTable)
+        tween:Play()
+        return tween
+    end
+end
+
 -- ============================================================================
 -- 🖥 INTERFAZ BASE TOTALMENTE ADAPTABLE
 -- ============================================================================
 local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
 
--- ⚡ MOBILE FIX INTEGRADO: Ahora se asocia a ScreenGui para asegurar compatibilidad local en inyectores móviles
 local function playUISound()
     if not Config.Volume or Config.Volume <= 0 then return end
     local sound = create("Sound", {SoundId = "rbxassetid://101735926591481", Volume = Config.Volume}, ScreenGui)
@@ -145,16 +236,7 @@ local function playUISound()
 end
 
 local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
-local MainStroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER}, MainFrame)
-create("UICorner", {CornerRadius = UDim.new(0, 10)}, MainFrame)
-
-local BordeGradient = create("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 35, 45)),
-        ColorSequenceKeypoint.new(0.5, CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 15, 25))
-    }), Rotation = 45
-}, MainStroke)
+ApplyCyberStyle(MainFrame, true)
 
 local function updateGuiSize()
     MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
@@ -162,40 +244,52 @@ end
 updateGuiSize()
 
 local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, Active = true}, MainFrame)
-create("UICorner", {CornerRadius = UDim.new(0, 10)}, Topbar)
+create("UICorner", {CornerRadius = UDim.new(0, 6)}, Topbar)
 local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0}, Topbar)
 
 local Title = create("TextLabel", {
     Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1,
     Text = "Killer Hub | By Paolo 👻", TextColor3 = CurrentTheme.ACCENT,
-    TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14
+    TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.RobotoMono, TextSize = 13,
+    TextStrokeTransparency = 0.9, TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 }, Topbar)
 local DecorLine = create("Frame", {Size = UDim2.new(0, 50, 0, 2), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
 
 local PerformanceLabel = create("TextLabel", {
     Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(1, -15, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1,
     Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED,
-    TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamMedium, TextSize = 11
+    TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.RobotoMono, TextSize = 11
 }, Topbar)
 
+local lowFpsCount = 0
 task.spawn(function()
-    while task.wait(1) do
-        if ScreenGui and ScreenGui.Parent then
-            local fps = math.floor(Workspace:GetRealPhysicsFPS())
-            local ping = 0
-            local successNetwork = pcall(function()
-                if Stats:FindFirstChild("Network") and Stats.Network:FindFirstChild("ServerToClientPing") then
-                    ping = math.floor(Stats.Network.ServerToClientPing:GetValue())
-                end
-            end)
-            if not successNetwork or ping == 0 then
-                pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+    while ScreenGui and ScreenGui.Parent do
+        local fps = math.floor(Workspace:GetRealPhysicsFPS())
+        local ping = 0
+        local successNetwork = pcall(function()
+            if Stats:FindFirstChild("Network") and Stats.Network:FindFirstChild("ServerToClientPing") then
+                ping = math.floor(Stats.Network.ServerToClientPing:GetValue())
             end
-            PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", fps, ping)
-        else break end
+        end)
+        if not successNetwork or ping == 0 then
+            pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+        end
+        PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", fps, ping)
+        
+        if Config.AutoPerformance and fps < 35 then
+            lowFpsCount = lowFpsCount + 1
+            if lowFpsCount >= 3 and not Config.PerformanceMode then
+                Config.PerformanceMode = true
+                warn("⚡ KillerHub: Rendimiento bajo detectado. Modo Optimizado Activado Automáticamente.")
+            end
+        else
+            lowFpsCount = 0
+        end
+        task.wait(1)
     end
 end)
 
+-- Sistema de arrastre optimizado para móviles (0 Latencia táctil)
 local function makeDraggable(clickObject, dragObject)
     local dragging, dragStart, startPos, activeInput
     connect(clickObject.InputBegan, function(input)
@@ -208,24 +302,21 @@ local function makeDraggable(clickObject, dragObject)
     end)
     connect(UserInputService.InputChanged, function(input)
         if dragging and input == activeInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            task.defer(function()
-                if not dragging or activeInput ~= input then return end
-                local delta = input.Position - dragStart
-                local screenSize = Camera.ViewportSize
-                if dragObject.Name == "MainFrame" then
-                    local frameSize = dragObject.AbsoluteSize
-                    local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
-                    local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
-                    local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
-                    local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
-                    dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
-                else
-                    local btnSize = dragObject.AbsoluteSize
-                    local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
-                    local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
-                    dragObject.Position = UDim2.new(0, newX, 0, newY)
-                end
-            end)
+            local delta = input.Position - dragStart
+            local screenSize = Camera.ViewportSize
+            if dragObject.Name == "MainFrame" then
+                local frameSize = dragObject.AbsoluteSize
+                local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
+                local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
+                local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
+                local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
+                dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
+            else
+                local btnSize = dragObject.AbsoluteSize
+                local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
+                local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
+                dragObject.Position = UDim2.new(0, newX, 0, newY)
+            end
         end
     end)
     connect(UserInputService.InputEnded, function(input)
@@ -252,13 +343,12 @@ local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -
 local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(24, 24, 28), BorderSizePixel = 0}, Sidebar)
 
 local SearchBoxContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 8), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, Sidebar)
-create("UICorner", {CornerRadius = UDim.new(0, 5)}, SearchBoxContainer)
-local SearchStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(30, 30, 36)}, SearchBoxContainer)
+ApplyCyberStyle(SearchBoxContainer, false)
 
 local SearchInput = create("TextBox", {
     Size = UDim2.new(1, -10, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1,
     PlaceholderText = "Buscar...", PlaceholderColor3 = CurrentTheme.TEXT_MUTED, Text = "",
-    TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false
+    TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.RobotoMono, TextSize = 11, ClearTextOnFocus = false
 }, SearchBoxContainer)
 
 local SidebarTabsContainer = create("ScrollingFrame", {
@@ -277,10 +367,10 @@ local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Posi
 local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
 
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, Config.BtnX or 15, 0, Config.BtnY or 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
-create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
-local FloatingStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, OpenCloseBtn)
+ApplyCyberStyle(OpenCloseBtn, true)
+
 local BtnIcon = create("ImageLabel", {Name = "Icon", Size = UDim2.new(1, 0, 1, 0), ScaleType = Enum.ScaleType.Crop, BackgroundTransparency = 1, Image = "rbxassetid://84689030731870", ImageColor3 = CurrentTheme.ACCENT}, OpenCloseBtn)
-create("UICorner", {CornerRadius = UDim.new(0, 10)}, BtnIcon)
+create("UICorner", {CornerRadius = UDim.new(0, 6)}, BtnIcon)
 
 makeDraggable(OpenCloseBtn, OpenCloseBtn)
 
@@ -314,7 +404,7 @@ connect(UserInputService.InputBegan, function(input, gp)
 end)
 
 -- ============================================================================
--- 📦 API CORE Y MOTOR DE REDISEÑO REACTIVO CENTRAL (GARBAGE COLLECTOR)
+-- 📦 API CORE Y RECOLECTOR CENTRAL CONTRA FUGAS
 -- ============================================================================
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
@@ -346,7 +436,6 @@ function KillerHub:SetTheme(themeName)
     saveConfig()
     
     MainFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
-    MainStroke.Color = CurrentTheme.BORDER
     Sidebar.BackgroundColor3 = CurrentTheme.BG_SIDEBAR
     SidebarLine.BackgroundColor3 = CurrentTheme.BORDER
     Title.TextColor3 = CurrentTheme.ACCENT
@@ -356,14 +445,11 @@ function KillerHub:SetTheme(themeName)
     SearchInput.TextColor3 = CurrentTheme.TEXT_WHITE
     SearchInput.PlaceholderColor3 = CurrentTheme.TEXT_MUTED
     OpenCloseBtn.BackgroundColor3 = CurrentTheme.BG_MAIN
-    FloatingStroke.Color = CurrentTheme.BORDER
     BtnIcon.ImageColor3 = menuVisible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
     
-    BordeGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 35, 45)),
-        ColorSequenceKeypoint.new(0.5, CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 15, 25))
-    })
+    ApplyCyberStyle(MainFrame, true)
+    ApplyCyberStyle(SearchBoxContainer, false)
+    ApplyCyberStyle(OpenCloseBtn, true)
 
     for _, refreshCallback in ipairs(KillerHub.TargetThemeElements) do
         pcall(refreshCallback)
@@ -379,15 +465,14 @@ end
 
 function TabMethods:CreateParagraph(title, text)
     local Frame = create("Frame", {Size = UDim2.new(1, 0, 0, 55), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, Frame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(28, 28, 34)}, Frame)
+    ApplyCyberStyle(Frame, false)
     
     local Tl = create("TextLabel", {Size = UDim2.new(1, -24, 0, 18), Position = UDim2.new(0, 12, 0, 6), BackgroundTransparency = 1, Text = title, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Frame)
     local Tx = create("TextLabel", {Size = UDim2.new(1, -24, 0, 26), Position = UDim2.new(0, 12, 0, 22), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 11, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top}, Frame)
     
     table.insert(KillerHub.TargetThemeElements, function()
         Frame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(Frame, false)
         Tl.TextColor3 = CurrentTheme.ACCENT
         Tx.TextColor3 = CurrentTheme.TEXT_MUTED
     end)
@@ -396,7 +481,13 @@ end
 
 function TabMethods:CreateSection(text)
     local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1}, self.Frame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 0.2}, SectionFrame)
+    local Label = create("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, 
+        Text = "", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.RobotoMono, TextSize = 10, 
+        TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 0.85, TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    }, SectionFrame)
+    
+    ApplyGlitchText(Label, text)
     
     table.insert(KillerHub.TargetThemeElements, function()
         Label.TextColor3 = CurrentTheme.ACCENT
@@ -404,7 +495,7 @@ function TabMethods:CreateSection(text)
     
     self:RegisterElement(SectionFrame, Label, self.Frame.Name)
     return {
-        SetText = function(_, newText) Label.Text = string.upper(newText) end
+        SetText = function(_, newText) ApplyGlitchText(Label, newText) end
     }
 end
 
@@ -413,8 +504,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
     local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, Text = "", AutoButtonColor = false}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, ToggleButton)
+    ApplyCyberStyle(ToggleButton, false)
     
     local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)}, ToggleButton)
@@ -426,13 +516,13 @@ function TabMethods:CreateToggle(flagName, text, callback)
         local active = Flags[flagName].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         
-        TweenService:Create(Track, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)
-        }):Play()
+        safeTween(Track, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundColor3 = active and (Config.SelectedTheme == "Cyber OLED" and CurrentTheme.ACCENT_GLOW or CurrentTheme.ACCENT) or Color3.fromRGB(40, 40, 46)
+        })
         
-        TweenService:Create(Knob, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        safeTween(Knob, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        }):Play()
+        })
     end
     
     connect(ToggleButton.MouseButton1Click, function()
@@ -444,7 +534,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     
     table.insert(KillerHub.TargetThemeElements, function()
         ToggleButton.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(ToggleButton, false)
         stateUpdate()
     end)
 
@@ -460,8 +550,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     Flags[flagSlider] = { CurrentValue = Config[flagSlider] }
     
     local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 54), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, TSFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, TSFrame)
+    ApplyCyberStyle(TSFrame, false)
     
     local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, TSFrame)
     local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
@@ -485,13 +574,13 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         local active = Flags[flagToggle].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         
-        TweenService:Create(Track, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)
-        }):Play()
+        safeTween(Track, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundColor3 = active and (Config.SelectedTheme == "Cyber OLED" and CurrentTheme.ACCENT_GLOW or CurrentTheme.ACCENT) or Color3.fromRGB(40, 40, 46)
+        })
         
-        TweenService:Create(Knob, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        safeTween(Knob, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        }):Play()
+        })
     end
 
     local function runSliderValue(v)
@@ -499,8 +588,8 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
         task.spawn(function()
-            TweenService:Create(SFill, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(pct, 0, 1, 0)}):Play()
-            TweenService:Create(SKnob, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(pct, -5, 0.5, -5)}):Play()
+            safeTween(SFill, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(pct, 0, 1, 0)})
+            safeTween(SKnob, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(pct, -5, 0.5, -5)})
             
             if max <= 1 then 
                 ValueBox.Text = string.format("%.2f", v) 
@@ -533,6 +622,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     connect(SKnob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             sliding = true snap(input)
+            
             if dragConn then dragConn:Disconnect() end
             if endConn then endConn:Disconnect() end
             
@@ -541,7 +631,6 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
                     snap(changedInput)
                 end
             end)
-            KillerHub:AddTask(dragConn)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
                 if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -550,13 +639,12 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
                     if endConn then endConn:Disconnect() endConn = nil end
                 end
             end)
-            KillerHub:AddTask(endConn)
         end
     end)
 
     table.insert(KillerHub.TargetThemeElements, function()
         TSFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(TSFrame, false)
         ValueBox.TextColor3 = CurrentTheme.ACCENT
         SFill.BackgroundColor3 = CurrentTheme.ACCENT
         stateUpdate()
@@ -574,9 +662,6 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     }
 end
 
--- ============================================================================
--- ⚡ FIX REPLICADO CENTRAL: CreateSlider ahora pasa la variable 'v' al callback
--- ============================================================================
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
     if Config[flagName] == nil then Config[flagName] = min end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -596,13 +681,8 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
         task.spawn(function()
-            TweenService:Create(Fill, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(pct, 0, 1, 0)
-            }):Play()
-            
-            TweenService:Create(Knob, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(pct, -6, 0.5, -6)
-            }):Play()
+            safeTween(Fill, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(pct, 0, 1, 0)})
+            safeTween(Knob, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(pct, -6, 0.5, -6)})
             
             if max <= 1 then 
                 ValueBox.Text = string.format("%.2f", v) 
@@ -610,7 +690,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                 ValueBox.Text = tostring(math.floor(v)) 
             end
         end)
-        pcall(callback, v) -- ⚡ FIXED: Sincroniza 'v' de forma segura sin romper variables
+        pcall(callback, v)
     end
     
     connect(ValueBox.FocusLost, function()
@@ -628,6 +708,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     connect(Knob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             sliding = true snap(input)
+            
             if dragConn then dragConn:Disconnect() end
             if endConn then endConn:Disconnect() end
             
@@ -636,7 +717,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                     snap(changedInput)
                 end
             end)
-            KillerHub:AddTask(dragConn)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
                 if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -645,7 +725,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                     if endConn then endConn:Disconnect() endConn = nil end
                 end
             end)
-            KillerHub:AddTask(endConn)
         end
     end)
     
@@ -666,8 +745,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
     local DDFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, ClipsDescendants = true}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, DDFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, DDFrame)
+    ApplyCyberStyle(DDFrame, false)
     
     local Trigger = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Text = ""}, DDFrame)
     
@@ -686,8 +764,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
             PlaceholderColor3 = CurrentTheme.TEXT_MUTED, TextColor3 = CurrentTheme.TEXT_WHITE,
             Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false, Visible = false
         }, DDFrame)
-        create("UICorner", {CornerRadius = UDim.new(0, 4)}, SearchBox)
-        create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(36, 36, 42)}, SearchBox)
+        ApplyCyberStyle(SearchBox, false)
     end
     
     local OptsScroll = create("ScrollingFrame", {Size = UDim2.new(1, -16, 0, 0), Position = UDim2.new(0, 8, 0, 42 + searchHeight), BackgroundTransparency = 1, ScrollBarThickness = 2}, DDFrame)
@@ -704,32 +781,31 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         end
         
         task.spawn(function()
-            TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + searchHeight + (open and 6 or 0))}):Play()
-            TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
-            TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
+            safeTween(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + searchHeight + (open and 6 or 0))})
+            safeTween(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)})
+            safeTween(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0})
         end)
-        
-        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end)
     
+    local internalButtons = {}
     local function makeOptions()
-        for _, child in ipairs(OptsScroll:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
+        for _, btn in ipairs(internalButtons) do pcall(function() btn:Destroy() end) end
+        table.clear(internalButtons)
+
         for i, name in ipairs(options) do
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
+            table.insert(internalButtons, OptBtn)
             
-            local btnConn = OptBtn.MouseButton1Click:Connect(function()
+            connect(OptBtn.MouseButton1Click, function()
                 Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name playUISound() open = false
                 if SearchBox then SearchBox.Text = "" SearchBox.Visible = false end
                 task.spawn(function()
-                    TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play()
-                    TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
+                    safeTween(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)})
+                    safeTween(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0})
                 end)
                 pcall(callback, name) makeOptions()
             end)
-            KillerHub:AddTask(btnConn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -737,10 +813,8 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     if SearchBox then
         connect(SearchBox:GetPropertyChangedSignal("Text"), function()
             local filter = string.lower(SearchBox.Text)
-            for _, child in ipairs(OptsScroll:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child.Visible = (filter == "") or string.find(string.lower(child.Text), filter) and true or false
-                end
+            for _, child in ipairs(internalButtons) do
+                child.Visible = (filter == "") or (string.find(string.lower(child.Text), filter) ~= nil)
             end
             task.defer(function()
                 if not open then return end
@@ -754,13 +828,14 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
 
     table.insert(KillerHub.TargetThemeElements, function()
         DDFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(DDFrame, false)
         Label.TextColor3 = CurrentTheme.TEXT_WHITE
         SelLabel.TextColor3 = CurrentTheme.ACCENT
         Arrow.TextColor3 = CurrentTheme.TEXT_MUTED
         if SearchBox then
             SearchBox.PlaceholderColor3 = CurrentTheme.TEXT_MUTED
             SearchBox.TextColor3 = CurrentTheme.TEXT_WHITE
+            ApplyCyberStyle(SearchBox, false)
         end
         makeOptions()
     end)
@@ -776,8 +851,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
     local MFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, ClipsDescendants = true}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, MFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, MFrame)
+    ApplyCyberStyle(MFrame, false)
     
     local Trigger = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Text = ""}, MFrame)
     
@@ -806,35 +880,34 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
         
         task.spawn(function()
-            TweenService:Create(MFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + (open and 6 or 0))}):Play()
-            TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
-            TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
+            safeTween(MFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42 + targetH + (open and 6 or 0))})
+            safeTween(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)})
+            safeTween(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0})
         end)
-        
-        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end)
 
+    local internalMultiButtons = {}
     local function makeList()
-        for _, child in ipairs(OptsScroll:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
+        for _, btn in ipairs(internalMultiButtons) do pcall(function() btn:Destroy() end) end
+        table.clear(internalMultiButtons)
+
         for i, name in ipairs(options) do
             local isChosen = Config[flagName][name] or false
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = isChosen and CurrentTheme.BG_MAIN or Color3.fromRGB(24, 24, 30), Text = name, TextColor3 = isChosen and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 4)}, OptBtn)
+            table.insert(internalMultiButtons, OptBtn)
             
-            local mConn = OptBtn.MouseButton1Click:Connect(function()
+            connect(OptBtn.MouseButton1Click, function()
                 Config[flagName][name] = not Config[flagName][name]
                 saveConfig() playUISound() updateText() makeList() pcall(callback, Config[flagName])
             end)
-            KillerHub:AddTask(mConn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
 
     table.insert(KillerHub.TargetThemeElements, function()
         MFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(MFrame, false)
         Label.TextColor3 = CurrentTheme.TEXT_WHITE
         SelLabel.TextColor3 = CurrentTheme.ACCENT
         makeList()
@@ -852,8 +925,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
 
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, ClipsDescendants = true}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, MasterFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, MasterFrame)
+    ApplyCyberStyle(MasterFrame, false)
 
     local MainTrigger = create("TextButton", {Size = UDim2.new(1, -80, 0, 42), BackgroundTransparency = 1, Text = ""}, MasterFrame)
     local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
@@ -871,7 +943,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
 
     local function stateUpdate()
         local active = Flags[flagToggle].CurrentValue
-        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 46)
+        Track.BackgroundColor3 = active and (Config.SelectedTheme == "Cyber OLED" and CurrentTheme.ACCENT_GLOW or CurrentTheme.ACCENT) or Color3.fromRGB(40, 40, 46)
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
     end
@@ -903,9 +975,10 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         end
         
         local dragConn, endConn
-        local inputConn = KnobS.InputBegan:Connect(function(input)
+        connect(KnobS.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isSliding = true snap(input)
+                
                 if dragConn then dragConn:Disconnect() end
                 if endConn then endConn:Disconnect() end
                 
@@ -914,7 +987,6 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                         snap(changedInput)
                     end
                 end)
-                KillerHub:AddTask(dragConn)
                 
                 endConn = UserInputService.InputEnded:Connect(function(endedInput)
                     if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -923,10 +995,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                         if endConn then endConn:Disconnect() endConn = nil end
                     end
                 end)
-                KillerHub:AddTask(endConn)
             end
         end)
-        KillerHub:AddTask(inputConn)
     end
 
     createMiniSlider("R", 1, Color3.fromRGB(235, 40, 40))
@@ -937,13 +1007,13 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
         task.spawn(function()
-            TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)}):Play()
+            safeTween(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)})
         end)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
         MasterFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(MasterFrame, false)
         stateUpdate()
     end)
 
@@ -958,15 +1028,13 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
 
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, ClipsDescendants = true}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, MasterFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, MasterFrame)
+    ApplyCyberStyle(MasterFrame, false)
 
     local Trigger = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Text = ""}, MasterFrame)
     local Label = create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Trigger)
 
     local ColorBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 18), Position = UDim2.new(1, -42, 0.5, -9), BackgroundColor3 = Flags[flagColor].CurrentValue, Text = ""}, Trigger)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, ColorBtn)
-    local ColorStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 52)}, ColorBtn)
 
     local SlidersContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 80), Position = UDim2.new(0, 12, 0, 44), BackgroundTransparency = 1}, MasterFrame)
     create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SlidersContainer)
@@ -991,18 +1059,17 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         
         local function snap(input)
             local pct = math.clamp((input.Position.X - TrackS.AbsolutePosition.X) / TrackS.AbsoluteSize.X, 0, 1)
-            
-            TweenService:Create(FillS, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(pct, 0, 1, 0)}):Play()
-            TweenService:Create(KnobS, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(pct, -5, 0.5, -5)}):Play()
-            
+            safeTween(FillS, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(pct, 0, 1, 0)})
+            safeTween(KnobS, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(pct, -5, 0.5, -5)})
             Config[flagColor][colorValueIndex] = pct 
             updateColor()
         end
         
         local dragConn, endConn
-        local inputConn = KnobS.InputBegan:Connect(function(input)
+        connect(KnobS.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isSliding = true snap(input)
+                
                 if dragConn then dragConn:Disconnect() end
                 if endConn then endConn:Disconnect() end
                 
@@ -1011,7 +1078,6 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
                         snap(changedInput)
                     end
                 end)
-                KillerHub:AddTask(dragConn)
                 
                 endConn = UserInputService.InputEnded:Connect(function(endedInput)
                     if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
@@ -1020,10 +1086,8 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
                         if endConn then endConn:Disconnect() endConn = nil end
                     end
                 end)
-                KillerHub:AddTask(endedInput)
             end
         end)
-        KillerHub:AddTask(inputConn)
     end
 
     createMiniSlider("R", 1, Color3.fromRGB(235, 40, 40))
@@ -1034,13 +1098,13 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     connect(Trigger.MouseButton1Click, function() 
         open = not open playUISound() 
         task.spawn(function()
-            TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)}):Play()
+            safeTween(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 130 or 42)})
         end)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
         MasterFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(MasterFrame, false)
         Label.TextColor3 = CurrentTheme.TEXT_WHITE
         ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
     end)
@@ -1060,8 +1124,7 @@ end
 
 function TabMethods:CreateClipboardButton(text, textToCopy)
     local Frame = create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, Frame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, Frame)
+    ApplyCyberStyle(Frame, false)
     
     local Button = create("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = ""}, Frame)
     local Label = create("TextLabel", {Size = UDim2.new(1, -80, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Button)
@@ -1073,9 +1136,7 @@ function TabMethods:CreateClipboardButton(text, textToCopy)
         copying = true playUISound()
         
         local setClip = setclipboard or toclipboard or (Clipboard and Clipboard.set)
-        if setClip then
-            pcall(setClip, textToCopy)
-        end
+        if setClip then pcall(setClip, textToCopy) end
         
         StatusLabel.Text = "¡Copiado! ✓"
         StatusLabel.TextColor3 = Color3.fromRGB(40, 235, 40)
@@ -1089,7 +1150,7 @@ function TabMethods:CreateClipboardButton(text, textToCopy)
     
     table.insert(KillerHub.TargetThemeElements, function()
         Frame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(Frame, false)
         Label.TextColor3 = CurrentTheme.TEXT_WHITE
         if not copying then StatusLabel.TextColor3 = CurrentTheme.ACCENT end
     end)
@@ -1105,18 +1166,18 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     if Config[flagName] == nil then Config[flagName] = "" end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     local InpFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, InpFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, InpFrame)
+    ApplyCyberStyle(InpFrame, false)
     
     local Label = create("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, InpFrame)
     local Box = create("TextBox", {Size = UDim2.new(0, 120, 0, 26), Position = UDim2.new(1, -12, 0.5, -13), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(26, 26, 32), Text = Flags[flagName].CurrentValue, PlaceholderText = placeholder, PlaceholderColor3 = Color3.fromRGB(90, 90, 100), TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, InpFrame)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, Box)
+    ApplyCyberStyle(Box, false)
     
     connect(Box.FocusLost, function() Flags[flagName].CurrentValue = Box.Text Config[flagName] = Box.Text saveConfig() pcall(callback, Box.Text) end)
     
     table.insert(KillerHub.TargetThemeElements, function()
         InpFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(InpFrame, false)
+        ApplyCyberStyle(Box, false)
     end)
     task.defer(pcall, callback, Flags[flagName].CurrentValue)
     self:RegisterElement(InpFrame, Label, self.Frame.Name)
@@ -1124,27 +1185,37 @@ end
 
 function TabMethods:CreateButton(text, callback)
     local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Color3.fromRGB(25, 25, 32), Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(38, 38, 45)}, Button)
+    ApplyCyberStyle(Button, false)
     
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
     table.insert(KillerHub.TargetThemeElements, function()
         Button.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(Button, false)
     end)
     self:RegisterElement(Button, Button, self.Frame.Name)
+end
+
+function TabMethods:CreateLabel(text)
+    local LabelFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1}, self.Frame)
+    local Lbl = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, LabelFrame)
+    
+    table.insert(KillerHub.TargetThemeElements, function()
+        Lbl.TextColor3 = CurrentTheme.TEXT_WHITE
+    end)
+    
+    self:RegisterElement(LabelFrame, Lbl, self.Frame.Name)
+    return { SetText = function(_, newText) Lbl.Text = newText end }
 end
 
 function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     if Config[flagName] == nil then Config[flagName] = defaultKey.Name end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     local KFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, KFrame)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(32, 32, 38)}, KFrame)
+    ApplyCyberStyle(KFrame, false)
     
     local Lbl = create("TextLabel", {Size = UDim2.new(1, -120, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, KFrame)
     local BBtn = create("TextButton", {Size = UDim2.new(0, 85, 0, 26), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(30, 30, 36), Text = Config[flagName], TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11}, KFrame)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, BBtn)
+    ApplyCyberStyle(BBtn, false)
     
     local listening = false
     connect(BBtn.MouseButton1Click, function() listening = true BBtn.Text = "..." playUISound() end)
@@ -1157,7 +1228,8 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     
     table.insert(KillerHub.TargetThemeElements, function()
         KFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(KFrame, false)
+        ApplyCyberStyle(BBtn, false)
         BBtn.TextColor3 = CurrentTheme.ACCENT
     end)
     task.defer(function()
@@ -1174,8 +1246,7 @@ function KillerHub:CreateTab(name, iconId)
         Name = name .. "Frame", Size = UDim2.new(1, -24, 1, -24), Position = UDim2.new(0, 12, 0, 12),
         BackgroundColor3 = CurrentTheme.BG_SECONDARY, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT
     }, ContentContainer)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, frame)
-    local stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, frame)
+    ApplyCyberStyle(frame, false)
     
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)}, frame)
     create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, frame)
@@ -1186,32 +1257,42 @@ function KillerHub:CreateTab(name, iconId)
     table.insert(Connections, sizeChangedConn)
 
     local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
-    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, btn)
+    local btnLabel = create("TextLabel", {
+        Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, 
+        Text = "", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.RobotoMono, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+        TextStrokeTransparency = 0.9, TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    }, btn)
 
     local iconImg
     if iconId then
         iconImg = create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 4, 0.5, -7), BackgroundTransparency = 1, Image = iconId, ImageColor3 = CurrentTheme.TEXT_MUTED}, btn)
     end
-    local line = create("Frame", {Name = "IndicatorLine", Size = UDim2.new(0, 2, 0, 14), Position = UDim2.new(0, -4, 0.5, -7), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, BackgroundTransparency = 1}, btn)
-    create("UICorner", {CornerRadius = UDim.new(0, 1)}, line)
+    
+    local line = create("Frame", {Name = "CyberIndicator", Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, Visible = false}, btn)
     
     local isFirstTab = true for _, _ in pairs(KillerHub.Frames) do isFirstTab = false break end
     KillerHub.Frames[name] = frame KillerHub.Buttons[name] = btn
     
     local function selectTab()
         for tName, tFrame in pairs(KillerHub.Frames) do
-            local tBtn = KillerHub.Buttons[tName] local tLine = tBtn:FindFirstChild("IndicatorLine") local tLabel = tBtn:FindFirstChildWhichIsA("TextLabel")
+            local tBtn = KillerHub.Buttons[tName] local tLine = tBtn:FindFirstChild("CyberIndicator") local tLabel = tBtn:FindFirstChildWhichIsA("TextLabel")
             local tIcon = tBtn:FindFirstChildWhichIsA("ImageLabel")
             if tName == name then 
                 tFrame.Visible = true 
-                if tLabel then tLabel.TextColor3 = CurrentTheme.TEXT_WHITE end 
-                if tLine then tLine.BackgroundTransparency = 0 end
+                if tLine then tLine.Visible = true end
                 if tIcon then tIcon.ImageColor3 = CurrentTheme.TEXT_WHITE end
+                if tLabel then 
+                    tLabel.TextColor3 = CurrentTheme.TEXT_WHITE 
+                    ApplyGlitchText(tLabel, tName)
+                end 
             else 
                 tFrame.Visible = false 
-                if tLabel then tLabel.TextColor3 = CurrentTheme.TEXT_MUTED end 
-                if tLine then tLine.BackgroundTransparency = 1 end 
+                if tLine then tLine.Visible = false end 
                 if tIcon then tIcon.ImageColor3 = CurrentTheme.TEXT_MUTED end
+                if tLabel then 
+                    tLabel.TextColor3 = CurrentTheme.TEXT_MUTED 
+                    tLabel.Text = FormatSciFiText(tName)
+                end 
             end
         end
         KillerHub.CurrentTab = name
@@ -1221,7 +1302,7 @@ function KillerHub:CreateTab(name, iconId)
     
     table.insert(KillerHub.TargetThemeElements, function()
         frame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        stroke.Color = CurrentTheme.BORDER
+        ApplyCyberStyle(frame, false)
         line.BackgroundColor3 = CurrentTheme.ACCENT
         if KillerHub.CurrentTab == name then
             btnLabel.TextColor3 = CurrentTheme.TEXT_WHITE
@@ -1229,6 +1310,7 @@ function KillerHub:CreateTab(name, iconId)
         else
             btnLabel.TextColor3 = CurrentTheme.TEXT_MUTED
             if iconImg then iconImg.ImageColor3 = CurrentTheme.TEXT_MUTED end
+            btnLabel.Text = FormatSciFiText(name)
         end
     end)
 
@@ -1242,19 +1324,83 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
     searchThread = task.delay(0.04, function()
         local q = string.lower(SearchInput.Text)
         for _, el in pairs(KillerHub.AllElements) do
-            if el.Instance and el.Label then el.Instance.Visible = (q == "") and true or (string.find(string.lower(el.Label.Text or ""), q) and true or false) end
+            if el.Instance and el.Label then el.Instance.Visible = (q == "") and true or (string.find(string.lower(el.Label.Text or ""), q) ~= nil) end
         end
     end)
     KillerHub:AddTask(searchThread)
 end)
 
 -- ============================================================================
+-- 🔓 COMPONENTES PREMIUM ADICIONALES
+-- ============================================================================
+function KillerHub:AddCustomTheme(themeName, themeStructure)
+    if Themes and not Themes[themeName] then
+        Themes[themeName] = themeStructure
+    end
+end
+
+local WatermarkFrame = nil
+function KillerHub:ToggleWatermark(visible)
+    if not ScreenGui then return end
+    Config.ShowWatermark = visible saveConfig()
+    
+    if visible and not WatermarkFrame then
+        WatermarkFrame = create("Frame", {
+            Name = "KillerHubWatermark", Size = UDim2.new(0, 210, 0, 26), Position = UDim2.new(0, 15, 0, 15),
+            BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.15, Visible = true
+        }, ScreenGui)
+        ApplyCyberStyle(WatermarkFrame, true)
+        
+        local WLabel = create("TextLabel", {
+            Size = UDim2.new(1, -16, 1, 0), Position = UDim2.new(0, 8, 0, 0), BackgroundTransparency = 1,
+            Text = "", TextColor3 = CurrentTheme.TEXT_WHITE,
+            Font = Enum.Font.RobotoMono, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+            TextStrokeTransparency = 0.85, TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        }, WatermarkFrame)
+        
+        table.insert(self._Trash, WatermarkFrame)
+        
+        table.insert(KillerHub.TargetThemeElements, function()
+            if WatermarkFrame then
+                WatermarkFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
+                ApplyCyberStyle(WatermarkFrame, true)
+                WLabel.TextColor3 = CurrentTheme.TEXT_WHITE
+            end
+        end)
+        
+        task.spawn(function()
+            while WatermarkFrame and WatermarkFrame.Parent do
+                local fps = math.floor(Workspace:GetRealPhysicsFPS())
+                local ping = 0
+                pcall(function()
+                    if Stats:FindFirstChild("Network") and Stats.Network:FindFirstChild("ServerToClientPing") then
+                        ping = math.floor(Stats.Network.ServerToClientPing:GetValue())
+                    end
+                end)
+                pcall(function()
+                    if ping == 0 then ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end
+                end)
+                WLabel.Text = string.format("KILLER HUB | FPS: %d | PING: %dms", fps, ping)
+                task.wait(1)
+            end
+        end)
+    elseif WatermarkFrame then
+        WatermarkFrame.Visible = visible
+    end
+end
+
+-- ============================================================================
 -- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
+SettingsTab:CreateSection("Hardware & Rendimiento 🧠")
+SettingsTab:CreateToggle("PerformanceMode", "Modo Super Rendimiento (0 Tweens)", function(state) end)
+SettingsTab:CreateToggle("AutoPerformance", "Auto-Optimizar si hay lag (<35 FPS)", function(state) end)
+
 SettingsTab:CreateSection("Personalización")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Void Premium", "Midnight Emerald", "Classic Dark", "Ametista Premium", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Cyber OLED", "Void Premium", "Midnight Emerald", "Classic Dark", "Ametista Premium", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 SettingsTab:CreateSlider("UiOpacity", "Opacidad de la Interfaz", 0.1, 1, function(v) updateUiOpacity() end)
+SettingsTab:CreateToggle("ShowWatermark", "Mostrar Marca de Agua (Rendimiento)", function(state) KillerHub:ToggleWatermark(state) end)
 
 SettingsTab:CreateSection("Controles del Menú")
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl)
@@ -1264,8 +1410,14 @@ SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) 
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
-SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria del juego. Todas las funciones de automatización se detendrán.")
+SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria del juego.")
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
+
+task.defer(function()
+    if Config.ShowWatermark then
+        KillerHub:ToggleWatermark(true)
+    end
+end)
 
 getgenv().KillerHub = KillerHub
 warn([[
