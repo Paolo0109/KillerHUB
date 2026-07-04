@@ -1,7 +1,7 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.7.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.7.5)
 -- 🧑‍💻 Desarrollado por: Paolo Sexo XD & AI Optimizer
--- 📱 Fix: Efecto Vidrio Transparente, 18 Fuentes Top y Preservación Absoluta de API
+-- 📱 Fix: Reactividad de Callbacks, Auto-guardado Absoluto y Aislamiento de Config
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -31,10 +31,10 @@ local Themes = {
         BG_MAIN = Color3.fromRGB(12, 12, 16),
         BG_SIDEBAR = Color3.fromRGB(8, 8, 10),
         BG_SECONDARY = Color3.fromRGB(24, 24, 30),
-        ACCENT = Color3.fromRGB(0, 162, 255), -- Azul Eléctrico Neon
+        ACCENT = Color3.fromRGB(0, 162, 255),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(150, 155, 165),
-        BORDER = Color3.fromRGB(80, 85, 100) -- Reflejo brillante de vidrio
+        BORDER = Color3.fromRGB(80, 85, 100)
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
@@ -86,16 +86,18 @@ local Themes = {
 local CurrentTheme = Themes["Black Glass"]
 
 -- ============================================================================
--- 💾 SISTEMA DE CONFIGURACIÓN Y RECOLECTOR DE SEÑALES (ANTI-LEAKS)
+-- 💾 SISTEMA DE CONFIGURACIÓN AVANZADO (PROTÉGIDO CONTRA INTERFERENCIAS)
 -- ============================================================================
-local CONFIG_FILE = "KillerHub_Universal_Config.json"
+-- Usamos un nombre de archivo único e interno para la interfaz base
+local CONFIG_FILE = "KillerHub_Core_Config.json"
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Black Glass", SelectedFont = "GothamMedium",
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0,
     BtnX = 15, BtnY = 100
 }
-local Config = {} local Flags = {}
+local Config = {} 
+local Flags = {}
 local Connections = {}
 
 local function connect(event, callback)
@@ -106,19 +108,33 @@ end
 
 local function copyTable(target, source)
     for k, v in pairs(source) do
-        if type(v) == "table" then target[k] = {} copyTable(target[k], v) else target[k] = v end
+        if type(v) == "table" then 
+            target[k] = {} 
+            copyTable(target[k], v) 
+        else 
+            target[k] = v 
+        end
     end
 end
 copyTable(Config, DefaultConfig)
 
+-- Guardado seguro e independiente
 local function saveConfig()
-    if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) end) end
+    if writefile then 
+        pcall(function() 
+            writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) 
+        end) 
+    end
 end
 
 pcall(function()
     if isfile and readfile and isfile(CONFIG_FILE) then
         local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
-        if type(data) == "table" then for k, v in pairs(data) do Config[k] = v end end
+        if type(data) == "table" then 
+            for k, v in pairs(data) do 
+                Config[k] = v 
+            end 
+        end
     end
 end)
 
@@ -132,7 +148,7 @@ local function create(instanceType, properties, parent)
 end
 
 -- ============================================================================
--- 🖥 INTERFAZ BASE TOTALMENTE ADAPTABLE (GLASS MORPHISM EFFECT)
+-- 🖥 INTERFAZ BASE TOTALMENTE ADAPTABLE
 -- ============================================================================
 local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
 
@@ -307,7 +323,7 @@ connect(UserInputService.InputBegan, function(input, gp)
 end)
 
 -- ============================================================================
--- 📦 API CORE Y MOTOR DE REDISEÑO REACTIVO CENTRAL (GARBAGE COLLECTOR)
+-- 📦 API CORE Y MOTOR REACTIVO FIJADO
 -- ============================================================================
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
@@ -455,7 +471,12 @@ function TabMethods:CreateToggle(flagName, text, callback)
         stateUpdate()
     end)
 
-    task.defer(pcall, callback, Flags[flagName].CurrentValue)
+    -- 🔥 SOLUCIÓN REACTIVA: Ejecuta el callback inmediatamente al inyectar con el valor guardado
+    task.spawn(function()
+        stateUpdate()
+        pcall(callback, Flags[flagName].CurrentValue)
+    end)
+
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
@@ -495,14 +516,14 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
     end
 
-    local function runSliderValue(v)
+    local function runSliderValue(v, skipCallback)
         v = math.clamp(v, min, max) Flags[flagSlider].CurrentValue = v Config[flagSlider] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
         SFill.Size = UDim2.new(pct, 0, 1, 0)
         SKnob.Position = UDim2.new(pct, -5, 0.5, -5)
         if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
-        pcall(callbackSlider, v)
+        if not skipCallback then pcall(callbackSlider, v) end
     end
 
     connect(ToggleButton.MouseButton1Click, function()
@@ -542,10 +563,17 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         Stroke.Color = CurrentTheme.BORDER
         ValueBox.TextColor3 = CurrentTheme.ACCENT
         SFill.BackgroundColor3 = CurrentTheme.ACCENT
-        stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue)
+        stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue, true)
     end)
 
-    stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue)
+    -- 🔥 FORZAR LLAMADAS REACTIVAS INICIALES
+    task.spawn(function()
+        stateUpdate() 
+        runSliderValue(Flags[flagSlider].CurrentValue, true)
+        pcall(callbackToggle, Flags[flagToggle].CurrentValue)
+        pcall(callbackSlider, Flags[flagSlider].CurrentValue)
+    end)
+
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     return {
         SetToggle = function(_, bool) Flags[flagToggle].CurrentValue = bool Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
@@ -565,16 +593,16 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     local Fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Fill)
     local Knob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
 
-    local function runSliderValue(v)
+    local function runSliderValue(v, skipCallback)
         v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
         Fill.Size = UDim2.new(pct, 0, 1, 0)
         Knob.Position = UDim2.new(pct, -6, 0.5, -6)
         if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
-        pcall(callback, v)
+        if not skipCallback then pcall(callback, v) end
     end
     
     connect(ValueBox.FocusLost, function()
@@ -607,10 +635,15 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         Label.TextColor3 = CurrentTheme.TEXT_WHITE
         ValueBox.TextColor3 = CurrentTheme.ACCENT
         Fill.BackgroundColor3 = CurrentTheme.ACCENT
-        runSliderValue(Flags[flagName].CurrentValue)
+        runSliderValue(Flags[flagName].CurrentValue, true)
     end)
 
-    runSliderValue(Flags[flagName].CurrentValue)
+    -- 🔥 CARGA INICIAL FORZADA
+    task.spawn(function()
+        runSliderValue(Flags[flagName].CurrentValue, true)
+        pcall(callback, Flags[flagName].CurrentValue)
+    end)
+
     self:RegisterElement(SliderFrame, Label, self.Frame.Name)
     return {Set = function(_, value) runSliderValue(value) end}
 end
@@ -702,6 +735,15 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     end)
 
     makeOptions()
+    
+    -- 🔥 FIX ABSOLUTO PARA EL DROPDOWN (CROSSHAIRS / CONFIGS):
+    -- Forza la ejecución de su callback con la opción guardada al cargar el script.
+    task.spawn(function()
+        if Flags[flagName].CurrentValue ~= "" then
+            pcall(callback, Flags[flagName].CurrentValue)
+        end
+    end)
+
     self:RegisterElement(DDFrame, Label, self.Frame.Name)
     return {Refresh = function(_, newOptions) options = newOptions hasSearch = #options > 6 searchHeight = hasSearch and 30 or 0 if SearchBox then SearchBox.Visible = open and hasSearch end makeOptions() end}
 end
@@ -763,6 +805,10 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     end)
 
     makeList() updateText()
+    
+    -- 🔥 Forza el callback con el diccionario guardado al iniciar
+    task.spawn(pcall, callback, Config[flagName])
+    
     self:RegisterElement(MFrame, Label, self.Frame.Name)
 end
 
@@ -853,7 +899,13 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         stateUpdate()
     end)
 
-    stateUpdate()
+    -- 🔥 Inicialización reactiva completa
+    task.spawn(function()
+        stateUpdate()
+        pcall(callbackToggle, Flags[flagToggle].CurrentValue)
+        pcall(callbackColor, Flags[flagColor].CurrentValue)
+    end)
+
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
 end
 
@@ -923,9 +975,11 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     table.insert(KillerHub.TargetThemeElements, function()
         MasterFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
-        Label.TextColor3 = CurrentTheme.TEXT_WHITE
         ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
     end)
+
+    -- 🔥 Forza el color cargado al iniciar
+    task.spawn(pcall, callback, Flags[flagColor].CurrentValue)
 
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
     return {
@@ -986,6 +1040,10 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
         Stroke.Color = CurrentTheme.BORDER
         Box.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     end)
+
+    -- 🔥 Forza el input inicial cargado
+    task.spawn(pcall, callback, Flags[flagName].CurrentValue)
+
     self:RegisterElement(InpFrame, Label, self.Frame.Name)
 end
 
@@ -1028,6 +1086,13 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
         Stroke.Color = CurrentTheme.BORDER
         BBtn.TextColor3 = CurrentTheme.ACCENT
     end)
+
+    -- 🔥 Forza inicialización de keybind
+    task.spawn(function()
+        local key = Enum.KeyCode[Flags[flagName].CurrentValue]
+        if key then pcall(callback, key) end
+    end)
+
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
 end
 
@@ -1119,7 +1184,6 @@ local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
 SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Black Glass", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 
--- 🔥 18 FUENTES MÁS TOP DE ROBLOX INTEGRADAS
 local TopFonts = {
     "Gotham", "GothamMedium", "GothamBold", "GothamBlack",
     "Roboto", "RobotoMono", "SourceSans", "SourceSansBold",
@@ -1144,7 +1208,6 @@ SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria del juego.")
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
 
--- Forzar inicialización de fuente y tema al arrancar
 task.defer(function()
     KillerHub:SetTheme(Config.SelectedTheme or "Black Glass")
 end)
