@@ -86,7 +86,7 @@ local Themes = {
 local CurrentTheme = Themes["Black Glass"]
 
 -- ============================================================================
--- 💾 SISTEMA DE CONFIGURACIÓN Y RECOLECTOR DE SEÑALES (ANTI-LEAKS)
+-- 💾 SISTEMA DE CONFIGURACIÓN (SOLO PARA OPCIONES INTERNAS DE LA UI)
 -- ============================================================================
 local CONFIG_FILE = "KillerHub_Universal_Config.json"
 local DefaultConfig = {
@@ -95,7 +95,8 @@ local DefaultConfig = {
     MainFrameX = 0, MainFrameY = 0,
     BtnX = 15, BtnY = 100
 }
-local Config = {} local Flags = {}
+local Config = {} 
+local Flags = {} -- Conservado en memoria ram para manejo interno de estados
 local Connections = {}
 
 local function connect(event, callback)
@@ -111,14 +112,29 @@ local function copyTable(target, source)
 end
 copyTable(Config, DefaultConfig)
 
+-- Esta función ahora SOLO guarda configuraciones que pertenezcan a las opciones nativas de la UI
 local function saveConfig()
-    if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) end) end
+    if writefile then 
+        pcall(function() 
+            local uiOnlyConfig = {}
+            for key, val in pairs(DefaultConfig) do
+                uiOnlyConfig[key] = Config[key]
+            end
+            writefile(CONFIG_FILE, HttpService:JSONEncode(uiOnlyConfig)) 
+        end) 
+    end
 end
 
 pcall(function()
     if isfile and readfile and isfile(CONFIG_FILE) then
         local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
-        if type(data) == "table" then for k, v in pairs(data) do Config[k] = v end end
+        if type(data) == "table" then 
+            for k, v in pairs(data) do 
+                if DefaultConfig[k] ~= nil then -- Filtrar solo configuraciones nativas al cargar
+                    Config[k] = v 
+                end
+            end 
+        end
     end
 end)
 
@@ -444,7 +460,8 @@ function TabMethods:CreateToggle(flagName, text, callback)
     
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagName].CurrentValue
-        Flags[flagName].CurrentValue = nextState Config[flagName] = nextState saveConfig() playUISound()
+        Flags[flagName].CurrentValue = nextState Config[flagName] = nextState playUISound()
+        -- 🔥 SE QUITÓ EL SAVE_CONFIG() UNIVERSAL DE AQUÍ
         task.spawn(function() stateUpdate() end)
         task.spawn(callback, nextState)
     end)
@@ -457,7 +474,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
 
     task.defer(pcall, callback, Flags[flagName].CurrentValue)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
-    return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
+    return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool stateUpdate() pcall(callback, bool) end}
 end
 
 function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, callbackToggle, callbackSlider)
@@ -488,7 +505,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SKnob)
 
-    local function stateUpdate()
+    local function updateText()
         local active = Flags[flagToggle].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)
@@ -496,7 +513,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     end
 
     local function runSliderValue(v)
-        v = math.clamp(v, min, max) Flags[flagSlider].CurrentValue = v Config[flagSlider] = v saveConfig()
+        v = math.clamp(v, min, max) Flags[flagSlider].CurrentValue = v Config[flagSlider] = v
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
         SFill.Size = UDim2.new(pct, 0, 1, 0)
@@ -507,8 +524,9 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
 
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagToggle].CurrentValue
-        Flags[flagToggle].CurrentValue = nextState Config[flagToggle] = nextState saveConfig() playUISound()
-        stateUpdate() pcall(callbackToggle, nextState)
+        Flags[flagToggle].CurrentValue = nextState Config[flagToggle] = nextState playUISound()
+        -- 🔥 SE QUITÓ EL SAVE_CONFIG() UNIVERSAL DE AQUÍ
+        updateText() pcall(callbackToggle, nextState)
     end)
 
     connect(ValueBox.FocusLost, function()
@@ -542,13 +560,13 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         Stroke.Color = CurrentTheme.BORDER
         ValueBox.TextColor3 = CurrentTheme.ACCENT
         SFill.BackgroundColor3 = CurrentTheme.ACCENT
-        stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue)
+        updateText() runSliderValue(Flags[flagSlider].CurrentValue)
     end)
 
-    stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue)
+    updateText() runSliderValue(Flags[flagSlider].CurrentValue)
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     return {
-        SetToggle = function(_, bool) Flags[flagToggle].CurrentValue = bool Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
+        SetToggle = function(_, bool) Flags[flagToggle].CurrentValue = bool Config[flagToggle] = bool updateText() pcall(callbackToggle, bool) end,
         SetSlider = function(_, value) runSliderValue(value) end
     }
 end
@@ -568,7 +586,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
     local function runSliderValue(v)
-        v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v saveConfig()
+        v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
         Fill.Size = UDim2.new(pct, 0, 1, 0)
@@ -665,7 +683,8 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             
             connect(OptBtn.MouseButton1Click, function()
-                Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name playUISound() open = false
+                Flags[flagName].CurrentValue = name Config[flagName] = name SelLabel.Text = name playUISound() open = false
+                -- 🔥 SE QUITÓ EL SAVE_CONFIG() UNIVERSAL DE AQUÍ
                 if SearchBox then SearchBox.Text = "" SearchBox.Visible = false end
                 TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 42)}):Play()
                 TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
@@ -748,7 +767,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
             
             connect(OptBtn.MouseButton1Click, function()
                 Config[flagName][name] = not Config[flagName][name]
-                saveConfig() playUISound() updateText() makeList() pcall(callback, Config[flagName])
+                playUISound() updateText() makeList() pcall(callback, Config[flagName])
             end)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
@@ -799,7 +818,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
 
     connect(MainTrigger.MouseButton1Click, function()
         Flags[flagToggle].CurrentValue = not Flags[flagToggle].CurrentValue
-        Config[flagToggle] = Flags[flagToggle].CurrentValue saveConfig() playUISound()
+        Config[flagToggle] = Flags[flagToggle].CurrentValue playUISound()
         stateUpdate() pcall(callbackToggle, Flags[flagToggle].CurrentValue)
     end)
 
@@ -814,7 +833,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         local isSliding = false
         local function updateColor()
             local col = Color3.new(Config[flagColor][1], Config[flagColor][2], Config[flagColor][3])
-            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col saveConfig() pcall(callbackColor, col)
+            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col pcall(callbackColor, col)
         end
         local function snap(input)
             local pct = math.clamp((input.Position.X - TrackS.AbsolutePosition.X) / TrackS.AbsoluteSize.X, 0, 1)
@@ -861,7 +880,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     if Config[flagColor] == nil then Config[flagColor] = {defaultColor.R, defaultColor.G, defaultColor.B} end
     Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
 
-    local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
+    local MasterFrame = create("Frame", {Name = flagColor, Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, MasterFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MasterFrame)
 
@@ -886,7 +905,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         local isSliding = false
         local function updateColor()
             local col = Color3.new(Config[flagColor][1], Config[flagColor][2], Config[flagColor][3])
-            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col saveConfig() pcall(callback, col)
+            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col pcall(callback, col)
         end
         
         local function snap(input)
@@ -930,7 +949,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
     return {
         Set = function(_, newColor)
-            Config[flagColor] = {newColor.R, newColor.G, newColor.B} Flags[flagColor].CurrentValue = newColor ColorBtn.BackgroundColor3 = newColor saveConfig() pcall(callback, newColor)
+            Config[flagColor] = {newColor.R, newColor.G, newColor.B} Flags[flagColor].CurrentValue = newColor ColorBtn.BackgroundColor3 = newColor pcall(callback, newColor)
         end
     }
 end
@@ -979,7 +998,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, Box)
     create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Box)
     
-    connect(Box.FocusLost, function() Flags[flagName].CurrentValue = Box.Text Config[flagName] = Box.Text saveConfig() pcall(callback, Box.Text) end)
+    connect(Box.FocusLost, function() Flags[flagName].CurrentValue = Box.Text Config[flagName] = Box.Text pcall(callback, Box.Text) end)
     
     table.insert(KillerHub.TargetThemeElements, function()
         InpFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
@@ -1019,7 +1038,7 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     connect(UserInputService.InputBegan, function(input, gp)
         if listening and input.UserInputType == Enum.UserInputType.Keyboard then
             listening = false Config[flagName] = input.KeyCode.Name Flags[flagName].CurrentValue = input.KeyCode.Name
-            saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
+            BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
         end
     end)
     
@@ -1131,14 +1150,14 @@ SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, functio
     KillerHub:SetFont(selected)
 end)
 
-SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
+SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() saveConfig() end)
 
 SettingsTab:CreateSection("Controles del Menú")
-SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl)
-SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, function(v) updateButtonSize() end)
-SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
-SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
-SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
+SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function() saveConfig() end)
+SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, function(v) updateButtonSize() saveConfig() end)
+SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v saveConfig() end)
+SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() saveConfig() end)
+SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() saveConfig() end)
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria del juego.")
