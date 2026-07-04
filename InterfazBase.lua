@@ -1,7 +1,7 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.7.5)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.7.6)
 -- 🧑‍💻 Desarrollado por: Paolo Sexo XD & AI Optimizer
--- 📱 Fix: Reactividad de Callbacks, Auto-guardado Absoluto y Aislamiento de Config
+-- 📱 Fix: Reactividad de Callbacks, Auto-guardado Absoluto y Squircles en Sliders
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -86,9 +86,8 @@ local Themes = {
 local CurrentTheme = Themes["Black Glass"]
 
 -- ============================================================================
--- 💾 SISTEMA DE CONFIGURACIÓN AVANZADO (PROTÉGIDO CONTRA INTERFERENCIAS)
+-- 💾 SISTEMA DE CONFIGURACIÓN AVANZADO
 -- ============================================================================
--- Usamos un nombre de archivo único e interno para la interfaz base
 local CONFIG_FILE = "KillerHub_Core_Config.json"
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Black Glass", SelectedFont = "GothamMedium",
@@ -118,7 +117,6 @@ local function copyTable(target, source)
 end
 copyTable(Config, DefaultConfig)
 
--- Guardado seguro e independiente
 local function saveConfig()
     if writefile then 
         pcall(function() 
@@ -471,7 +469,6 @@ function TabMethods:CreateToggle(flagName, text, callback)
         stateUpdate()
     end)
 
-    -- 🔥 SOLUCIÓN REACTIVA: Ejecuta el callback inmediatamente al inyectar con el valor guardado
     task.spawn(function()
         stateUpdate()
         pcall(callback, Flags[flagName].CurrentValue)
@@ -506,8 +503,10 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, STrack)
     local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, SFill)
+    
+    -- Punta de slider optimizada: Cuadrada muy redondeada (Squircle)
     local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, SKnob)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, SKnob)
 
     local function stateUpdate()
         local active = Flags[flagToggle].CurrentValue
@@ -566,7 +565,6 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue, true)
     end)
 
-    -- 🔥 FORZAR LLAMADAS REACTIVAS INICIALES
     task.spawn(function()
         stateUpdate() 
         runSliderValue(Flags[flagSlider].CurrentValue, true)
@@ -592,8 +590,10 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Track)
     local Fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Fill)
+    
+    -- Punta de slider optimizada: Cuadrada muy redondeada (Squircle) + Fix de asignación
     local Knob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, Knob)
 
     local function runSliderValue(v, skipCallback)
         v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v saveConfig()
@@ -638,7 +638,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         runSliderValue(Flags[flagName].CurrentValue, true)
     end)
 
-    -- 🔥 CARGA INICIAL FORZADA
     task.spawn(function()
         runSliderValue(Flags[flagName].CurrentValue, true)
         pcall(callback, Flags[flagName].CurrentValue)
@@ -736,8 +735,6 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
 
     makeOptions()
     
-    -- 🔥 FIX ABSOLUTO PARA EL DROPDOWN (CROSSHAIRS / CONFIGS):
-    -- Forza la ejecución de su callback con la opción guardada al cargar el script.
     task.spawn(function()
         if Flags[flagName].CurrentValue ~= "" then
             pcall(callback, Flags[flagName].CurrentValue)
@@ -806,7 +803,6 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
 
     makeList() updateText()
     
-    -- 🔥 Forza el callback con el diccionario guardado al iniciar
     task.spawn(pcall, callback, Config[flagName])
     
     self:RegisterElement(MFrame, Label, self.Frame.Name)
@@ -899,7 +895,6 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         stateUpdate()
     end)
 
-    -- 🔥 Inicialización reactiva completa
     task.spawn(function()
         stateUpdate()
         pcall(callbackToggle, Flags[flagToggle].CurrentValue)
@@ -978,7 +973,6 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
     end)
 
-    -- 🔥 Forza el color cargado al iniciar
     task.spawn(pcall, callback, Flags[flagColor].CurrentValue)
 
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
@@ -1041,7 +1035,6 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
         Box.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     end)
 
-    -- 🔥 Forza el input inicial cargado
     task.spawn(pcall, callback, Flags[flagName].CurrentValue)
 
     self:RegisterElement(InpFrame, Label, self.Frame.Name)
@@ -1087,7 +1080,6 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
         BBtn.TextColor3 = CurrentTheme.ACCENT
     end)
 
-    -- 🔥 Forza inicialización de keybind
     task.spawn(function()
         local key = Enum.KeyCode[Flags[flagName].CurrentValue]
         if key then pcall(callback, key) end
