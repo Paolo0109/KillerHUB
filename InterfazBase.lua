@@ -179,7 +179,7 @@ local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 10), Position = U
 
 local Title = create("TextLabel", {
     Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 16, 0, 0), BackgroundTransparency = 1,
-    Text = "Killer Hub | Premium 👻", TextColor3 = CurrentTheme.ACCENT,
+    Text = "Killer Hub | By Paolo", TextColor3 = CurrentTheme.ACCENT,
     TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13,
     TextStrokeTransparency = 1 
 }, Topbar)
@@ -1212,25 +1212,32 @@ connect(SearchInput:GetPropertyChangedSignal("Text"), function()
 end)
 
 -- ============================================================================
--- 💾 CARGA PREVIA DEL CONFIG DE FORMA SEGURA (IGNORA BYPASS PREMIUM)
+-- 💾 CARGA PREVIA DEL CONFIG DE FORMA SEGURA (FIXED: SIN BUCLE DE CORRUPCIÓN)
 -- ============================================================================
 pcall(function()
     if isfile and readfile and isfile(CONFIG_FILE) then
-        local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
-        if type(data) == "table" then
-            if data.SavedOwner and data.SavedOwner ~= LocalPlayer.UserId then
-                warn("⚠️ [KillerHub Security] Cuenta cruzada detectada. Reajustando credenciales.")
-                Config.SavedOwner = LocalPlayer.UserId
-                saveConfig()
-            else
+        local rawData = readfile(CONFIG_FILE)
+        -- Validar que el archivo no esté vacío o corrupto antes de procesar
+        if rawData and #rawData > 0 then
+            local data = HttpService:JSONDecode(rawData)
+            if type(data) == "table" then
+                -- Primero volcamos todos los datos guardados a la configuración activa
                 for k, v in pairs(data) do 
                     Config[k] = v 
                 end 
+                
+                -- Una vez cargados, validamos la seguridad sin romper la UI
+                if data.SavedOwner and data.SavedOwner ~= LocalPlayer.UserId then
+                    warn("⚠️ [KillerHub Security] Cuenta cruzada detectada. Sincronizando ID de forma segura.")
+                end
             end
         end
     end
 end)
+-- Aseguramos que las credenciales actuales queden registradas en memoria
 Config.SavedOwner = LocalPlayer.UserId
+-- Guardamos una copia limpia y estructurada una sola vez al iniciar
+task.defer(saveConfig)
 
 -- ============================================================================
 -- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS)
