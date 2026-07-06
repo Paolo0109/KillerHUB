@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.7.7)
--- 🧑‍💻 Desarrollado por: Paolo Sexo XD & AI Optimizer
+-- 🧑‍💻 Desarrollado por: Paolo & AI Optimizer
 -- 📱 Fix: Reactividad de Callbacks, Auto-guardado Absoluto y Squircles en Sliders
 -- 🔐 Security Layer: Anti-Tamper, Account Lock & Premium Verification Engine
 -- ============================================================================
@@ -25,17 +25,17 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 PALETAS DE ESTILO (ACTUALIZADO A VIDRIO TRANSPARENTE NEGRO)
+-- 🎨 PALETAS DE ESTILO (ACTUALIZADO CON NEGRO PROFUNDO, ROJO Y BORDES BLANCOS)
 -- ============================================================================
 local Themes = {
     ["Black Glass"] = {
-        BG_MAIN = Color3.fromRGB(12, 12, 16),
-        BG_SIDEBAR = Color3.fromRGB(8, 8, 10),
-        BG_SECONDARY = Color3.fromRGB(24, 24, 30),
-        ACCENT = Color3.fromRGB(0, 162, 255),
+        BG_MAIN = Color3.fromRGB(5, 5, 6),           -- Negro más fuerte y profundo
+        BG_SIDEBAR = Color3.fromRGB(3, 3, 4),        -- Sidebar ultra oscura
+        BG_SECONDARY = Color3.fromRGB(14, 14, 16),
+        ACCENT = Color3.fromRGB(235, 15, 15),         -- Cambiado Azul por Rojo Intenso
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(150, 155, 165),
-        BORDER = Color3.fromRGB(80, 85, 100)
+        BORDER = Color3.fromRGB(240, 240, 245)       -- Orillas y bordes blancos estilizados
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
@@ -132,7 +132,6 @@ pcall(function()
         local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
         if type(data) == "table" then
             if data.SavedOwner and data.SavedOwner ~= LocalPlayer.UserId then
-                -- Detección de Cuenta Nueva: Reajuste automático para prevenir evasión
                 warn("⚠️ [KillerHub Security] Nueva cuenta detectada en los archivos de configuración. Reajustando credenciales.")
                 Config.SavedOwner = LocalPlayer.UserId
                 saveConfig()
@@ -182,9 +181,9 @@ local function updateGuiSize()
 end
 updateGuiSize()
 
-local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(5, 5, 8), BorderSizePixel = 0, Active = true}, MainFrame)
+local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(4, 4, 5), BorderSizePixel = 0, Active = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, Topbar)
-local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(5, 5, 8), BorderSizePixel = 0}, Topbar)
+local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(4, 4, 5), BorderSizePixel = 0}, Topbar)
 
 local Title = create("TextLabel", {
     Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1,
@@ -335,11 +334,15 @@ end)
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
-    PremiumIDs = { 12345678, 987654321 } -- En esta lista pones las IDs permitidas
+    PremiumIDs = { 12345678, 987654321 }
 }
 
--- Verificar si el jugador actual tiene acceso Premium real de ejecución
+-- Verificar si el jugador actual tiene acceso Premium real (Lee de la tabla fija o de OwnerID dinámico)
 local function checkPremiumAccess()
+    if getgenv().KillerHub and getgenv().KillerHub.OwnerID then
+        if LocalPlayer.UserId == getgenv().KillerHub.OwnerID then return true end
+    end
+    if _G.IsPremium == true then return true end
     return table.find(KillerHub.PremiumIDs, LocalPlayer.UserId) ~= nil
 end
 
@@ -447,7 +450,6 @@ end
 function TabMethods:CreateToggle(flagName, text, callback, isPremium)
     local isAuthorized = not isPremium or checkPremiumAccess()
     
-    -- Anti-Bypass por Archivos: Forzar false si intenta alterar el JSON de un toggle premium
     if isPremium and not isAuthorized then
         Config[flagName] = false
     end
@@ -455,28 +457,36 @@ function TabMethods:CreateToggle(flagName, text, callback, isPremium)
     if Config[flagName] == nil then Config[flagName] = false end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
-    local displayTitle = isPremium and ("⭐ " .. text) or text
+    local displayTitle = isPremium and (isAuthorized and ("👑 " .. text) or ("🔒 " .. text)) or text
+    local buttonBG = isAuthorized and CurrentTheme.BG_SECONDARY or Color3.fromRGB(120, 110, 115)
     
-    -- COMPACTADO: Tamaño optimizado a 34px de alto para reducir separación
-    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, Text = "", AutoButtonColor = isAuthorized}, self.Frame)
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = buttonBG, BackgroundTransparency = 0.4, Text = "", AutoButtonColor = isAuthorized}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, ToggleButton)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = displayTitle, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)}, ToggleButton)
+    local labelColor = isAuthorized and (Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED) or Color3.fromRGB(120, 110, 115)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = displayTitle, TextColor3 = labelColor, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    
+    local trackBG = isAuthorized and (Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)) or Color3.fromRGB(30, 25, 30)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = trackBG}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
     local function stateUpdate()
-        local active = Flags[flagName].CurrentValue
+        isAuthorized = not isPremium or checkPremiumAccess()
         if isPremium and not isAuthorized then
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(120, 110, 115)
             ToggleLabel.TextColor3 = Color3.fromRGB(120, 110, 115)
+            ToggleLabel.Text = "🔒 " .. text
             Track.BackgroundColor3 = Color3.fromRGB(30, 25, 30)
             Knob.Position = UDim2.new(0, 2, 0.5, -7)
             return
         end
+        local active = Flags[flagName].CurrentValue
+        ToggleButton.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+        ToggleLabel.Text = isPremium and ("👑 " .. text) or text
         
         TweenService:Create(Track, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)
@@ -489,8 +499,7 @@ function TabMethods:CreateToggle(flagName, text, callback, isPremium)
     
     connect(ToggleButton.MouseButton1Click, function()
         if isPremium and not checkPremiumAccess() then 
-            -- Bloqueo absoluto de interacción de la pastilla
-            warn("❌ Intentaste activar un control PREMIUM sin autorización.")
+            warn("❌ Opción bloqueada. No eres usuario Premium.")
             return 
         end
         local nextState = not Flags[flagName].CurrentValue
@@ -500,9 +509,8 @@ function TabMethods:CreateToggle(flagName, text, callback, isPremium)
     end)
     
     table.insert(KillerHub.TargetThemeElements, function()
-        ToggleButton.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-        Stroke.Color = CurrentTheme.BORDER
         stateUpdate()
+        Stroke.Color = CurrentTheme.BORDER
     end)
 
     task.spawn(function()
@@ -528,46 +536,57 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     Flags[flagToggle] = { CurrentValue = Config[flagToggle] }
     Flags[flagSlider] = { CurrentValue = Config[flagSlider] }
     
-    local displayTitle = isPremium and ("⭐ " .. text) or text
+    local displayTitle = isPremium and (isAuthorized and ("👑 " .. text) or ("🔒 " .. text)) or text
+    local buttonBG = isAuthorized and CurrentTheme.BG_SECONDARY or Color3.fromRGB(120, 110, 115)
     
-    -- COMPACTADO: Reducción de tamaño general de 54px a 46px de alto
-    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
+    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = buttonBG, BackgroundTransparency = 0.4}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, TSFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, TSFrame)
     
     local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, Text = "", AutoButtonColor = isAuthorized}, TSFrame)
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = displayTitle, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    local labelColor = isAuthorized and (Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED) or Color3.fromRGB(120, 110, 115)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = displayTitle, TextColor3 = labelColor, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)}, ToggleButton)
+    local trackBG = isAuthorized and (Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)) or Color3.fromRGB(30, 25, 30)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = trackBG}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
     local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 16), Position = UDim2.new(0, 12, 0, 26), BackgroundTransparency = 1}, TSFrame)
-    local ValueBox = create("TextBox", {Size = UDim2.new(0, 45, 1, 0), Position = UDim2.new(1, 0, 0, -2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false}, SliderContainer)
+    local ValueBox = create("TextBox", {Size = UDim2.new(0, 45, 1, 0), Position = UDim2.new(1, 0, 0, -2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false, Editable = isAuthorized}, SliderContainer)
     
     local STrack = create("Frame", {Size = UDim2.new(1, -50, 0, 4), Position = UDim2.new(0, 0, 0.5, -2), BackgroundColor3 = Color3.fromRGB(40, 40, 50)}, SliderContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, STrack)
-    local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
+    local SFill = create("Frame", {BackgroundColor3 = isAuthorized and CurrentTheme.ACCENT or Color3.fromRGB(60, 55, 60)}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, SFill)
     
     local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = isAuthorized}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, SKnob)
 
     local function stateUpdate()
+        isAuthorized = not isPremium or checkPremiumAccess()
         if isPremium and not isAuthorized then
+            TSFrame.BackgroundColor3 = Color3.fromRGB(120, 110, 115)
             ToggleLabel.TextColor3 = Color3.fromRGB(120, 110, 115)
+            ToggleLabel.Text = "🔒 " .. text
             Track.BackgroundColor3 = Color3.fromRGB(30, 25, 30)
             Knob.Position = UDim2.new(0, 2, 0.5, -7)
+            SFill.BackgroundColor3 = Color3.fromRGB(60, 55, 60)
+            ValueBox.Text = "🔒"
             return
         end
         local active = Flags[flagToggle].CurrentValue
+        TSFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+        ToggleLabel.Text = isPremium and ("👑 " .. text) or text
         Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        SFill.BackgroundColor3 = CurrentTheme.ACCENT
     end
 
     local function runSliderValue(v, skipCallback)
+        if isPremium and not checkPremiumAccess() then return end
         v = math.clamp(v, min, max) Flags[flagSlider].CurrentValue = v Config[flagSlider] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
         
@@ -614,17 +633,15 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     end)
 
     table.insert(KillerHub.TargetThemeElements, function()
-        TSFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
         ValueBox.TextColor3 = CurrentTheme.ACCENT
-        SFill.BackgroundColor3 = CurrentTheme.ACCENT
         stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue, true)
     end)
 
     task.spawn(function()
         stateUpdate() 
-        runSliderValue(Flags[flagSlider].CurrentValue, true)
         if isAuthorized then
+            runSliderValue(Flags[flagSlider].CurrentValue, true)
             pcall(callbackToggle, Flags[flagToggle].CurrentValue)
             pcall(callbackSlider, Flags[flagSlider].CurrentValue)
         end
@@ -641,7 +658,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     if Config[flagName] == nil then Config[flagName] = min end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
-    -- COMPACTADO: Modificado alto de slider de 48px a 40px
     local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Active = true}, self.Frame)
     local Label = create("TextLabel", {Size = UDim2.new(1, -60, 0, 18), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
     local ValueBox = create("TextBox", {Size = UDim2.new(0, 50, 0, 18), Position = UDim2.new(1, -2, 0, 2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false}, SliderFrame)
@@ -709,7 +725,6 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     if Config[flagName] == nil then Config[flagName] = options[1] or "" end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
-    -- COMPACTADO: Altura base reducida a 34px
     local DDFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, DDFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, DDFrame)
@@ -808,7 +823,6 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     if Config[flagName] == nil or type(Config[flagName]) ~= "table" then Config[flagName] = {} end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
-    -- COMPACTADO: Altura base fijada a 34px
     local MFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, MFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MFrame)
@@ -874,7 +888,6 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     Flags[flagToggle] = { CurrentValue = Config[flagToggle] }
     Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
 
-    -- COMPACTADO: Altura reducida a 34px
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, MasterFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MasterFrame)
@@ -969,7 +982,6 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     if Config[flagColor] == nil then Config[flagColor] = {defaultColor.R, defaultColor.G, defaultColor.B} end
     Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
 
-    -- COMPACTADO: Reducido alto a 34px
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, MasterFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MasterFrame)
@@ -1046,7 +1058,6 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
 end
 
 function TabMethods:CreateClipboardButton(text, textToCopy)
-    -- COMPACTADO: Altura reducida de 38px a 32px
     local Frame = create("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, Frame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Frame)
@@ -1082,7 +1093,6 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     if Config[flagName] == nil then Config[flagName] = "" end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
-    -- COMPACTADO: Altura de entrada reducida a 34px
     local InpFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, InpFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, InpFrame)
@@ -1106,7 +1116,6 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
 end
 
 function TabMethods:CreateButton(text, callback)
-    -- COMPACTADO: Reducción de altura a 30px
     local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, Button)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
@@ -1123,7 +1132,6 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     if Config[flagName] == nil then Config[flagName] = defaultKey.Name end
     Flags[flagName] = { CurrentValue = Config[flagName] }
     
-    -- COMPACTADO: Altura de contenedor ajustada a 34px
     local KFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, KFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, KFrame)
@@ -1167,7 +1175,6 @@ function KillerHub:CreateTab(name, iconId)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
     local stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, frame)
     
-    -- COMPACTADO: Ajuste del padding de separación interna a 4px entre componentes
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, frame)
     create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, frame)
     
