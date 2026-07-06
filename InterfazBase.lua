@@ -1,9 +1,9 @@
--- ============================================================================
+-- ===========================================================================
 -- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.7.7)
 -- 🧑‍💻 Desarrollado por: Paolo & AI Optimizer
 -- 📱 Fix: Reactividad de Callbacks, Auto-guardado Absoluto y Squircles en Sliders
 -- 🔐 Security Layer: Anti-Tamper, Account Lock & Premium Verification Engine
--- ============================================================================
+-- ===========================================================================
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
