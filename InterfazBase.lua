@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- 👻 KILLER HUB UNIVERSAL FRAMEWORK | CRIMSON DARK PREMIUM EDITION (V2.8.0)
 -- 🧑‍💻 Desarrollado por: Paolo & AI Optimizer
--- 📱 Fix: Anti-Bypass de Configuración, Eliminación de Doble Capa y Tema Corregido
+-- 📱 Fix: Auto-Guardado Universal, Anti-Bypass Premium & Opacidad Extrema
 -- 🔐 Security Layer: Anti-Tamper, Account Lock & Premium Verification Engine
 -- ===========================================================================
 
@@ -35,7 +35,7 @@ local Themes = {
         ACCENT = Color3.fromRGB(205, 16, 16),          -- Rojo Sangre Puro
         TEXT_WHITE = Color3.fromRGB(245, 245, 245),
         TEXT_MUTED = Color3.fromRGB(130, 135, 145),
-        BORDER = Color3.fromRGB(35, 35, 40)            -- Bordes oscuros, minimalistas y limpios
+        BORDER = Color3.fromRGB(35, 35, 40)            -- Bordes oscuros, minimalistas y limpies
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
@@ -83,7 +83,8 @@ local CurrentTheme = Themes["Black Glass"]
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = {}, Flags = {},
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
-    PremiumIDs = { 11224455930, 312419911 } -- Agrega tu ID de roblox aquí si deseas
+    PremiumIDs = { 11224455930, 312419911 }, -- Agrega tu ID de roblox aquí si deseas
+    PremiumFeatures = {} -- Mapeo estricto interno para saber qué banderas son Premium
 }
 
 -- Verificar si el jugador actual tiene acceso Premium real
@@ -127,10 +128,20 @@ local function connect(event, callback)
     return conn
 end
 
+-- Filtro de Seguridad en Caliente al guardar
 local function saveConfig()
     if writefile then 
         pcall(function() 
-            writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) 
+            local cleanConfig = {}
+            for k, v in pairs(Config) do
+                -- Si es una flag mapeada como premium y el usuario no tiene los permisos, forzar false antes de codificar
+                if KillerHub.PremiumFeatures[k] and not checkPremiumAccess() then
+                    cleanConfig[k] = false
+                else
+                    cleanConfig[k] = v
+                end
+            end
+            writefile(CONFIG_FILE, HttpService:JSONEncode(cleanConfig)) 
         end) 
     end
 end
@@ -170,7 +181,7 @@ local Title = create("TextLabel", {
     Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 16, 0, 0), BackgroundTransparency = 1,
     Text = "Killer Hub | Premium 👻", TextColor3 = CurrentTheme.ACCENT,
     TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13,
-    TextStrokeTransparency = 1 -- Eliminación de capas/sombras duplicadas feas
+    TextStrokeTransparency = 1 
 }, Topbar)
 
 local PerformanceLabel = create("TextLabel", {
@@ -393,7 +404,7 @@ end
 
 function TabMethods:CreateSection(text)
     local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1}, self.Frame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 0.1, TextStrokeTransparency = 1}, SectionFrame)
+    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 0.1, TextStrokeTransparency = 1}, SectionFrame)
     
     table.insert(KillerHub.TargetThemeElements, function()
         Label.TextColor3 = CurrentTheme.ACCENT
@@ -406,9 +417,10 @@ function TabMethods:CreateSection(text)
 end
 
 function TabMethods:CreateToggle(flagName, text, callback, isPremium)
+    if isPremium then KillerHub.PremiumFeatures[flagName] = true end
     local isAuthorized = not isPremium or checkPremiumAccess()
     
-    -- [CAPA DE SEGURIDAD MÁXIMA]: Si viene del JSON alterado pero no es premium real, forzar apagado inmediato
+    -- [CAPA DE SEGURIDAD MÁXIMA]
     if isPremium and not isAuthorized then
         Config[flagName] = false
     end
@@ -489,6 +501,10 @@ function TabMethods:CreateToggle(flagName, text, callback, isPremium)
 end
 
 function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, callbackToggle, callbackSlider, isPremium)
+    if isPremium then 
+        KillerHub.PremiumFeatures[flagToggle] = true 
+        KillerHub.PremiumFeatures[flagSlider] = true
+    end
     local isAuthorized = not isPremium or checkPremiumAccess()
     
     -- [CAPA DE SEGURIDAD MÁXIMA]
@@ -1138,7 +1154,8 @@ function KillerHub:CreateTab(name, iconId)
     table.insert(Connections, sizeChangedConn)
 
     local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
-    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 1}, btn)
+    -- MODIFICACIÓN: TextSize ligeramente incrementado a 14 para mayor visibilidad
+    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 1}, btn)
 
     local iconImg
     if iconId then
@@ -1230,7 +1247,8 @@ SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, functio
     KillerHub:SetFont(selected)
 end)
 
-SettingsTab:CreateSlider("UiOpacity", "Opacidad del Menú", 0.6, 1, function(v) updateUiOpacity() end)
+-- MODIFICACIÓN: Rango mínimo reducido de 0.6 a 0.10 para máxima transparencia
+SettingsTab:CreateSlider("UiOpacity", "Opacidad del Menú", 0.10, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl)
