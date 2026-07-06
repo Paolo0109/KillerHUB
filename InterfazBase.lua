@@ -334,7 +334,7 @@ end)
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
-    PremiumIDs = { 12345678, 987654321 }
+    PremiumIDs = { 11224455930, 312419911 }
 }
 
 -- Verificar si el jugador actual tiene acceso Premium real (Lee de la tabla fija o de OwnerID dinámico)
