@@ -1,13 +1,11 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS ULTRA PREMIUM EDITION (V3.0.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS ULTRA PREMIUM EDITION (V3.1.0)
 -- ============================================================================
 
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local Debris = game:GetService("Debris")
-local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
 local TweenService = game:GetService("TweenService")
@@ -173,10 +171,19 @@ local BordeGradient = create("UIGradient", {
     }), Rotation = 45
 }, MainStroke)
 
+-- MEJORA: Rotación sutil y ultra optimizada del degradado del borde (efecto premium)
+local gradientRotationConn = RunService.RenderStepped:Connect(function(dt)
+    if BordeGradient and MainFrame.Visible then
+        BordeGradient.Rotation = (BordeGradient.Rotation + (15 * dt)) % 360
+    end
+end)
+table.insert(Connections, gradientRotationConn)
+
 local function updateGuiSize()
-    MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
+    if MainFrame.Visible then
+        MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
+    end
 end
-updateGuiSize()
 
 local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(4, 4, 5), BorderSizePixel = 0, Active = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, Topbar)
@@ -195,22 +202,27 @@ local PerformanceLabel = create("TextLabel", {
     TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamMedium, TextSize = 11
 }, Topbar)
 
-task.spawn(function()
-    while task.wait(1) do
-        if ScreenGui and ScreenGui.Parent then
-            local ping = 0
-            local successNetwork = pcall(function()
-                if Stats:FindFirstChild("Network") and Stats.Network:FindFirstChild("ServerToClientPing") then
-                    ping = math.floor(Stats.Network.ServerToClientPing:GetValue())
-                end
-            end)
-            if not successNetwork or ping == 0 then
-                pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+-- MEJORA: Cálculo de FPS reales (Render) en vez de físicos y recolector seguro en cancelaciones
+local fpsThread = task.spawn(function()
+    local lastIteration = os.clock()
+    while true do
+        task.wait(1)
+        if not ScreenGui or not ScreenGui.Parent then break end
+        
+        local currentFps = math.floor(1 / (os.clock() - lastIteration))
+        lastIteration = os.clock()
+        
+        local ping = 0
+        local successNetwork = pcall(function()
+            if Stats:FindFirstChild("Network") and Stats.Network:FindFirstChild("ServerToClientPing") then
+                ping = math.floor(Stats.Network.ServerToClientPing:GetValue())
             end
-            
-            local currentFps = math.floor(Workspace:GetRealPhysicsFPS())
-            PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", currentFps, ping)
-        else break end
+        end)
+        if not successNetwork or ping == 0 then
+            pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+        end
+        
+        PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", currentFps, ping)
     end
 end)
 
@@ -310,7 +322,9 @@ makeDraggable(OpenCloseBtn, OpenCloseBtn)
 
 local function updateUiOpacity()
     local opacity = Config.UiOpacity or 0.75
-    MainFrame.BackgroundTransparency = 1 - opacity
+    if MainFrame.Visible then
+        MainFrame.BackgroundTransparency = 1 - opacity
+    end
     Topbar.BackgroundTransparency = math.clamp((1 - opacity) + 0.1, 0, 0.95)
     TopbarPatch.BackgroundTransparency = Topbar.BackgroundTransparency
     Sidebar.BackgroundTransparency = math.clamp((1 - opacity) + 0.05, 0, 0.95)
@@ -321,14 +335,38 @@ local function updateButtonSize()
     OpenCloseBtn.Size = UDim2.new(0, s, 0, s)
 end
 
+MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
 updateUiOpacity()
 updateButtonSize()
 
+-- MEJORA: Animación Premium de apertura y cierre (Efecto Tween de Escala)
 local menuVisible = true
 local function setMenuVisibility(visible)
-    menuVisible = visible MainFrame.Visible = visible
+    menuVisible = visible
     BtnIcon.ImageColor3 = visible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
+    
+    local targetWidth = math.floor(430 + ((Config.GuiWidth or 0.466) * 280))
+    local targetHeight = math.floor(280 + ((Config.GuiHeight or 0.4) * 230))
+    local opacity = Config.UiOpacity or 0.75
+
+    if visible then
+        MainFrame.Visible = true
+        TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, targetWidth, 0, targetHeight),
+            BackgroundTransparency = 1 - opacity
+        }):Play()
+    else
+        local closeTween = TweenService:Create(MainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, targetWidth * 0.8, 0, targetHeight * 0.8),
+            BackgroundTransparency = 1
+        })
+        closeTween.Completed:Connect(function()
+            if not menuVisible then MainFrame.Visible = false end
+        end)
+        closeTween:Play()
+    end
 end
+
 connect(OpenCloseBtn.MouseButton1Click, function() playUISound() setMenuVisibility(not menuVisible) end)
 
 connect(UserInputService.InputBegan, function(input, gp)
@@ -336,6 +374,23 @@ connect(UserInputService.InputBegan, function(input, gp)
         playUISound() setMenuVisibility(not menuVisible)
     end
 end)
+
+-- MEJORA: Añadir micro-interacciones suaves (Hover / Pressed) en elementos clickeables
+local function addInteractiveFeedback(inst)
+    if not inst:IsA("TextButton") then return end
+    local baseColor = inst.BackgroundColor3
+    
+    connect(inst.MouseEnter, function()
+        TweenService:Create(inst, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = baseColor:Lerp(Color3.fromRGB(255, 255, 255), 0.08)
+        }):Play()
+    end)
+    connect(inst.MouseLeave, function()
+        TweenService:Create(inst, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+            BackgroundColor3 = baseColor
+        }):Play()
+    end)
+end
 
 -- ============================================================================
 -- 📦 API CORE Y MOTOR REACTIVO OPTIMIZADO
@@ -345,7 +400,8 @@ local KillerHub = {
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {}
 }
 
--- Mantenido intacto por API global (No realiza lógica premium para optimizar)
+table.insert(KillerHub._Trash, fpsThread)
+
 function KillerHub:SetPremiumIds(idTable) end
 
 function KillerHub:SetFont(fontName)
@@ -498,11 +554,11 @@ function TabMethods:CreateToggle(flagName, text, callback)
         pcall(callback, Flags[flagName].CurrentValue)
     end)
 
+    addInteractiveFeedback(ToggleButton)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
 
--- Rediseñado: Removida la lógica premium y acoplado de forma nativa para máxima optimización
 function TabMethods:CreatePremiumToggle(flagName, text, callback)
     return self:CreateToggle(flagName, text, callback)
 end
@@ -533,7 +589,6 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, SFill)
     
-    -- Punta mejorada: Cuadrado premium con bordes finos redondos
     local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, SKnob)
 
@@ -601,6 +656,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         pcall(callbackSlider, Flags[flagSlider].CurrentValue)
     end)
 
+    addInteractiveFeedback(ToggleButton)
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     return {
         SetToggle = function(_, bool) Flags[flagToggle].CurrentValue = bool Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
@@ -620,7 +676,6 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     local Fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Fill)
     
-    -- Fix: Vinculado el UICorner directamente al Knob (Punta Cuadrada con bordes redondos de 3px)
     local Knob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Knob)
 
@@ -732,6 +787,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
                 TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
                 pcall(callback, name) makeOptions()
             end)
+            addInteractiveFeedback(OptBtn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -770,10 +826,12 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         end
     end)
 
+    addInteractiveFeedback(Trigger)
     self:RegisterElement(DDFrame, Label, self.Frame.Name)
     return {Refresh = function(_, newOptions) options = newOptions hasSearch = #options > 6 searchHeight = hasSearch and 30 or 0 if SearchBox then SearchBox.Visible = open and hasSearch end makeOptions() end}
 end
 
+-- MEJORA: Modificación del MultiDropdown para que altere estados estéticos en vez de recrear todas las instancias al clickear
 function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     if Config[flagName] == nil or type(Config[flagName]) ~= "table" then Config[flagName] = {} end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -807,17 +865,32 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end)
 
+    local cacheButtons = {}
     local function makeList()
         for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+        table.clear(cacheButtons)
+        
         for i, name in ipairs(options) do
             local isChosen = Config[flagName][name] or false
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = isChosen and CurrentTheme.BG_MAIN or Color3.fromRGB(25, 25, 30), Text = name, TextColor3 = isChosen and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             
+            cacheButtons[name] = OptBtn
+            
             connect(OptBtn.MouseButton1Click, function()
-                Config[flagName][name] = not Config[flagName][name]
-                saveConfig() playUISound() updateText() makeList() pcall(callback, Config[flagName])
+                local nextState = not Config[flagName][name]
+                Config[flagName][name] = nextState
+                saveConfig() playUISound() updateText()
+                
+                -- Cambios estéticos directos optimizados en vez de refrescar todo el árbol visual
+                TweenService:Create(OptBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+                    BackgroundColor3 = nextState and CurrentTheme.BG_MAIN or Color3.fromRGB(25, 25, 30),
+                    TextColor3 = nextState and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
+                }):Play()
+                
+                pcall(callback, Config[flagName])
             end)
+            addInteractiveFeedback(OptBtn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
     end
@@ -834,6 +907,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     
     task.spawn(pcall, callback, Config[flagName])
     
+    addInteractiveFeedback(Trigger)
     self:RegisterElement(MFrame, Label, self.Frame.Name)
 end
 
@@ -880,7 +954,6 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, Row)
         local FillS = create("Frame", {Size = UDim2.new(Config[flagColor][colorValueIndex], 0, 1, 0), BackgroundColor3 = sliderColor}, TrackS)
         
-        -- Punta redonda/cuadrada premium fijada
         local KnobS = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(Config[flagColor][colorValueIndex], -5, 0.5, -5), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = ""}, TrackS)
         create("UICorner", {CornerRadius = UDim.new(0, 3)}, KnobS)
 
@@ -932,6 +1005,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         pcall(callbackColor, Flags[flagColor].CurrentValue)
     end)
 
+    addInteractiveFeedback(MainTrigger)
+    addInteractiveFeedback(ColorBtn)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
 end
 
@@ -950,7 +1025,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
     local SlidersContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 80), Position = UDim2.new(0, 12, 0, 40), BackgroundTransparency = 1}, MasterFrame)
-    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SlidersContainer)
+    local uilist = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SlidersContainer)
 
     local function createMiniSlider(labelTxt, colorValueIndex, sliderColor)
         local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1}, SlidersContainer)
@@ -959,7 +1034,6 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, Row)
         local FillS = create("Frame", {Size = UDim2.new(Config[flagColor][colorValueIndex], 0, 1, 0), BackgroundColor3 = sliderColor}, TrackS)
         
-        -- Punta redonda/cuadrada premium fijada
         local KnobS = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(Config[flagColor][colorValueIndex], -5, 0.5, -5), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = ""}, TrackS)
         create("UICorner", {CornerRadius = UDim.new(0, 3)}, KnobS)
 
@@ -1008,6 +1082,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
 
     task.spawn(pcall, callback, Flags[flagColor].CurrentValue)
 
+    addInteractiveFeedback(Trigger)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
     return {
         Set = function(_, newColor)
@@ -1041,6 +1116,7 @@ function TabMethods:CreateClipboardButton(text, textToCopy)
         if not copying then StatusLabel.TextColor3 = CurrentTheme.ACCENT end
     end)
     
+    addInteractiveFeedback(Button)
     self:RegisterElement(Frame, Label, self.Frame.Name)
     return {
         SetText = function(_, newText) Label.Text = newText end,
@@ -1083,9 +1159,12 @@ function TabMethods:CreateButton(text, callback)
         Button.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
     end)
+    
+    addInteractiveFeedback(Button)
     self:RegisterElement(Button, Button, self.Frame.Name)
 end
 
+-- MEJORA: Keybind adaptado para soportar inputs del Mouse (Ej: Botones laterales)
 function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     if Config[flagName] == nil then Config[flagName] = defaultKey.Name end
     Flags[flagName] = { CurrentValue = Config[flagName] }
@@ -1100,10 +1179,16 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     
     local listening = false
     connect(BBtn.MouseButton1Click, function() listening = true BBtn.Text = "..." playUISound() end)
+    
     connect(UserInputService.InputBegan, function(input, gp)
-        if listening and input.UserInputType == Enum.UserInputType.Keyboard then
-            listening = false Config[flagName] = input.KeyCode.Name Flags[flagName].CurrentValue = input.KeyCode.Name
-            saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
+        if listening then
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                listening = false Config[flagName] = input.KeyCode.Name Flags[flagName].CurrentValue = input.KeyCode.Name
+                saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
+            elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 or input.UserInputType == Enum.UserInputType.MouseButton4 or input.UserInputType == Enum.UserInputType.MouseButton5 then
+                listening = false Config[flagName] = input.UserInputType.Name Flags[flagName].CurrentValue = input.UserInputType.Name
+                saveConfig() BBtn.Text = input.UserInputType.Name pcall(callback, input.UserInputType)
+            end
         end
     end)
     
@@ -1114,10 +1199,11 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     end)
 
     task.spawn(function()
-        local key = Enum.KeyCode[Flags[flagName].CurrentValue]
+        local key = Enum.KeyCode[Flags[flagName].CurrentValue] or Enum.UserInputType[Flags[flagName].CurrentValue]
         if key then pcall(callback, key) end
     end)
 
+    addInteractiveFeedback(BBtn)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
 end
 
@@ -1188,14 +1274,20 @@ function KillerHub:CreateTab(name, iconId)
     KillerHub.Tabs[name] = tabObj return tabObj
 end
 
+-- MEJORA: Buscador reactivo optimizado con saltos de fotograma alternados (Evita freezes si hay cientos de elementos)
 local searchThread
 connect(SearchInput:GetPropertyChangedSignal("Text"), function()
     if searchThread then task.cancel(searchThread) end
     searchThread = task.defer(function()
         task.wait(0.12)
         local q = string.lower(SearchInput.Text)
+        local count = 0
         for _, el in pairs(KillerHub.AllElements) do
-            if el.Instance and el.Label then el.Instance.Visible = (q == "") and true or (string.find(string.lower(el.Label.Text or ""), q) and true or false) end
+            if el.Instance and el.Label then 
+                el.Instance.Visible = (q == "") and true or (string.find(string.lower(el.Label.Text or ""), q) and true or false) 
+            end
+            count = count + 1
+            if count % 25 == 0 then task.wait() end -- Cede el paso al motor cada 25 elementos procesados
         end
     end)
 end)
