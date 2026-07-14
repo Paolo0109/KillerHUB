@@ -28,11 +28,11 @@ local Themes = {
         BG_MAIN = Color3.fromRGB(8, 8, 10),
         BG_SIDEBAR = Color3.fromRGB(4, 4, 5),
         BG_SECONDARY = Color3.fromRGB(16, 16, 20),
-        ACCENT = Color3.fromRGB(167, 167, 167),
+        ACCENT = Color3.fromRGB(222, 222, 222),
         PREMIUM_GOLD = Color3.fromRGB(255, 196, 0),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(130, 130, 135),
-        BORDER = Color3.fromRGB(40, 0, 80)
+        BORDER = Color3.fromRGB(20, 0, 40)
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
