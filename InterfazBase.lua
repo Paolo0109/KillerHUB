@@ -28,11 +28,11 @@ local Themes = {
         BG_MAIN = Color3.fromRGB(8, 8, 10),
         BG_SIDEBAR = Color3.fromRGB(4, 4, 5),
         BG_SECONDARY = Color3.fromRGB(16, 16, 20),
-        ACCENT = Color3.fromRGB(255, 255, 255),
+        ACCENT = Color3.fromRGB(35, 11, 67),
         PREMIUM_GOLD = Color3.fromRGB(255, 196, 0),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(130, 130, 135),
-        BORDER = Color3.fromRGB(35, 35, 40)
+        BORDER = Color3.fromRGB(40, 0, 80)
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
@@ -42,7 +42,7 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 215, 0),
         TEXT_WHITE = Color3.fromRGB(245, 240, 255),
         TEXT_MUTED = Color3.fromRGB(130, 115, 145),
-        BORDER = Color3.fromRGB(40, 20, 65)
+        BORDER = Color3.fromRGB(40, 0, 80)
     },
     ["Midnight Emerald"] = {
         BG_MAIN = Color3.fromRGB(10, 12, 11),
