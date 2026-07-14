@@ -1,5 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS ULTRA PREMIUM EDITION (V3.1.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V3.1.0)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -24,11 +24,11 @@ end
 -- 🎨 PALETAS DE ESTILO (ACTUALIZADO A NEGRO PREMIUM OSCURO)
 -- ============================================================================
 local Themes = {
-    ["Black Glass"] = {
+    ["Obsidian"] = {
         BG_MAIN = Color3.fromRGB(8, 8, 10),
         BG_SIDEBAR = Color3.fromRGB(4, 4, 5),
         BG_SECONDARY = Color3.fromRGB(16, 16, 20),
-        ACCENT = Color3.fromRGB(35, 11, 67),
+        ACCENT = Color3.fromRGB(167, 167, 167),
         PREMIUM_GOLD = Color3.fromRGB(255, 196, 0),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(130, 130, 135),
@@ -86,14 +86,14 @@ local Themes = {
     }
 }
 
-local CurrentTheme = Themes["Black Glass"]
+local CurrentTheme = Themes["Obsidian"]
 
 -- ============================================================================
 -- 💾 SISTEMA DE CONFIGURACIÓN AVANZADO
 -- ============================================================================
 local CONFIG_FILE = "KillerHub_Core_Config.json"
 local DefaultConfig = {
-    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Black Glass", SelectedFont = "GothamMedium",
+    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium",
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0,
     BtnX = 15, BtnY = 100
@@ -1297,7 +1297,7 @@ end)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Black Glass", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 
 local TopFonts = {
     "Gotham", "GothamMedium", "GothamBold", "GothamBlack",
@@ -1324,7 +1324,7 @@ SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar 
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
 
 task.defer(function()
-    KillerHub:SetTheme(Config.SelectedTheme or "Black Glass")
+    KillerHub:SetTheme(Config.SelectedTheme or "Obsidian")
 end)
 
 getgenv().KillerHub = KillerHub
