@@ -1,7 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS PREMIUM EDITION (V2.8.0)
--- 🧑‍💻 Desarrollado por: Paolo Sexo XD & AI Optimizer
--- 📱 Fix: Seguridad Premium por ID, Interfaz Compacta y FPS de Renderizado Real
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | BLACK GLASS ULTRA PREMIUM EDITION (V3.0.0)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -17,19 +15,6 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- ============================================================================
--- 👑 CONTROL DE LICENCIAS PREMIUM (AÑADE AQUÍ LAS IDs DE TUS COMPRADORES)
--- ============================================================================
-local PremiumUserIds = {
-    123456789, -- ID de ejemplo 1
-    987654321, -- ID de ejemplo 2
-    LocalPlayer.UserId -- Tu propia ID siempre tendrá acceso automáticamente
-}
-
-local function isPlayerPremium()
-    return table.find(PremiumUserIds, LocalPlayer.UserId) ~= nil
-end
-
 -- Contenedor seguro multi-ejecutor móvil
 local TargetParent = (gethui and gethui()) or (pcall(function() return game:GetService("CoreGui").Name end) and game:GetService("CoreGui")) or LocalPlayer:WaitForChild("PlayerGui")
 
@@ -38,18 +23,18 @@ if TargetParent:FindFirstChild("KillerHub_Universal") then
 end
 
 -- ============================================================================
--- 🎨 PALETAS DE ESTILO (ACTUALIZADO A VIDRIO TRANSPARENTE NEGRO)
+-- 🎨 PALETAS DE ESTILO (ACTUALIZADO A NEGRO PREMIUM OSCURO)
 -- ============================================================================
 local Themes = {
     ["Black Glass"] = {
-        BG_MAIN = Color3.fromRGB(12, 12, 16),
-        BG_SIDEBAR = Color3.fromRGB(8, 8, 10),
-        BG_SECONDARY = Color3.fromRGB(24, 24, 30),
-        ACCENT = Color3.fromRGB(0, 162, 255),
+        BG_MAIN = Color3.fromRGB(8, 8, 10),
+        BG_SIDEBAR = Color3.fromRGB(4, 4, 5),
+        BG_SECONDARY = Color3.fromRGB(16, 16, 20),
+        ACCENT = Color3.fromRGB(255, 255, 255),
         PREMIUM_GOLD = Color3.fromRGB(255, 196, 0),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
-        TEXT_MUTED = Color3.fromRGB(150, 155, 165),
-        BORDER = Color3.fromRGB(80, 85, 100)
+        TEXT_MUTED = Color3.fromRGB(130, 130, 135),
+        BORDER = Color3.fromRGB(35, 35, 40)
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
@@ -184,7 +169,7 @@ local BordeGradient = create("UIGradient", {
     Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, CurrentTheme.BORDER),
         ColorSequenceKeypoint.new(0.5, CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 45, 60))
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 25))
     }), Rotation = 45
 }, MainStroke)
 
@@ -193,13 +178,13 @@ local function updateGuiSize()
 end
 updateGuiSize()
 
-local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(5, 5, 8), BorderSizePixel = 0, Active = true}, MainFrame)
+local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(4, 4, 5), BorderSizePixel = 0, Active = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, Topbar)
-local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(5, 5, 8), BorderSizePixel = 0}, Topbar)
+local TopbarPatch = create("Frame", {Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(4, 4, 5), BorderSizePixel = 0}, Topbar)
 
 local Title = create("TextLabel", {
     Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1,
-    Text = "Killer Hub | By Paolo", TextColor3 = CurrentTheme.ACCENT,
+    Text = "Killer Hub | By Paolo", TextColor3 = CurrentTheme.TEXT_WHITE,
     TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14
 }, Topbar)
 local DecorLine = create("Frame", {Size = UDim2.new(0, 60, 0, 2.5), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
@@ -209,12 +194,6 @@ local PerformanceLabel = create("TextLabel", {
     Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED,
     TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamMedium, TextSize = 11
 }, Topbar)
-
--- Motor de FPS real del Cliente optimizado
-local FPSValue = 60
-connect(RunService.RenderStepped, function(dt)
-    FPSValue = math.floor(1 / dt)
-end)
 
 task.spawn(function()
     while task.wait(1) do
@@ -228,52 +207,65 @@ task.spawn(function()
             if not successNetwork or ping == 0 then
                 pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
             end
-            PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", FPSValue, ping)
+            
+            local currentFps = math.floor(Workspace:GetRealPhysicsFPS())
+            PerformanceLabel.Text = string.format("FPS: %d | PING: %dms", currentFps, ping)
         else break end
     end
 end)
 
 local function makeDraggable(clickObject, dragObject)
     local dragging, dragStart, startPos, activeInput
+    local moveConn, endConn
+    
     connect(clickObject.InputBegan, function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
-            dragging = true activeInput = input dragStart = input.Position startPos = dragObject.Position
-        end
-    end)
-    connect(UserInputService.InputChanged, function(input)
-        if dragging and input == activeInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            task.defer(function()
-                if not dragging or activeInput ~= input then return end
-                local delta = input.Position - dragStart
-                local screenSize = Camera.ViewportSize
-                if dragObject.Name == "MainFrame" then
-                    local frameSize = dragObject.AbsoluteSize
-                    local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
-                    local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
-                    local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
-                    local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
-                    dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
-                else
-                    local btnSize = dragObject.AbsoluteSize
-                    local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
-                    local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
-                    dragObject.Position = UDim2.new(0, newX, 0, newY)
+            dragging = true 
+            activeInput = input 
+            dragStart = input.Position 
+            startPos = dragObject.Position
+            
+            moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+                if dragging and changedInput == activeInput and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                    task.defer(function()
+                        if not dragging or activeInput ~= changedInput then return end
+                        local delta = changedInput.Position - dragStart
+                        local screenSize = Camera.ViewportSize
+                        if dragObject.Name == "MainFrame" then
+                            local frameSize = dragObject.AbsoluteSize
+                            local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
+                            local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
+                            local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
+                            local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
+                            dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
+                        else
+                            local btnSize = dragObject.AbsoluteSize
+                            local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
+                            local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
+                            dragObject.Position = UDim2.new(0, newX, 0, newY)
+                        end
+                    end)
                 end
             end)
-        end
-    end)
-    connect(UserInputService.InputEnded, function(input)
-        if input == activeInput then
-            dragging = false activeInput = nil
-            if dragObject.Name == "MainFrame" then
-                Config.MainFrameX = dragObject.Position.X.Offset
-                Config.MainFrameY = dragObject.Position.Y.Offset
-                saveConfig()
-            elseif dragObject.Name == "KillerHubToggle" then
-                Config.BtnX = dragObject.Position.X.Offset
-                Config.BtnY = dragObject.Position.Y.Offset
-                saveConfig()
-            end
+            
+            endConn = UserInputService.InputEnded:Connect(function(endedInput)
+                if endedInput == activeInput then
+                    dragging = false 
+                    activeInput = nil
+                    if moveConn then moveConn:Disconnect() moveConn = nil end
+                    if endConn then endConn:Disconnect() end
+                    
+                    if dragObject.Name == "MainFrame" then
+                        Config.MainFrameX = dragObject.Position.X.Offset
+                        Config.MainFrameY = dragObject.Position.Y.Offset
+                        saveConfig()
+                    elseif dragObject.Name == "KillerHubToggle" then
+                        Config.BtnX = dragObject.Position.X.Offset
+                        Config.BtnY = dragObject.Position.Y.Offset
+                        saveConfig()
+                    end
+                end
+            end)
         end
     end)
 end
@@ -281,11 +273,11 @@ end
 makeDraggable(Topbar, MainFrame)
 
 local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
-local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(35, 35, 45), BorderSizePixel = 0}, Sidebar)
+local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(30, 30, 35), BorderSizePixel = 0}, Sidebar)
 
 local SearchBoxContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 8), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, Sidebar)
 create("UICorner", {CornerRadius = UDim.new(0, 6)}, SearchBoxContainer)
-local SearchStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 55)}, SearchBoxContainer)
+local SearchStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(35, 35, 40)}, SearchBoxContainer)
 
 local SearchInput = create("TextBox", {
     Size = UDim2.new(1, -10, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1,
@@ -346,12 +338,15 @@ connect(UserInputService.InputBegan, function(input, gp)
 end)
 
 -- ============================================================================
--- 📦 API CORE Y MOTOR REACTIVO FIJADO
+-- 📦 API CORE Y MOTOR REACTIVO OPTIMIZADO
 -- ============================================================================
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {}
 }
+
+-- Mantenido intacto por API global (No realiza lógica premium para optimizar)
+function KillerHub:SetPremiumIds(idTable) end
 
 function KillerHub:SetFont(fontName)
     Config.SelectedFont = fontName
@@ -392,7 +387,7 @@ function KillerHub:SetTheme(themeName)
     MainStroke.Color = CurrentTheme.BORDER
     Sidebar.BackgroundColor3 = CurrentTheme.BG_SIDEBAR
     SidebarLine.BackgroundColor3 = CurrentTheme.BORDER
-    Title.TextColor3 = CurrentTheme.ACCENT
+    Title.TextColor3 = CurrentTheme.TEXT_WHITE
     DecorLine.BackgroundColor3 = CurrentTheme.ACCENT
     PerformanceLabel.TextColor3 = CurrentTheme.TEXT_MUTED
     SearchBoxContainer.BackgroundColor3 = CurrentTheme.BG_SECONDARY
@@ -405,7 +400,7 @@ function KillerHub:SetTheme(themeName)
     BordeGradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, CurrentTheme.BORDER),
         ColorSequenceKeypoint.new(0.5, CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 45, 60))
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 25))
     })
 
     for _, refreshCallback in ipairs(KillerHub.TargetThemeElements) do
@@ -441,11 +436,15 @@ function TabMethods:CreateParagraph(title, text)
 end
 
 function TabMethods:CreateSection(text)
-    local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1}, self.Frame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 4, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 0.1}, SectionFrame)
+    local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1}, self.Frame)
+    local AccentLine = create("Frame", {Size = UDim2.new(0, 3, 1, -6), Position = UDim2.new(0, 2, 0, 3), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, SectionFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 1)}, AccentLine)
+    
+    local Label = create("TextLabel", {Size = UDim2.new(1, -15, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, SectionFrame)
     
     table.insert(KillerHub.TargetThemeElements, function()
         Label.TextColor3 = CurrentTheme.ACCENT
+        AccentLine.BackgroundColor3 = CurrentTheme.ACCENT
     end)
     
     self:RegisterElement(SectionFrame, Label, self.Frame.Name)
@@ -463,7 +462,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
     local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)}, ToggleButton)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
@@ -473,7 +472,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         
         TweenService:Create(Track, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)
+            BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
         }):Play()
         
         TweenService:Create(Knob, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -503,79 +502,9 @@ function TabMethods:CreateToggle(flagName, text, callback)
     return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
 end
 
--- ============================================================================
--- 👑 NUEVO COMPONENTE: TOGGLE PREMIUM SEGURO POR ID ANTI-TAMPERING
--- ============================================================================
+-- Rediseñado: Removida la lógica premium y acoplado de forma nativa para máxima optimización
 function TabMethods:CreatePremiumToggle(flagName, text, callback)
-    local isPremium = isPlayerPremium()
-    
-    -- Mecanismo estricto de anulación si intentan inyectar variables desde el JSON
-    if not isPremium then
-        Config[flagName] = false
-        Flags[flagName] = { CurrentValue = false }
-    else
-        if Config[flagName] == nil then Config[flagName] = false end
-        Flags[flagName] = { CurrentValue = Config[flagName] }
-    end
-    
-    local ToggleButton = create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 36), 
-        BackgroundColor3 = isPremium and CurrentTheme.BG_SECONDARY or Color3.fromRGB(16, 16, 20), 
-        BackgroundTransparency = isPremium and 0.4 or 0.7, 
-        Text = "", 
-        AutoButtonColor = isPremium
-    }, self.Frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = isPremium and CurrentTheme.BORDER or Color3.fromRGB(45, 45, 50)}, ToggleButton)
-    
-    local DisplayText = isPremium and (text .. " ⭐") or (text .. " 🔒 (Premium Only)")
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = DisplayText, TextColor3 = isPremium and (Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED) or Color3.fromRGB(100, 100, 110), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
-    
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = isPremium and (Config[flagName] and CurrentTheme.PREMIUM_GOLD or Color3.fromRGB(45, 45, 55)) or Color3.fromRGB(30, 30, 35)}, ToggleButton)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
-    local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = isPremium and (Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = isPremium and CurrentTheme.TEXT_WHITE or Color3.fromRGB(60, 60, 65)}, Track)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
-
-    local function stateUpdate()
-        if not isPremium then return end
-        local active = Flags[flagName].CurrentValue
-        ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        
-        TweenService:Create(Track, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundColor3 = active and CurrentTheme.PREMIUM_GOLD or Color3.fromRGB(45, 45, 55)
-        }):Play()
-        
-        TweenService:Create(Knob, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        }):Play()
-    end
-    
-    if isPremium then
-        connect(ToggleButton.MouseButton1Click, function()
-            local nextState = not Flags[flagName].CurrentValue
-            Flags[flagName].CurrentValue = nextState Config[flagName] = nextState saveConfig() playUISound()
-            task.spawn(function() stateUpdate() end)
-            task.spawn(callback, nextState)
-        end)
-    end
-    
-    table.insert(KillerHub.TargetThemeElements, function()
-        if isPremium then
-            ToggleButton.BackgroundColor3 = CurrentTheme.BG_SECONDARY
-            Stroke.Color = CurrentTheme.BORDER
-            stateUpdate()
-        end
-    end)
-
-    if isPremium then
-        task.spawn(function()
-            stateUpdate()
-            pcall(callback, Flags[flagName].CurrentValue)
-        end)
-    end
-
-    self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
-    return {Set = function(_, bool) if not isPremium then return end Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
+    return self:CreateToggle(flagName, text, callback)
 end
 
 function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, callbackToggle, callbackSlider)
@@ -588,10 +517,10 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, TSFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, TSFrame)
     
-    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, TSFrame)
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, Text = ""}, TSFrame)
     local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)}, ToggleButton)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
@@ -599,18 +528,19 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 16), Position = UDim2.new(0, 12, 0, 28), BackgroundTransparency = 1}, TSFrame)
     local ValueBox = create("TextBox", {Size = UDim2.new(0, 45, 1, 0), Position = UDim2.new(1, 0, 0, -2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false}, SliderContainer)
     
-    local STrack = create("Frame", {Size = UDim2.new(1, -50, 0, 4), Position = UDim2.new(0, 0, 0.5, -2), BackgroundColor3 = Color3.fromRGB(40, 40, 50)}, SliderContainer)
+    local STrack = create("Frame", {Size = UDim2.new(1, -50, 0, 4), Position = UDim2.new(0, 0, 0.5, -2), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, STrack)
     local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, SFill)
     
+    -- Punta mejorada: Cuadrado premium con bordes finos redondos
     local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, SKnob)
+    create("UICorner", {CornerRadius = UDim.new(0, 3)}, SKnob)
 
     local function stateUpdate()
         local active = Flags[flagToggle].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)
+        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
     end
 
@@ -685,13 +615,14 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Active = true}, self.Frame)
     local Label = create("TextLabel", {Size = UDim2.new(1, -60, 0, 16), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
     local ValueBox = create("TextBox", {Size = UDim2.new(0, 50, 0, 16), Position = UDim2.new(1, -2, 0, 2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false}, SliderFrame)
-    local Track = create("Frame", {Size = UDim2.new(1, -4, 0, 6), Position = UDim2.new(0, 2, 0, 24), BackgroundColor3 = Color3.fromRGB(40, 40, 50)}, SliderFrame)
+    local Track = create("Frame", {Size = UDim2.new(1, -4, 0, 6), Position = UDim2.new(0, 2, 0, 24), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Track)
     local Fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Fill)
     
+    -- Fix: Vinculado el UICorner directamente al Knob (Punta Cuadrada con bordes redondos de 3px)
     local Knob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, Knob)
+    create("UICorner", {CornerRadius = UDim.new(0, 3)}, Knob)
 
     local function runSliderValue(v, skipCallback)
         v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v saveConfig()
@@ -765,7 +696,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     if hasSearch then
         SearchBox = create("TextBox", {
             Size = UDim2.new(1, -16, 0, 24), Position = UDim2.new(0, 8, 0, 36),
-            BackgroundColor3 = Color3.fromRGB(30, 30, 38), Text = "", PlaceholderText = "Filtrar opciones...",
+            BackgroundColor3 = Color3.fromRGB(25, 25, 30), Text = "", PlaceholderText = "Filtrar opciones...",
             PlaceholderColor3 = CurrentTheme.TEXT_MUTED, TextColor3 = CurrentTheme.TEXT_WHITE,
             Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false, Visible = false
         }, DDFrame)
@@ -791,7 +722,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     local function makeOptions()
         for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
         for i, name in ipairs(options) do
-            local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = Color3.fromRGB(30, 30, 40), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
+            local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = Color3.fromRGB(25, 25, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             
             connect(OptBtn.MouseButton1Click, function()
@@ -880,7 +811,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
         for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
         for i, name in ipairs(options) do
             local isChosen = Config[flagName][name] or false
-            local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = isChosen and CurrentTheme.BG_MAIN or Color3.fromRGB(30, 30, 40), Text = name, TextColor3 = isChosen and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
+            local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = isChosen and CurrentTheme.BG_MAIN or Color3.fromRGB(25, 25, 30), Text = name, TextColor3 = isChosen and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             
             connect(OptBtn.MouseButton1Click, function()
@@ -919,7 +850,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local MainTrigger = create("TextButton", {Size = UDim2.new(1, -80, 0, 36), BackgroundTransparency = 1, Text = ""}, MasterFrame)
     local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
 
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)}, MainTrigger)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, MainTrigger)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
@@ -932,7 +863,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
 
     local function stateUpdate()
         local active = Flags[flagToggle].CurrentValue
-        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(45, 45, 55)
+        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
     end
@@ -946,10 +877,12 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local function createMiniSlider(labelTxt, colorValueIndex, sliderColor)
         local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1}, SlidersContainer)
         create("TextLabel", {Size = UDim2.new(0, 15, 1, 0), BackgroundTransparency = 1, Text = labelTxt, TextColor3 = sliderColor, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, Row)
-        local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(40, 40, 50)}, Row)
+        local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, Row)
         local FillS = create("Frame", {Size = UDim2.new(Config[flagColor][colorValueIndex], 0, 1, 0), BackgroundColor3 = sliderColor}, TrackS)
+        
+        -- Punta redonda/cuadrada premium fijada
         local KnobS = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(Config[flagColor][colorValueIndex], -5, 0.5, -5), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = ""}, TrackS)
-        create("UICorner", {CornerRadius = UDim.new(1, 0)}, KnobS)
+        create("UICorner", {CornerRadius = UDim.new(0, 3)}, KnobS)
 
         local isSliding = false
         local function updateColor()
@@ -1023,10 +956,12 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1}, SlidersContainer)
         create("TextLabel", {Size = UDim2.new(0, 15, 1, 0), BackgroundTransparency = 1, Text = labelTxt, TextColor3 = sliderColor, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, Row)
         
-        local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(40, 40, 50)}, Row)
+        local TrackS = create("Frame", {Size = UDim2.new(1, -25, 0, 4), Position = UDim2.new(0, 20, 0.5, -2), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, Row)
         local FillS = create("Frame", {Size = UDim2.new(Config[flagColor][colorValueIndex], 0, 1, 0), BackgroundColor3 = sliderColor}, TrackS)
+        
+        -- Punta redonda/cuadrada premium fijada
         local KnobS = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(Config[flagColor][colorValueIndex], -5, 0.5, -5), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = ""}, TrackS)
-        create("UICorner", {CornerRadius = UDim.new(1, 0)}, KnobS)
+        create("UICorner", {CornerRadius = UDim.new(0, 3)}, KnobS)
 
         local isSliding = false
         local function updateColor()
@@ -1121,7 +1056,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, InpFrame)
     
     local Label = create("TextLabel", {Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, InpFrame)
-    local Box = create("TextBox", {Size = UDim2.new(0, 120, 0, 24), Position = UDim2.new(1, -12, 0.5, -12), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(30, 30, 40), Text = Flags[flagName].CurrentValue, PlaceholderText = placeholder, PlaceholderColor3 = Color3.fromRGB(100, 105, 115), TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, InpFrame)
+    local Box = create("TextBox", {Size = UDim2.new(0, 120, 0, 24), Position = UDim2.new(1, -12, 0.5, -12), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(25, 25, 30), Text = Flags[flagName].CurrentValue, PlaceholderText = placeholder, PlaceholderColor3 = Color3.fromRGB(100, 105, 115), TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, InpFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, Box)
     create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Box)
     
@@ -1130,7 +1065,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     table.insert(KillerHub.TargetThemeElements, function()
         InpFrame.BackgroundColor3 = CurrentTheme.BG_SECONDARY
         Stroke.Color = CurrentTheme.BORDER
-        Box.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        Box.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     end)
 
     task.spawn(pcall, callback, Flags[flagName].CurrentValue)
@@ -1159,7 +1094,7 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, KFrame)
     
     local Lbl = create("TextLabel", {Size = UDim2.new(1, -120, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, KFrame)
-    local BBtn = create("TextButton", {Size = UDim2.new(0, 85, 0, 24), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(35, 35, 45), Text = Config[flagName], TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11}, KFrame)
+    local BBtn = create("TextButton", {Size = UDim2.new(0, 85, 0, 24), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(30, 30, 35), Text = Config[flagName], TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11}, KFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, BBtn)
     create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, BBtn)
     
@@ -1186,9 +1121,6 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
 end
 
--- ============================================================================
--- 🔓 ENGINES DE CREACIÓN DE PESTAÑAS (TABS)
--- ============================================================================
 function KillerHub:CreateTab(name, iconId)
     local frame = create("ScrollingFrame", {
         Name = name .. "Frame", Size = UDim2.new(1, -24, 1, -24), Position = UDim2.new(0, 12, 0, 12),
@@ -1197,8 +1129,7 @@ function KillerHub:CreateTab(name, iconId)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
     local stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, frame)
     
-    -- Ajuste fino de Padding (más compacto a 5px de separación)
-    local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5)}, frame)
+    local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)}, frame)
     create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)}, frame)
     
     local sizeChangedConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
@@ -1207,8 +1138,6 @@ function KillerHub:CreateTab(name, iconId)
     table.insert(Connections, sizeChangedConn)
 
     local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
-    
-    -- Aumento de TextSize a 14 para máxima legibilidad de pestañas
     local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left}, btn)
 
     local iconImg
@@ -1262,7 +1191,8 @@ end
 local searchThread
 connect(SearchInput:GetPropertyChangedSignal("Text"), function()
     if searchThread then task.cancel(searchThread) end
-    searchThread = task.delay(0.04, function()
+    searchThread = task.defer(function()
+        task.wait(0.12)
         local q = string.lower(SearchInput.Text)
         for _, el in pairs(KillerHub.AllElements) do
             if el.Instance and el.Label then el.Instance.Visible = (q == "") and true or (string.find(string.lower(el.Label.Text or ""), q) and true or false) end
