@@ -1,5 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V3.2.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.0.0)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -138,7 +138,6 @@ local function playUISound()
     sound:Play() Debris:AddItem(sound, 1.5)
 end
 
--- Reemplazo: Ahora MainFrame es un CanvasGroup para transiciones premium fluidas y eficientes
 local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
 local MainStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
@@ -164,7 +163,6 @@ local function updateGuiSize()
     end
 end
 
--- Optimización: ClipsDescendants true elimina la necesidad del antiguo TopbarPatch cosmético
 local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(4, 4, 5), BorderSizePixel = 0, Active = true, ClipsDescendants = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, Topbar)
 
@@ -172,7 +170,6 @@ local Title = create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UD
 local DecorLine = create("Frame", {Size = UDim2.new(0, 60, 0, 2.5), Position = UDim2.new(0, 18, 1, -2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Topbar)
 local PerformanceLabel = create("TextLabel", {Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(1, -15, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = "FPS: -- | PING: --", TextColor3 = CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamMedium, TextSize = 11}, Topbar)
 
--- Optimización: Medidor de rendimiento controlado con delta dinámico sin fugas globales
 local fpsTimer = 0
 local frameCounter = 0
 local perfConn = RunService.Heartbeat:Connect(function(dt)
@@ -295,7 +292,6 @@ MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280
 updateUiOpacity()
 updateButtonSize()
 
--- Mejora: Fade y Escala limpios controlando la transparencia grupal del CanvasGroup
 local menuVisible = true
 local function setMenuVisibility(visible)
     menuVisible = visible
@@ -325,7 +321,6 @@ connect(UserInputService.InputBegan, function(input, gp)
     end
 end)
 
--- Mejora: Interacción limpia controlada. Detiene tweens activos previniendo tirones visuales
 local activeTweens = {}
 local function addInteractiveFeedback(inst)
     if not inst:IsA("TextButton") then return end
@@ -352,8 +347,80 @@ end
 -- ============================================================================
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
-    CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {}
+    CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
+    Elements = {} -- 🛠 Guardador global de API Inteligente externa
 }
+
+-- ============================================================================
+-- 💎 SISTEMA PREMIUM DE NOTIFICACIONES DINÁMICAS
+-- ============================================================================
+local NotifContainer = create("Frame", {
+    Name = "NotificationContainer",
+    Size = UDim2.new(0, 240, 1, -20),
+    Position = UDim2.new(1, -250, 0, 10),
+    BackgroundTransparency = 1
+}, ScreenGui)
+local NotifLayout = create("UIListLayout", {
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding = UDim.new(0, 6),
+    VerticalAlignment = Enum.VerticalAlignment.Bottom
+}, NotifContainer)
+
+function KillerHub:Notify(title, text, duration)
+    duration = duration or 4
+    local NotifFrame = create("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        BackgroundColor3 = CurrentTheme.BG_MAIN,
+        BackgroundTransparency = 0.1,
+        ClipsDescendants = true
+    }, NotifContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 8)}, NotifFrame)
+    local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, NotifFrame)
+    
+    local Line = create("Frame", {
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = CurrentTheme.ACCENT,
+        BorderSizePixel = 0
+    }, NotifFrame)
+    
+    local Tl = create("TextLabel", {
+        Size = UDim2.new(1, -20, 0, 16),
+        Position = UDim2.new(0, 10, 0, 4),
+        BackgroundTransparency = 1,
+        Text = title,
+        TextColor3 = CurrentTheme.TEXT_WHITE,
+        Font = Enum.Font.GothamBold,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, NotifFrame)
+    
+    local Tx = create("TextLabel", {
+        Size = UDim2.new(1, -20, 0, 24),
+        Position = UDim2.new(0, 10, 0, 18),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 10,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top
+    }, NotifFrame)
+
+    table.insert(KillerHub.TargetThemeElements, function()
+        NotifFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
+        Stroke.Color = CurrentTheme.BORDER
+        Line.BackgroundColor3 = CurrentTheme.ACCENT
+    end)
+
+    TweenService:Create(NotifFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 46)}):Play()
+    
+    task.delay(duration, function()
+        local t = TweenService:Create(NotifFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
+        t.Completed:Connect(function() NotifFrame:Destroy() end)
+        t:Play()
+    end)
+end
 
 function KillerHub:SetPremiumIds(idTable) end
 
@@ -385,7 +452,6 @@ function KillerHub:Unload()
     warn("❌ KillerHub desunificado por completo y memoria liberada.")
 end
 
--- Mejora: Sistema dinámico centralizado por atributos. Cero closures redundantes guardados en memoria
 function KillerHub:SetTheme(themeName)
     if not Themes[themeName] then return end
     CurrentTheme = Themes[themeName]
@@ -451,7 +517,13 @@ function TabMethods:CreateParagraph(title, text)
         Tx.TextColor3 = CurrentTheme.TEXT_MUTED
     end)
     self:RegisterElement(Frame, Tl, self.Frame.Name)
-    return {SetTitle = function(_, t) Tl.Text = t end, SetText = function(_, t) Tx.Text = t end}
+    
+    local paraObj = {
+        SetTitle = function(_, t) Tl.Text = t end,
+        SetText = function(_, t) Tx.Text = t end
+    }
+    KillerHub.Elements[title] = paraObj
+    return paraObj
 end
 
 function TabMethods:CreateSection(text)
@@ -467,7 +539,12 @@ function TabMethods:CreateSection(text)
     end)
     
     self:RegisterElement(SectionFrame, Label, self.Frame.Name)
-    return {SetText = function(_, newText) Label.Text = string.upper(newText) end}
+    
+    local secObj = {
+        SetText = function(_, newText) Label.Text = string.upper(newText) end
+    }
+    KillerHub.Elements[text] = secObj
+    return secObj
 end
 
 function TabMethods:CreateToggle(flagName, text, callback)
@@ -496,11 +573,15 @@ function TabMethods:CreateToggle(flagName, text, callback)
         }):Play()
     end
     
-    connect(ToggleButton.MouseButton1Click, function()
-        local nextState = not Flags[flagName].CurrentValue
-        Flags[flagName].CurrentValue = nextState Config[flagName] = nextState saveConfig() playUISound()
+    local function executeSet(bool)
+        Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig()
         task.spawn(stateUpdate)
-        task.spawn(callback, nextState)
+        task.spawn(callback, bool)
+    end
+
+    connect(ToggleButton.MouseButton1Click, function()
+        playUISound()
+        executeSet(not Flags[flagName].CurrentValue)
     end)
     
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
@@ -508,7 +589,41 @@ function TabMethods:CreateToggle(flagName, text, callback)
 
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
-    return {Set = function(_, bool) Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig() stateUpdate() pcall(callback, bool) end}
+    
+    -- ==========================================
+    -- 🧠 INTELIGENCIA EN TOGGLES (OPCIONAL)
+    -- ==========================================
+    local toggleObj = {
+        Set = function(_, bool) executeSet(bool) end,
+        -- Auto-conecta un Keybind temporal sin crear objeto en UI
+        BindToKey = function(self, keycode)
+            local keyConn = connect(UserInputService.InputBegan, function(input, gp)
+                if not gp and input.KeyCode == keycode then
+                    playUISound()
+                    executeSet(not Flags[flagName].CurrentValue)
+                end
+            end)
+            table.insert(Connections, keyConn)
+        end,
+        -- Monitorea un estado del juego y activa/desactiva el toggle automáticamente
+        BindToState = function(self, evaluationFunction, checkInterval)
+            checkInterval = checkInterval or 0.5
+            task.spawn(function()
+                while task.wait(checkInterval) do
+                    if not ScreenGui or not ScreenGui.Parent then break end
+                    local success, result = pcall(evaluationFunction)
+                    if success and typeof(result) == "boolean" then
+                        if Flags[flagName].CurrentValue ~= result then
+                            executeSet(result)
+                        end
+                    end
+                end
+            end)
+        end
+    }
+    
+    KillerHub.Elements[flagName] = toggleObj
+    return toggleObj
 end
 
 function TabMethods:CreatePremiumToggle(flagName, text, callback)
@@ -606,10 +721,13 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
 
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
-    return {
+    
+    local tsObj = {
         SetToggle = function(_, bool) Flags[flagToggle].CurrentValue = bool Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
         SetSlider = function(_, value) runSliderValue(value) end
     }
+    KillerHub.Elements[flagToggle] = tsObj
+    return tsObj
 end
 
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
@@ -671,7 +789,36 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
 
     task.spawn(function() runSliderValue(Flags[flagName].CurrentValue, true) pcall(callback, Flags[flagName].CurrentValue) end)
     self:RegisterElement(SliderFrame, Label, self.Frame.Name)
-    return {Set = function(_, value) runSliderValue(value) end}
+    
+    -- ==========================================
+    -- 🧠 ADAPTADOR INTELIGENTE DE PING (SLIDER)
+    -- ==========================================
+    local sliderObj = {
+        Set = function(_, value) runSliderValue(value) end,
+        -- Auto-mueve el slider en base al ping actual multiplicándolo por un factor
+        BindToPing = function(self, baseFactor, updateInterval)
+            baseFactor = baseFactor or 0.15
+            updateInterval = updateInterval or 0.5
+            task.spawn(function()
+                while task.wait(updateInterval) do
+                    if not ScreenGui or not ScreenGui.Parent then break end
+                    local ping = 0
+                    pcall(function()
+                        if Stats:FindFirstChild("Network") and Stats.Network:FindFirstChild("ServerToClientPing") then
+                            ping = Stats.Network.ServerToClientPing:GetValue()
+                        else
+                            ping = LocalPlayer:GetNetworkPing() * 1000
+                        end
+                    end)
+                    local smartValue = ping * baseFactor
+                    runSliderValue(smartValue)
+                end
+            end)
+        end
+    }
+    
+    KillerHub.Elements[flagName] = sliderObj
+    return sliderObj
 end
 
 function TabMethods:CreateDropdown(flagName, text, options, callback)
@@ -703,8 +850,9 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, OptsScroll)
 
     local open = false
-    connect(Trigger.MouseButton1Click, function()
-        open = not open playUISound()
+    
+    local function setDropdownOpen(shouldOpen)
+        open = shouldOpen
         local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
         if SearchBox then SearchBox.Visible = open if not open then SearchBox.Text = "" end end
         
@@ -712,8 +860,21 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
         TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+    end
+
+    connect(Trigger.MouseButton1Click, function()
+        playUISound()
+        setDropdownOpen(not open)
     end)
     
+    local function selectOption(name)
+        Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name open = false
+        if SearchBox then SearchBox.Text = "" SearchBox.Visible = false end
+        TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 36)}):Play()
+        TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
+        pcall(callback, name)
+    end
+
     local function makeOptions()
         for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
         for i, name in ipairs(options) do
@@ -721,11 +882,9 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             
             connect(OptBtn.MouseButton1Click, function()
-                Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name playUISound() open = false
-                if SearchBox then SearchBox.Text = "" SearchBox.Visible = false end
-                TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 36)}):Play()
-                TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
-                pcall(callback, name) makeOptions()
+                playUISound()
+                selectOption(name)
+                makeOptions()
             end)
             addInteractiveFeedback(OptBtn)
         end
@@ -760,7 +919,35 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
 
     addInteractiveFeedback(Trigger)
     self:RegisterElement(DDFrame, Label, self.Frame.Name)
-    return {Refresh = function(_, newOptions) options = newOptions hasSearch = #options > 6 searchHeight = hasSearch and 30 or 0 if SearchBox then SearchBox.Visible = open and hasSearch end makeOptions() end}
+    
+    -- ==========================================
+    -- 🧠 LISTAS INTELIGENTES DINÁMICAS (DROPDOWN)
+    -- ==========================================
+    local ddObj = {
+        Refresh = function(_, newOptions) 
+            options = newOptions 
+            hasSearch = #options > 6 
+            searchHeight = hasSearch and 30 or 0 
+            if SearchBox then SearchBox.Visible = open and hasSearch end 
+            makeOptions() 
+        end,
+        -- Permite actualizar dinámicamente la lista cada X segundos (ideal para jugadores online)
+        BindToDynamicList = function(self, queryFunction, refreshInterval)
+            refreshInterval = refreshInterval or 2.0
+            task.spawn(function()
+                while task.wait(refreshInterval) do
+                    if not ScreenGui or not ScreenGui.Parent then break end
+                    local success, newList = pcall(queryFunction)
+                    if success and type(newList) == "table" then
+                        self:Refresh(newList)
+                    end
+                end
+            end)
+        end
+    }
+    
+    KillerHub.Elements[flagName] = ddObj
+    return ddObj
 end
 
 function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
@@ -833,6 +1020,15 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     task.spawn(pcall, callback, Config[flagName])
     addInteractiveFeedback(Trigger)
     self:RegisterElement(MFrame, Label, self.Frame.Name)
+    
+    local mddObj = {
+        GetSelected = function()
+            local selected = {}
+            for opt, val in pairs(Config[flagName]) do if val then table.insert(selected, opt) end end
+            return selected
+        end
+    }
+    KillerHub.Elements[flagName] = mddObj
 end
 
 function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, defaultColor, callbackToggle, callbackColor)
@@ -988,7 +1184,12 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
 
     addInteractiveFeedback(Trigger)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
-    return {Set = function(_, newColor) Config[flagColor] = {newColor.R, newColor.G, newColor.B} Flags[flagColor].CurrentValue = newColor ColorBtn.BackgroundColor3 = newColor saveConfig() pcall(callback, newColor) end}
+    
+    local cpObj = {
+        Set = function(_, newColor) Config[flagColor] = {newColor.R, newColor.G, newColor.B} Flags[flagColor].CurrentValue = newColor ColorBtn.BackgroundColor3 = newColor saveConfig() pcall(callback, newColor) end
+    }
+    KillerHub.Elements[flagColor] = cpObj
+    return cpObj
 end
 
 function TabMethods:CreateClipboardButton(text, textToCopy)
@@ -1030,9 +1231,81 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, Box)
     create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Box)
     
-    connect(Box.FocusLost, function() Flags[flagName].CurrentValue = Box.Text Config[flagName] = Box.Text saveConfig() pcall(callback, Box.Text) end)
+    -- ==========================================
+    -- 🧠 MEMORIA E HISTORIAL DE TEXTBOX
+    -- ==========================================
+    local history = {}
+    local historyIndex = 0
+    
+    local function evaluateInputText(val)
+        -- Si empieza con "=", evalúa la matemática de manera inteligente
+        if string.sub(val, 1, 1) == "=" then
+            local mathExpression = string.sub(val, 2)
+            -- Saneado básico y ejecución usando loadstring seguro del Executor de Roblox
+            local loadFunc, err = loadstring("return " .. mathExpression)
+            if loadFunc then
+                local s, res = pcall(loadFunc)
+                if s and tonumber(res) then
+                    return tostring(res)
+                end
+            end
+        end
+        return val
+    end
+
+    connect(Box.FocusLost, function()
+        local rawText = Box.Text
+        local processedText = evaluateInputText(rawText)
+        Box.Text = processedText
+        
+        -- Guardar en historial
+        if processedText ~= "" and history[1] ~= processedText then
+            table.insert(history, 1, processedText)
+            if #history > 8 then table.remove(history, 9) end
+        end
+        historyIndex = 0
+
+        Flags[flagName].CurrentValue = processedText 
+        Config[flagName] = processedText 
+        saveConfig() 
+        pcall(callback, processedText) 
+    end)
+
+    -- Navegación del Historial con las Flechas del Teclado
+    connect(UserInputService.InputBegan, function(input)
+        if Box:HasFocus() then
+            if input.KeyCode == Enum.KeyCode.Up then
+                if historyIndex < #history then
+                    historyIndex = historyIndex + 1
+                    Box.Text = history[historyIndex]
+                end
+            elseif input.KeyCode == Enum.KeyCode.Down then
+                if historyIndex > 1 then
+                    historyIndex = historyIndex - 1
+                    Box.Text = history[historyIndex]
+                elseif historyIndex == 1 then
+                    historyIndex = 0
+                    Box.Text = ""
+                end
+            end
+        end
+    end)
+
     task.spawn(pcall, callback, Flags[flagName].CurrentValue)
     self:RegisterElement(InpFrame, Label, self.Frame.Name)
+    
+    local inputObj = {
+        Set = function(_, val) 
+            Box.Text = val 
+            Flags[flagName].CurrentValue = val 
+            Config[flagName] = val 
+            saveConfig() 
+            pcall(callback, val) 
+        end,
+        GetHistory = function() return history end
+    }
+    KillerHub.Elements[flagName] = inputObj
+    return inputObj
 end
 
 function TabMethods:CreateButton(text, callback)
@@ -1044,6 +1317,12 @@ function TabMethods:CreateButton(text, callback)
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
     addInteractiveFeedback(Button)
     self:RegisterElement(Button, Button, self.Frame.Name)
+    
+    local btnObj = {
+        Fire = function() pcall(callback) end
+    }
+    KillerHub.Elements[text] = btnObj
+    return btnObj
 end
 
 function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
