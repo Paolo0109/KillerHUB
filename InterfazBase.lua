@@ -1,5 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.0.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.1.0)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -13,7 +13,18 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-local TargetParent = (gethui and gethui()) or (pcall(function() return game:GetService("CoreGui").Name end) and game:GetService("CoreGui")) or LocalPlayer:WaitForChild("PlayerGui")
+-- 🛠 [MEJORA 1] ANTI-CRASH UNIVERSAL INTEGRADO (GetSafeUIParent)
+local function GetSafeUIParent()
+    local success, result = pcall(function()
+        if gethui then return gethui() end
+        local coreGui = game:GetService("CoreGui")
+        if coreGui and coreGui.Name then return coreGui end
+    end)
+    if success and result then return result end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local TargetParent = GetSafeUIParent()
 
 if TargetParent:FindFirstChild("KillerHub_Universal") then
     TargetParent.KillerHub_Universal:Destroy()
@@ -348,7 +359,7 @@ end
 local KillerHub = {
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
-    Elements = {} -- 🛠 Guardador global de API Inteligente externa
+    Elements = {} 
 }
 
 -- ============================================================================
@@ -366,8 +377,9 @@ local NotifLayout = create("UIListLayout", {
     VerticalAlignment = Enum.VerticalAlignment.Bottom
 }, NotifContainer)
 
-function KillerHub:Notify(title, text, duration)
+function KillerHub:Notify(title, text, duration, customColor)
     duration = duration or 4
+    local accentColor = customColor or CurrentTheme.ACCENT
     local NotifFrame = create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
         BackgroundColor3 = CurrentTheme.BG_MAIN,
@@ -379,7 +391,7 @@ function KillerHub:Notify(title, text, duration)
     
     local Line = create("Frame", {
         Size = UDim2.new(0, 3, 1, 0),
-        BackgroundColor3 = CurrentTheme.ACCENT,
+        BackgroundColor3 = accentColor,
         BorderSizePixel = 0
     }, NotifFrame)
     
@@ -407,19 +419,54 @@ function KillerHub:Notify(title, text, duration)
         TextYAlignment = Enum.TextYAlignment.Top
     }, NotifFrame)
 
-    table.insert(KillerHub.TargetThemeElements, function()
-        NotifFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
-        Stroke.Color = CurrentTheme.BORDER
-        Line.BackgroundColor3 = CurrentTheme.ACCENT
-    end)
+    if not customColor then
+        table.insert(KillerHub.TargetThemeElements, function()
+            NotifFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
+            Stroke.Color = CurrentTheme.BORDER
+            Line.BackgroundColor3 = CurrentTheme.ACCENT
+        end)
+    end
 
     TweenService:Create(NotifFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 46)}):Play()
     
     task.delay(duration, function()
+        if not NotifFrame or not NotifFrame.Parent then return end
         local t = TweenService:Create(NotifFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
-        t.Completed:Connect(function() NotifFrame:Destroy() end)
+        t.Completed:Connect(function() pcall(function() NotifFrame:Destroy() end) end)
         t:Play()
     end)
+end
+
+-- 🛠 [MEJORA 2] DEBUGGER Y VALIDADOR INTELIGENTE (SafeAssert)
+local function SafeAssert(componentName, checks)
+    for paramName, checkData in pairs(checks) do
+        local value = checkData.value
+        local expectedTypes = checkData.types
+        local match = false
+        
+        for _, t in ipairs(expectedTypes) do
+            if typeof(value) == t then match = true break end
+        end
+        
+        if not match then
+            local expectedStr = table.concat(expectedTypes, " o ")
+            local errorMsg = string.format("El parametro '%s' en '%s' debia ser [%s], pero recibio [%s].", paramName, componentName, expectedStr, typeof(value))
+            warn("⚠️ [KillerHub Debugger] " .. errorMsg)
+            task.spawn(function()
+                KillerHub:Notify("❌ Error en Componente", errorMsg, 6, Color3.fromRGB(240, 50, 50))
+            end)
+            return false
+        end
+    end
+    return true
+end
+
+-- 🛠 [MEJORA 3] EXPOSICIÓN Y ACTUALIZACIÓN DINÁMICA DE FLAGS GLOBAL
+local function updateGlobalFlags(flagName, value)
+    Flags[flagName] = { CurrentValue = value }
+    if getgenv().KillerHub then
+        getgenv().KillerHub.Flags = Flags
+    end
 end
 
 function KillerHub:SetPremiumIds(idTable) end
@@ -440,6 +487,11 @@ function KillerHub:AddTask(obj)
     return obj
 end
 
+-- 🛠 [MEJORA 4] OPTIMIZACIÓN DE RENDIMIENTO GENERAL (Garbage Collection Integrado)
+function KillerHub:Destroy()
+    self:Unload()
+end
+
 function KillerHub:Unload()
     for _, conn in ipairs(Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
@@ -448,7 +500,19 @@ function KillerHub:Unload()
         if typeof(item) == "RBXScriptConnection" then pcall(function() item:Disconnect() end)
         elseif typeof(item) == "Instance" then pcall(function() item:Destroy() end) end
     end
-    if ScreenGui then ScreenGui:Destroy() end
+    if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
+    
+    -- Limpieza profunda de memoria
+    table.clear(Connections)
+    table.clear(self._Trash)
+    table.clear(self.Tabs)
+    table.clear(self.Frames)
+    table.clear(self.Buttons)
+    table.clear(self.AllElements)
+    table.clear(self.TargetThemeElements)
+    table.clear(self.Elements)
+    
+    if getgenv().KillerHub then getgenv().KillerHub = nil end
     warn("❌ KillerHub desunificado por completo y memoria liberada.")
 end
 
@@ -504,6 +568,11 @@ function TabMethods:RegisterElement(inst, textLabel, tabName)
 end
 
 function TabMethods:CreateParagraph(title, text)
+    if not SafeAssert("CreateParagraph", {
+        ["title"] = {value = title, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}}
+    }) then return end
+
     local Frame = create("Frame", {Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3}, self.Frame)
     Frame:SetAttribute("ThemeRole", "BG_SECONDARY") Frame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Frame)
@@ -527,6 +596,10 @@ function TabMethods:CreateParagraph(title, text)
 end
 
 function TabMethods:CreateSection(text)
+    if not SafeAssert("CreateSection", {
+        ["text"] = {value = text, types = {"string"}}
+    }) then return end
+
     local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1}, self.Frame)
     local AccentLine = create("Frame", {Size = UDim2.new(0, 3, 1, -6), Position = UDim2.new(0, 2, 0, 3), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, SectionFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 1)}, AccentLine)
@@ -548,8 +621,14 @@ function TabMethods:CreateSection(text)
 end
 
 function TabMethods:CreateToggle(flagName, text, callback)
+    if not SafeAssert("CreateToggle", {
+        ["flagName"] = {value = flagName, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagName] == nil then Config[flagName] = false end
-    Flags[flagName] = { CurrentValue = Config[flagName] }
+    updateGlobalFlags(flagName, Config[flagName])
     
     local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, Text = "", AutoButtonColor = false}, self.Frame)
     ToggleButton:SetAttribute("ThemeRole", "BG_SECONDARY") ToggleButton:SetAttribute("CustomColorLabel", true)
@@ -574,7 +653,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     end
     
     local function executeSet(bool)
-        Flags[flagName].CurrentValue = bool Config[flagName] = bool saveConfig()
+        updateGlobalFlags(flagName, bool) Config[flagName] = bool saveConfig()
         task.spawn(stateUpdate)
         task.spawn(callback, bool)
     end
@@ -590,12 +669,8 @@ function TabMethods:CreateToggle(flagName, text, callback)
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
     
-    -- ==========================================
-    -- 🧠 INTELIGENCIA EN TOGGLES (OPCIONAL)
-    -- ==========================================
     local toggleObj = {
         Set = function(_, bool) executeSet(bool) end,
-        -- Auto-conecta un Keybind temporal sin crear objeto en UI
         BindToKey = function(self, keycode)
             local keyConn = connect(UserInputService.InputBegan, function(input, gp)
                 if not gp and input.KeyCode == keycode then
@@ -605,7 +680,6 @@ function TabMethods:CreateToggle(flagName, text, callback)
             end)
             table.insert(Connections, keyConn)
         end,
-        -- Monitorea un estado del juego y activa/desactiva el toggle automáticamente
         BindToState = function(self, evaluationFunction, checkInterval)
             checkInterval = checkInterval or 0.5
             task.spawn(function()
@@ -631,10 +705,20 @@ function TabMethods:CreatePremiumToggle(flagName, text, callback)
 end
 
 function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, callbackToggle, callbackSlider)
+    if not SafeAssert("CreateToggleSlider", {
+        ["flagToggle"] = {value = flagToggle, types = {"string"}},
+        ["flagSlider"] = {value = flagSlider, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["min"] = {value = min, types = {"number"}},
+        ["max"] = {value = max, types = {"number"}},
+        ["callbackToggle"] = {value = callbackToggle, types = {"function"}},
+        ["callbackSlider"] = {value = callbackSlider, types = {"function"}}
+    }) then return end
+
     if Config[flagToggle] == nil then Config[flagToggle] = false end
     if Config[flagSlider] == nil then Config[flagSlider] = min end
-    Flags[flagToggle] = { CurrentValue = Config[flagToggle] }
-    Flags[flagSlider] = { CurrentValue = Config[flagSlider] }
+    updateGlobalFlags(flagToggle, Config[flagToggle])
+    updateGlobalFlags(flagSlider, Config[flagSlider])
     
     local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     TSFrame:SetAttribute("ThemeRole", "BG_SECONDARY") TSFrame:SetAttribute("CustomColorLabel", true)
@@ -669,7 +753,8 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     end
 
     local function runSliderValue(v, skipCallback)
-        v = math.clamp(v, min, max) Flags[flagSlider].CurrentValue = v Config[flagSlider] = v saveConfig()
+        v = math.clamp(v, min, max) 
+        updateGlobalFlags(flagSlider, v) Config[flagSlider] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
         SFill.Size = UDim2.new(pct, 0, 1, 0)
         SKnob.Position = UDim2.new(pct, -5, 0.5, -5)
@@ -679,7 +764,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
 
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagToggle].CurrentValue
-        Flags[flagToggle].CurrentValue = nextState Config[flagToggle] = nextState saveConfig() playUISound()
+        updateGlobalFlags(flagToggle, nextState) Config[flagToggle] = nextState saveConfig() playUISound()
         stateUpdate() pcall(callbackToggle, nextState)
     end)
 
@@ -723,7 +808,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     
     local tsObj = {
-        SetToggle = function(_, bool) Flags[flagToggle].CurrentValue = bool Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
+        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
         SetSlider = function(_, value) runSliderValue(value) end
     }
     KillerHub.Elements[flagToggle] = tsObj
@@ -731,8 +816,16 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
 end
 
 function TabMethods:CreateSlider(flagName, text, min, max, callback)
+    if not SafeAssert("CreateSlider", {
+        ["flagName"] = {value = flagName, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["min"] = {value = min, types = {"number"}},
+        ["max"] = {value = max, types = {"number"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagName] == nil then Config[flagName] = min end
-    Flags[flagName] = { CurrentValue = Config[flagName] }
+    updateGlobalFlags(flagName, Config[flagName])
     
     local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Active = true}, self.Frame)
     local Label = create("TextLabel", {Size = UDim2.new(1, -60, 0, 16), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
@@ -748,7 +841,8 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, Knob)
 
     local function runSliderValue(v, skipCallback)
-        v = math.clamp(v, min, max) Flags[flagName].CurrentValue = v Config[flagName] = v saveConfig()
+        v = math.clamp(v, min, max) 
+        updateGlobalFlags(flagName, v) Config[flagName] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
         Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -6, 0.5, -6)
         if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
@@ -790,12 +884,8 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     task.spawn(function() runSliderValue(Flags[flagName].CurrentValue, true) pcall(callback, Flags[flagName].CurrentValue) end)
     self:RegisterElement(SliderFrame, Label, self.Frame.Name)
     
-    -- ==========================================
-    -- 🧠 ADAPTADOR INTELIGENTE DE PING (SLIDER)
-    -- ==========================================
     local sliderObj = {
         Set = function(_, value) runSliderValue(value) end,
-        -- Auto-mueve el slider en base al ping actual multiplicándolo por un factor
         BindToPing = function(self, baseFactor, updateInterval)
             baseFactor = baseFactor or 0.15
             updateInterval = updateInterval or 0.5
@@ -822,8 +912,15 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
 end
 
 function TabMethods:CreateDropdown(flagName, text, options, callback)
+    if not SafeAssert("CreateDropdown", {
+        ["flagName"] = {value = flagName, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["options"] = {value = options, types = {"table"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagName] == nil then Config[flagName] = options[1] or "" end
-    Flags[flagName] = { CurrentValue = Config[flagName] }
+    updateGlobalFlags(flagName, Config[flagName])
     
     local DDFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     DDFrame:SetAttribute("ThemeRole", "BG_SECONDARY") DDFrame:SetAttribute("CustomColorLabel", true)
@@ -868,7 +965,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     end)
     
     local function selectOption(name)
-        Flags[flagName].CurrentValue = name Config[flagName] = name saveConfig() SelLabel.Text = name open = false
+        updateGlobalFlags(flagName, name) Config[flagName] = name saveConfig() SelLabel.Text = name open = false
         if SearchBox then SearchBox.Text = "" SearchBox.Visible = false end
         TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 36)}):Play()
         TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
@@ -920,9 +1017,6 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     addInteractiveFeedback(Trigger)
     self:RegisterElement(DDFrame, Label, self.Frame.Name)
     
-    -- ==========================================
-    -- 🧠 LISTAS INTELIGENTES DINÁMICAS (DROPDOWN)
-    -- ==========================================
     local ddObj = {
         Refresh = function(_, newOptions) 
             options = newOptions 
@@ -931,7 +1025,6 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
             if SearchBox then SearchBox.Visible = open and hasSearch end 
             makeOptions() 
         end,
-        -- Permite actualizar dinámicamente la lista cada X segundos (ideal para jugadores online)
         BindToDynamicList = function(self, queryFunction, refreshInterval)
             refreshInterval = refreshInterval or 2.0
             task.spawn(function()
@@ -951,8 +1044,15 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
 end
 
 function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
+    if not SafeAssert("CreateMultiDropdown", {
+        ["flagName"] = {value = flagName, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["options"] = {value = options, types = {"table"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagName] == nil or type(Config[flagName]) ~= "table" then Config[flagName] = {} end
-    Flags[flagName] = { CurrentValue = Config[flagName] }
+    updateGlobalFlags(flagName, Config[flagName])
     
     local MFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     MFrame:SetAttribute("ThemeRole", "BG_SECONDARY") MFrame:SetAttribute("CustomColorLabel", true)
@@ -999,6 +1099,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
                 local nextState = not Config[flagName][name]
                 Config[flagName][name] = nextState
                 saveConfig() playUISound() updateText()
+                updateGlobalFlags(flagName, Config[flagName])
                 
                 TweenService:Create(OptBtn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
                     BackgroundColor3 = nextState and CurrentTheme.BG_MAIN or Color3.fromRGB(25, 25, 30),
@@ -1032,10 +1133,19 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
 end
 
 function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, defaultColor, callbackToggle, callbackColor)
+    if not SafeAssert("CreateToggleColorPicker", {
+        ["flagToggle"] = {value = flagToggle, types = {"string"}},
+        ["flagColor"] = {value = flagColor, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["defaultColor"] = {value = defaultColor, types = {"Color3"}},
+        ["callbackToggle"] = {value = callbackToggle, types = {"function"}},
+        ["callbackColor"] = {value = callbackColor, types = {"function"}}
+    }) then return end
+
     if Config[flagToggle] == nil then Config[flagToggle] = false end
     if Config[flagColor] == nil then Config[flagColor] = {defaultColor.R, defaultColor.G, defaultColor.B} end
-    Flags[flagToggle] = { CurrentValue = Config[flagToggle] }
-    Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
+    updateGlobalFlags(flagToggle, Config[flagToggle])
+    updateGlobalFlags(flagColor, Color3.new(unpack(Config[flagColor])))
 
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     MasterFrame:SetAttribute("ThemeRole", "BG_SECONDARY") MasterFrame:SetAttribute("CustomColorLabel", true)
@@ -1064,9 +1174,10 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     end
 
     connect(MainTrigger.MouseButton1Click, function()
-        Flags[flagToggle].CurrentValue = not Flags[flagToggle].CurrentValue
-        Config[flagToggle] = Flags[flagToggle].CurrentValue saveConfig() playUISound()
-        stateUpdate() pcall(callbackToggle, Flags[flagToggle].CurrentValue)
+        local nextVal = not Flags[flagToggle].CurrentValue
+        updateGlobalFlags(flagToggle, nextVal)
+        Config[flagToggle] = nextVal saveConfig() playUISound()
+        stateUpdate() pcall(callbackToggle, nextVal)
     end)
 
     local function createMiniSlider(labelTxt, colorValueIndex, sliderColor)
@@ -1080,7 +1191,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         local isSliding = false
         local function updateColor()
             local col = Color3.new(Config[flagColor][1], Config[flagColor][2], Config[flagColor][3])
-            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col saveConfig() pcall(callbackColor, col)
+            updateGlobalFlags(flagColor, col) ColorBtn.BackgroundColor3 = col saveConfig() pcall(callbackColor, col)
         end
         local function snap(input)
             local pct = math.clamp((input.Position.X - TrackS.AbsolutePosition.X) / TrackS.AbsoluteSize.X, 0, 1)
@@ -1120,8 +1231,15 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
 end
 
 function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
+    if not SafeAssert("CreateColorPicker", {
+        ["flagColor"] = {value = flagColor, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["defaultColor"] = {value = defaultColor, types = {"Color3"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagColor] == nil then Config[flagColor] = {defaultColor.R, defaultColor.G, defaultColor.B} end
-    Flags[flagColor] = { CurrentValue = Color3.new(unpack(Config[flagColor])) }
+    updateGlobalFlags(flagColor, Color3.new(unpack(Config[flagColor])))
 
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     MasterFrame:SetAttribute("ThemeRole", "BG_SECONDARY") MasterFrame:SetAttribute("CustomColorLabel", true)
@@ -1147,7 +1265,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         local isSliding = false
         local function updateColor()
             local col = Color3.new(Config[flagColor][1], Config[flagColor][2], Config[flagColor][3])
-            Flags[flagColor].CurrentValue = col ColorBtn.BackgroundColor3 = col saveConfig() pcall(callback, col)
+            updateGlobalFlags(flagColor, col) ColorBtn.BackgroundColor3 = col saveConfig() pcall(callback, col)
         end
         local function snap(input)
             local pct = math.clamp((input.Position.X - TrackS.AbsolutePosition.X) / TrackS.AbsoluteSize.X, 0, 1)
@@ -1186,13 +1304,18 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
     
     local cpObj = {
-        Set = function(_, newColor) Config[flagColor] = {newColor.R, newColor.G, newColor.B} Flags[flagColor].CurrentValue = newColor ColorBtn.BackgroundColor3 = newColor saveConfig() pcall(callback, newColor) end
+        Set = function(_, newColor) Config[flagColor] = {newColor.R, newColor.G, newColor.B} updateGlobalFlags(flagColor, newColor) ColorBtn.BackgroundColor3 = newColor saveConfig() pcall(callback, newColor) end
     }
     KillerHub.Elements[flagColor] = cpObj
     return cpObj
 end
 
 function TabMethods:CreateClipboardButton(text, textToCopy)
+    if not SafeAssert("CreateClipboardButton", {
+        ["text"] = {value = text, types = {"string"}},
+        ["textToCopy"] = {value = textToCopy, types = {"string"}}
+    }) then return end
+
     local Frame = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     Frame:SetAttribute("ThemeRole", "BG_SECONDARY") Frame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Frame)
@@ -1219,8 +1342,16 @@ function TabMethods:CreateClipboardButton(text, textToCopy)
 end
 
 function TabMethods:CreateInput(flagName, text, placeholder, callback)
+    if not SafeAssert("CreateInput", {
+        ["flagName"] = {value = flagName, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["placeholder"] = {value = placeholder, types = {"string"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagName] == nil then Config[flagName] = "" end
-    Flags[flagName] = { CurrentValue = Config[flagName] }
+    updateGlobalFlags(flagName, Config[flagName])
+
     local InpFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     InpFrame:SetAttribute("ThemeRole", "BG_SECONDARY") InpFrame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, InpFrame)
@@ -1231,17 +1362,12 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, Box)
     create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Box)
     
-    -- ==========================================
-    -- 🧠 MEMORIA E HISTORIAL DE TEXTBOX
-    -- ==========================================
     local history = {}
     local historyIndex = 0
     
     local function evaluateInputText(val)
-        -- Si empieza con "=", evalúa la matemática de manera inteligente
         if string.sub(val, 1, 1) == "=" then
             local mathExpression = string.sub(val, 2)
-            -- Saneado básico y ejecución usando loadstring seguro del Executor de Roblox
             local loadFunc, err = loadstring("return " .. mathExpression)
             if loadFunc then
                 local s, res = pcall(loadFunc)
@@ -1258,20 +1384,18 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
         local processedText = evaluateInputText(rawText)
         Box.Text = processedText
         
-        -- Guardar en historial
         if processedText ~= "" and history[1] ~= processedText then
             table.insert(history, 1, processedText)
             if #history > 8 then table.remove(history, 9) end
         end
         historyIndex = 0
 
-        Flags[flagName].CurrentValue = processedText 
+        updateGlobalFlags(flagName, processedText)
         Config[flagName] = processedText 
         saveConfig() 
         pcall(callback, processedText) 
     end)
 
-    -- Navegación del Historial con las Flechas del Teclado
     connect(UserInputService.InputBegan, function(input)
         if Box:HasFocus() then
             if input.KeyCode == Enum.KeyCode.Up then
@@ -1297,7 +1421,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
     local inputObj = {
         Set = function(_, val) 
             Box.Text = val 
-            Flags[flagName].CurrentValue = val 
+            updateGlobalFlags(flagName, val)
             Config[flagName] = val 
             saveConfig() 
             pcall(callback, val) 
@@ -1309,6 +1433,11 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
 end
 
 function TabMethods:CreateButton(text, callback)
+    if not SafeAssert("CreateButton", {
+        ["text"] = {value = text, types = {"string"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
@@ -1326,8 +1455,16 @@ function TabMethods:CreateButton(text, callback)
 end
 
 function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
+    if not SafeAssert("CreateKeybind", {
+        ["flagName"] = {value = flagName, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["defaultKey"] = {value = defaultKey, types = {"EnumItem"}},
+        ["callback"] = {value = callback, types = {"function"}}
+    }) then return end
+
     if Config[flagName] == nil then Config[flagName] = defaultKey.Name end
-    Flags[flagName] = { CurrentValue = Config[flagName] }
+    updateGlobalFlags(flagName, Config[flagName])
+
     local KFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     KFrame:SetAttribute("ThemeRole", "BG_SECONDARY") KFrame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, KFrame)
@@ -1345,10 +1482,12 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     connect(UserInputService.InputBegan, function(input, gp)
         if listening then
             if input.UserInputType == Enum.UserInputType.Keyboard then
-                listening = false Config[flagName] = input.KeyCode.Name Flags[flagName].CurrentValue = input.KeyCode.Name
+                listening = false Config[flagName] = input.KeyCode.Name 
+                updateGlobalFlags(flagName, input.KeyCode.Name)
                 saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
-            elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 or input.UserInputType == Enum.UserInputType.MouseButton4 or input.UserInputType == Enum.UserInputType.MouseButton5 then
-                listening = false Config[flagName] = input.UserInputType.Name Flags[flagName].CurrentValue = input.UserInputType.Name
+            elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.ButtonX or input.KeyCode == Enum.KeyCode.ButtonY then
+                listening = false Config[flagName] = input.UserInputType.Name 
+                updateGlobalFlags(flagName, input.UserInputType.Name)
                 saveConfig() BBtn.Text = input.UserInputType.Name pcall(callback, input.UserInputType)
             end
         end
@@ -1364,6 +1503,11 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
 end
 
 function KillerHub:CreateTab(name, iconId)
+    if not SafeAssert("CreateTab", {
+        ["name"] = {value = name, types = {"string"}},
+        ["iconId"] = {value = iconId, types = {"string", "nil"}}
+    }) then return end
+
     local frame = create("ScrollingFrame", {Name = name .. "Frame", Size = UDim2.new(1, -24, 1, -24), Position = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.5, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT}, ContentContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
     local stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, frame)
@@ -1456,7 +1600,9 @@ SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, functio
 SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
-SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl)
+SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
+    print("Se presionó la tecla: " .. tostring(key))
+end)
 SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, function(v) updateButtonSize() end)
 SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
 SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
@@ -1468,5 +1614,8 @@ SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() Kille
 
 task.defer(function() KillerHub:SetTheme(Config.SelectedTheme or "Obsidian") end)
 
+-- Publicación y Sincronización Inicial de Flags globales
 getgenv().KillerHub = KillerHub
+getgenv().KillerHub.Flags = Flags
+
 return KillerHub
