@@ -104,7 +104,19 @@ local Themes = {
 
 local CurrentTheme = Themes["Obsidian"]
 
-local CONFIG_FILE = "KillerHub_Core_Config.json"
+-- 📂 CARPETA DEDICADA: aísla el JSON de esta librería de cualquier otro script
+-- que también autoguarde (incluso si ese script usa un nombre genérico tipo
+-- "config.json" en la raíz). Al vivir en su propia carpeta, dos autoguardados
+-- corriendo al mismo tiempo (este + el de tu otro archivo) nunca se pisan.
+local CONFIG_FOLDER = "KillerHub_Config"
+local CONFIG_FILE = CONFIG_FOLDER .. "/Core_Config.json"
+
+pcall(function()
+    if isfolder and makefolder and not isfolder(CONFIG_FOLDER) then
+        makefolder(CONFIG_FOLDER)
+    end
+end)
+
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium",
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
@@ -127,28 +139,43 @@ local function copyTable(target, source)
 end
 copyTable(Config, DefaultConfig)
 
--- 🩹 FIX DE RENDIMIENTO: saveConfig() se llama en cada muestra de arrastre de
--- sliders/keybinds/toggles (varias veces por frame mientras el mouse se mueve).
--- Antes solo el Color Picker protegía esto con su propio "requestSave" por frame;
--- el resto de los widgets golpeaban writefile() en cada pixel de movimiento, lo
--- cual es I/O real y puede causar microstutter o throttling del executor.
--- Ahora el debounce vive en la fuente: colapsa cualquier ráfaga de llamadas del
--- mismo resumption cycle en un solo writefile, sin cambiar la firma de la función
--- ni el comportamiento observable (el último valor siempre se persiste).
+-- 🩹 AUTOGUARDADO: dos capas de protección.
+-- 1) Debounce de escritura: saveConfig() se llama en cada muestra de arrastre de
+--    sliders/keybinds/toggles (varias veces por frame). Antes solo el Color Picker
+--    protegía esto con su propio "requestSave"; el resto golpeaba writefile() en
+--    cada pixel de movimiento (I/O real -> microstutter / throttling del executor).
+--    Ahora el debounce vive en la fuente: colapsa cualquier ráfaga del mismo
+--    resumption cycle en un solo writefile, sin cambiar la firma de la función.
+-- 2) pcall en cada paso (encode y write por separado): si el JSON.Encode falla
+--    por lo que sea, o el executor lanza el write, no se rompe el hub ni se deja
+--    un archivo a medio escribir con basura.
 local pendingConfigSave = false
 local function saveConfig()
     if pendingConfigSave then return end
     pendingConfigSave = true
     task.defer(function()
         pendingConfigSave = false
-        if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) end) end
+        if not writefile then return end
+        local encodeOk, encoded = pcall(function() return HttpService:JSONEncode(Config) end)
+        if encodeOk and encoded then
+            pcall(function() writefile(CONFIG_FILE, encoded) end)
+        end
     end)
 end
 
+-- 🩹 CARGA BLINDADA: si el archivo no existe, está corrupto, o el JSON no es
+-- una tabla válida (por ejemplo porque otro script escribió algo raro ahí, o
+-- el archivo quedó truncado a medias), simplemente se ignora y se usan los
+-- valores por defecto en vez de romper el :Init() de todo el hub.
 pcall(function()
     if isfile and readfile and isfile(CONFIG_FILE) then
-        local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
-        if type(data) == "table" then for k, v in pairs(data) do Config[k] = v end end
+        local readOk, raw = pcall(readfile, CONFIG_FILE)
+        if readOk and raw and #raw > 0 then
+            local decodeOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
+            if decodeOk and type(data) == "table" then
+                for k, v in pairs(data) do Config[k] = v end
+            end
+        end
     end
 end)
 
@@ -198,34 +225,9 @@ local function playUISound()
     end)
 end
 
-local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, ZIndex = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
+local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
 local MainStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
-
--- 💎 SOMBRA SUAVE DE ELEVACIÓN (puramente visual, sin dependencias externas ni assets)
--- Un frame ligeramente más grande y desplazado, detrás del MainFrame (ZIndex 0),
--- que se mantiene sincronizado en tamaño/posición vía eventos (no por frame, así
--- que no añade costo de RenderStepped).
-local MainFrameShadow = create("Frame", {
-    Name = "MainFrameShadow",
-    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-    BackgroundTransparency = 0.55,
-    BorderSizePixel = 0,
-    ZIndex = 0,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Size = UDim2.new(0, 0, 0, 0),
-    Position = UDim2.new(0.5, 0, 0.5, 4)
-}, ScreenGui)
-create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainFrameShadow)
-
-local function syncMainFrameShadow()
-    MainFrameShadow.Size = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset + 18, MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset + 18)
-    MainFrameShadow.Position = UDim2.new(MainFrame.Position.X.Scale, MainFrame.Position.X.Offset, MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset + 4)
-end
-table.insert(Connections, MainFrame:GetPropertyChangedSignal("Size"):Connect(syncMainFrameShadow))
-table.insert(Connections, MainFrame:GetPropertyChangedSignal("Position"):Connect(syncMainFrameShadow))
-table.insert(Connections, MainFrame:GetPropertyChangedSignal("Visible"):Connect(function() MainFrameShadow.Visible = MainFrame.Visible end))
-syncMainFrameShadow()
 
 local BordeGradient = create("UIGradient", {
     Color = ColorSequence.new({
@@ -289,7 +291,7 @@ local function makeDraggable(clickObject, dragObject)
             dragStart = input.Position 
             startPos = dragObject.Position
             
-            moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+            moveConn = connect(UserInputService.InputChanged, function(changedInput)
                 if dragging and (changedInput == activeInput) then
                     task.defer(function()
                         if not dragging then return end
@@ -312,7 +314,7 @@ local function makeDraggable(clickObject, dragObject)
                 end
             end)
             
-            endConn = UserInputService.InputEnded:Connect(function(endedInput)
+            endConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput == activeInput then
                     dragging = false 
                     activeInput = nil
@@ -915,10 +917,10 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     connect(SKnob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             sliding = true snap(input)
-            dragConn = UserInputService.InputChanged:Connect(function(changedInput)
+            dragConn = connect(UserInputService.InputChanged, function(changedInput)
                 if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then snap(changedInput) end
             end)
-            endConn = UserInputService.InputEnded:Connect(function(endedInput)
+            endConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
                     sliding = false if dragConn then dragConn:Disconnect() end if endConn then endConn:Disconnect() end
                 end
@@ -996,10 +998,10 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     connect(Knob.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             sliding = true snap(input)
-            dragConn = UserInputService.InputChanged:Connect(function(changedInput)
+            dragConn = connect(UserInputService.InputChanged, function(changedInput)
                 if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then snap(changedInput) end
             end)
-            endConn = UserInputService.InputEnded:Connect(function(endedInput)
+            endConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
                     sliding = false if dragConn then dragConn:Disconnect() end if endConn then endConn:Disconnect() end
                 end
@@ -1454,13 +1456,13 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
             setTabScrolling(MasterFrame, false)
             updateSV(input)
 
-            svDragConn = UserInputService.InputChanged:Connect(function(changedInput)
+            svDragConn = connect(UserInputService.InputChanged, function(changedInput)
                 if svDragging and (changedInput == svActiveInput) then
                     updateSV(changedInput)
                 end
             end)
 
-            svEndConn = UserInputService.InputEnded:Connect(function(endedInput)
+            svEndConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput == svActiveInput then
                     svDragging = false
                     svActiveInput = nil
@@ -1484,13 +1486,13 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
             setTabScrolling(MasterFrame, false)
             updateHue(input)
 
-            hueDragConn = UserInputService.InputChanged:Connect(function(changedInput)
+            hueDragConn = connect(UserInputService.InputChanged, function(changedInput)
                 if hueDragging and (changedInput == hueActiveInput) then
                     updateHue(changedInput)
                 end
             end)
 
-            hueEndConn = UserInputService.InputEnded:Connect(function(endedInput)
+            hueEndConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput == hueActiveInput then
                     hueDragging = false
                     hueActiveInput = nil
@@ -1733,13 +1735,13 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
             setTabScrolling(MasterFrame, false)
             updateSV(input)
 
-            svDragConn = UserInputService.InputChanged:Connect(function(changedInput)
+            svDragConn = connect(UserInputService.InputChanged, function(changedInput)
                 if svDragging and (changedInput == svActiveInput) then
                     updateSV(changedInput)
                 end
             end)
 
-            svEndConn = UserInputService.InputEnded:Connect(function(endedInput)
+            svEndConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput == svActiveInput then
                     svDragging = false
                     svActiveInput = nil
@@ -1763,13 +1765,13 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
             setTabScrolling(MasterFrame, false)
             updateHue(input)
 
-            hueDragConn = UserInputService.InputChanged:Connect(function(changedInput)
+            hueDragConn = connect(UserInputService.InputChanged, function(changedInput)
                 if hueDragging and (changedInput == hueActiveInput) then
                     updateHue(changedInput)
                 end
             end)
 
-            hueEndConn = UserInputService.InputEnded:Connect(function(endedInput)
+            hueEndConn = connect(UserInputService.InputEnded, function(endedInput)
                 if endedInput == hueActiveInput then
                     hueDragging = false
                     hueActiveInput = nil
