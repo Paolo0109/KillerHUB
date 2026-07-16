@@ -1,6 +1,18 @@
 -- ============================================================================
 -- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.3.0)
 -- ============================================================================
+-- 🆕 CHANGELOG V4.3.0:
+--   • ⚡ Sistema de Botones Flotantes (Shortcuts) con panel centralizado:
+--     tuerca ⚙️ a la izquierda de cada Toggle/Button -> ventana dedicada en
+--     el centro (forma: círculo/rectángulo/cuadrado, lock anti-drag, tamaño,
+--     transparencia estilo Void, restablecer posición).
+--   • 🎮 Config Multi-Juego invisible: el JSON se segmenta automáticamente por
+--     game.PlaceId (KillerHub_Config/Core_<PlaceId>.json) con migración
+--     transparente desde el Core_Config.json legacy.
+--   • 🎨 Color Picker: previsualización más ancha horizontalmente.
+--   • 🔍 Buscador global optimizado: filtra solo la pestaña activa con
+--     plain-find (más rápido) y se re-aplica al cambiar de pestaña.
+-- ============================================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -109,15 +121,19 @@ local CurrentTheme = Themes["Obsidian"]
 -- "config.json" en la raíz). Al vivir en su propia carpeta, dos autoguardados
 -- corriendo al mismo tiempo (este + el de tu otro archivo) nunca se pisan.
 local CONFIG_FOLDER = "KillerHub_Config"
--- 🌐 MÓDULO MULTI-JUEGO INVISIBLE: el PlaceId segmenta el JSON automáticamente
--- (KillerHub_Config/Core_<PlaceId>.json). El usuario nunca gestiona perfiles ni
--- escribe nombres; el script detecta el juego de forma nativa. Si el PlaceId no
--- es válido (ej. Studio sin publicar) se usa un archivo global de respaldo.
-local PLACE_ID = tonumber(game.PlaceId) or 0
-local CONFIG_FILE = (PLACE_ID > 0)
-    and (CONFIG_FOLDER .. "/Core_" .. tostring(PLACE_ID) .. ".json")
-    or (CONFIG_FOLDER .. "/Core_Global.json")
+
+-- 🎮 CONFIG MULTI-JUEGO AUTOMÁTICO (invisible para el usuario): el archivo se
+-- segmenta por game.PlaceId (Core_<PlaceId>.json), así cada experiencia de
+-- Roblox tiene su propia configuración sin gestionar perfiles manualmente.
+-- Si no se puede leer el PlaceId (entorno raro), cae al nombre legacy.
 local LEGACY_CONFIG_FILE = CONFIG_FOLDER .. "/Core_Config.json"
+local CONFIG_FILE = (function()
+    local ok, placeId = pcall(function() return game.PlaceId end)
+    if ok and type(placeId) == "number" and placeId > 0 then
+        return CONFIG_FOLDER .. "/Core_" .. tostring(placeId) .. ".json"
+    end
+    return LEGACY_CONFIG_FILE
+end)()
 
 pcall(function()
     if isfolder and makefolder and not isfolder(CONFIG_FOLDER) then
@@ -125,9 +141,24 @@ pcall(function()
     end
 end)
 
+-- 🚚 MIGRACIÓN TRANSPARENTE: si es la primera vez que se ejecuta en este juego
+-- (no existe Core_<PlaceId>.json) pero hay un Core_Config.json legacy de una
+-- versión anterior, se copia su contenido al archivo segmentado. El legacy se
+-- conserva intacto por si otros scripts viejos aún lo leen.
+pcall(function()
+    if isfile and readfile and writefile and CONFIG_FILE ~= LEGACY_CONFIG_FILE then
+        if (not isfile(CONFIG_FILE)) and isfile(LEGACY_CONFIG_FILE) then
+            local readOk, raw = pcall(readfile, LEGACY_CONFIG_FILE)
+            if readOk and raw and #raw > 0 then
+                pcall(writefile, CONFIG_FILE, raw)
+            end
+        end
+    end
+end)
+
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium",
-    GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46, UiScale = 1,
+    GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100
 }
 local Config = {} 
@@ -176,26 +207,12 @@ end
 -- el archivo quedó truncado a medias), simplemente se ignora y se usan los
 -- valores por defecto en vez de romper el :Init() de todo el hub.
 pcall(function()
-    if isfile and readfile then
-        local function tryLoad(path)
-            if not isfile(path) then return false end
-            local readOk, raw = pcall(readfile, path)
-            if readOk and raw and #raw > 0 then
-                local decodeOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
-                if decodeOk and type(data) == "table" then
-                    for k, v in pairs(data) do Config[k] = v end
-                    return true
-                end
-            end
-            return false
-        end
-        -- 1) Prioridad absoluta: archivo del juego actual (Core_<PlaceId>.json).
-        -- 2) Si aún no existe, migración silenciosa desde el JSON legacy compartido
-        --    (sin borrarlo) para que nadie pierda sus ajustes al actualizar; en el
-        --    primer autoguardado se vuelca ya segmentado al archivo de este PlaceId.
-        if not tryLoad(CONFIG_FILE) then
-            if tryLoad(LEGACY_CONFIG_FILE) then
-                task.defer(saveConfig)
+    if isfile and readfile and isfile(CONFIG_FILE) then
+        local readOk, raw = pcall(readfile, CONFIG_FILE)
+        if readOk and raw and #raw > 0 then
+            local decodeOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
+            if decodeOk and type(data) == "table" then
+                for k, v in pairs(data) do Config[k] = v end
             end
         end
     end
@@ -247,15 +264,14 @@ local function playUISound()
     end)
 end
 
+-- ⚙️ V4.3: referencia adelantada al panel de Shortcuts (se construye bajo
+-- demanda más abajo) para poder ocultarlo cuando el menú principal se cierra.
+local ShortcutPanel = nil
+
 local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
+MainFrame:SetAttribute("CenterDrag", true) -- arrastre anclado al centro (compartido con el panel de shortcuts)
 local MainStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
-
--- 📱 ESCALA DPI MAESTRA: un único UIScale vinculado a los contenedores
--- principales (menú + notificaciones), controlado desde Settings (0.8x - 1.2x)
--- para que móviles y pantallas HiDPI lean la UI cómodamente.
-local MainUiScale = create("UIScale", {Scale = math.clamp(tonumber(Config.UiScale) or 1, 0.8, 1.2)}, MainFrame)
-local NotifUiScale = nil -- se enlaza al crear el contenedor de notificaciones
 
 local BordeGradient = create("UIGradient", {
     Color = ColorSequence.new({
@@ -325,7 +341,7 @@ local function makeDraggable(clickObject, dragObject)
                         if not dragging then return end
                         local delta = changedInput.Position - dragStart
                         local screenSize = Camera.ViewportSize
-                        if dragObject.Name == "MainFrame" then
+                        if dragObject:GetAttribute("CenterDrag") == true then
                             local frameSize = dragObject.AbsoluteSize
                             local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
                             local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
@@ -372,11 +388,7 @@ local SearchBoxContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 26), Pos
 create("UICorner", {CornerRadius = UDim.new(0, 6)}, SearchBoxContainer)
 local SearchStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(35, 35, 40)}, SearchBoxContainer)
 
-local SearchInput = create("TextBox", {Size = UDim2.new(1, -26, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1, PlaceholderText = "Buscar...", PlaceholderColor3 = CurrentTheme.TEXT_MUTED, Text = "", TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, SearchBoxContainer)
-
--- ✕ Botón de limpieza rápida del filtro global (solo visible cuando hay texto)
-local ClearSearchBtn = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(1, -18, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Text = "×", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 12, Visible = false}, SearchBoxContainer)
-connect(ClearSearchBtn.MouseButton1Click, function() playUISound() SearchInput.Text = "" end)
+local SearchInput = create("TextBox", {Size = UDim2.new(1, -10, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1, PlaceholderText = "Buscar...", PlaceholderColor3 = CurrentTheme.TEXT_MUTED, Text = "", TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, SearchBoxContainer)
 
 local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -85), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
 local tabsLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SidebarTabsContainer)
@@ -412,17 +424,6 @@ local function updateButtonSize()
     OpenCloseBtn.Size = UDim2.new(0, s, 0, s)
 end
 
--- 📱 Aplica la escala DPI dinámica a los contenedores principales (sin bucles,
--- solo se invoca cuando el slider de Settings cambia el valor)
-local function updateDpiScale()
-    local s = math.clamp(tonumber(Config.UiScale) or 1, 0.8, 1.2)
-    MainUiScale.Scale = s
-    if NotifUiScale then NotifUiScale.Scale = s end
-end
-
--- Forward-declare: la asigna el subsistema de botones flotantes (más abajo)
-local closeFloatPopover = nil
-
 MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
 updateUiOpacity()
 updateButtonSize()
@@ -431,7 +432,6 @@ local menuVisible = true
 local function setMenuVisibility(visible)
     menuVisible = visible
     BtnIcon.ImageColor3 = visible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
-    if not visible and closeFloatPopover then closeFloatPopover() end
     
     if visible then
         MainFrame.Visible = true
@@ -439,6 +439,8 @@ local function setMenuVisibility(visible)
             GroupTransparency = 0
         }):Play()
     else
+        -- ⚙️ V4.3: el panel de shortcuts vive fuera del MainFrame; se cierra junto al menú
+        if ShortcutPanel then ShortcutPanel.Visible = false end
         local closeTween = TweenService:Create(MainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             GroupTransparency = 1
         })
@@ -506,380 +508,6 @@ local KillerHub = {
 }
 
 -- ============================================================================
--- 🎈 SISTEMA DE BOTONES FLOTANTES NATIVOS (SHORTCUTS "VOID")
--- ----------------------------------------------------------------------------
--- Convierte cualquier Toggle/Button en un acceso directo flotante e independiente
--- (visible incluso con el menú cerrado). Un icono ⚙ minimalista en el extremo del
--- contenedor del elemento abre un submenú flotante para: activar el atajo, elegir
--- su forma (círculo / rectángulo largo / cuadrado redondeado), bloquear la
--- posición (anti-movimientos accidentales en gameplay) y ajustar tamaño y
--- transparencia en tiempo real. Estética "Void": borde negro sólido + fondo
--- semitransparente. Todo se persiste en Config.FloatButtons[key] como extensión
--- opcional del framework: la API existente no cambia en absoluto.
--- ============================================================================
-if type(Config.FloatButtons) ~= "table" then Config.FloatButtons = {} end
-
-local FloatingShortcuts = {}
-local floatSpawnCascade = 0
-
-local FLOAT_SHAPES = {
-    {Id = "Circle", Icon = "◯"},
-    {Id = "Rectangle", Icon = "▭"},
-    {Id = "Square", Icon = "▢"},
-}
-
-local function getFloatSettings(key)
-    local s = Config.FloatButtons[key]
-    if type(s) ~= "table" then s = {} Config.FloatButtons[key] = s end
-    if s.Shape ~= "Circle" and s.Shape ~= "Rectangle" and s.Shape ~= "Square" then s.Shape = "Square" end
-    if s.Enabled == nil then s.Enabled = false end
-    if s.Locked == nil then s.Locked = false end
-    s.Size = math.clamp(tonumber(s.Size) or 46, 30, 90)
-    s.Transparency = math.clamp(tonumber(s.Transparency) or 0.35, 0, 0.85)
-    return s
-end
-
--- Extrae un carácter UTF-8 completo (evita cortar tildes/emojis a la mitad)
-local function utf8Char(s, i)
-    local b = string.byte(s, i)
-    if not b then return "" end
-    if b >= 0xF0 then return string.sub(s, i, i + 3)
-    elseif b >= 0xE0 then return string.sub(s, i, i + 2)
-    elseif b >= 0xC0 then return string.sub(s, i, i + 1)
-    end
-    return string.sub(s, i, i)
-end
-
-local function abbreviateText(t)
-    local words = {}
-    for w in string.gmatch(t or "", "%S+") do table.insert(words, w) end
-    if #words == 0 then return "◆" end
-    if #words == 1 then
-        local c1 = utf8Char(words[1], 1)
-        local c2 = utf8Char(words[1], #c1 + 1)
-        return string.upper(c1 .. c2)
-    end
-    return string.upper(utf8Char(words[1], 1) .. utf8Char(words[2], 1))
-end
-
-local ActiveFloatPopover = nil
-closeFloatPopover = function()
-    if ActiveFloatPopover then
-        local refs = ActiveFloatPopover
-        ActiveFloatPopover = nil
-        if refs.FollowConn then pcall(function() refs.FollowConn:Disconnect() end) end
-        pcall(function() refs.Modal:Destroy() end)
-        pcall(function() refs.Frame:Destroy() end)
-    end
-end
-
-local function applyFloatAppearance(data)
-    local btn = data.Button
-    if not btn or not btn.Parent then return end
-    local s = data.Settings
-    if s.Shape == "Circle" then
-        data.Corner.CornerRadius = UDim.new(1, 0)
-        btn.Size = UDim2.new(0, s.Size, 0, s.Size)
-    elseif s.Shape == "Rectangle" then
-        data.Corner.CornerRadius = UDim.new(0, math.clamp(math.floor(s.Size * 0.22), 6, 14))
-        btn.Size = UDim2.new(0, math.floor(s.Size * 1.75), 0, math.floor(s.Size * 0.8))
-    else
-        data.Corner.CornerRadius = UDim.new(0, 8)
-        btn.Size = UDim2.new(0, s.Size, 0, s.Size)
-    end
-    btn.BackgroundTransparency = s.Transparency
-    data.Icon.TextSize = math.clamp(math.floor(s.Size * 0.34), 11, 26)
-end
-
-local function spawnFloatButton(data)
-    if data.Button and data.Button.Parent then return end
-    local s = data.Settings
-    local vp = Camera.ViewportSize
-    local px, py = tonumber(s.X), tonumber(s.Y)
-    if not px or not py then
-        floatSpawnCascade = floatSpawnCascade + 1
-        px = math.max(0, vp.X - 130)
-        py = math.clamp(110 + (floatSpawnCascade - 1) * 58, 30, math.max(30, vp.Y - 130))
-    end
-    local btn = create("TextButton", {
-        Name = "KillerHubFloat_" .. data.Key,
-        Position = UDim2.new(0, px, 0, py),
-        BackgroundColor3 = Color3.fromRGB(10, 10, 14),
-        BackgroundTransparency = s.Transparency,
-        Text = "", AutoButtonColor = false, Active = true
-    }, ScreenGui)
-    data.Button = btn
-    data.Corner = create("UICorner", {CornerRadius = UDim.new(0, 8)}, btn)
-    create("UIStroke", {Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0), ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, btn)
-    data.Icon = create("TextLabel", {
-        Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
-        Text = abbreviateText(data.Text), Font = Enum.Font.GothamBold,
-        TextColor3 = Color3.fromRGB(215, 215, 225), TextSize = 14
-    }, btn)
-
-    applyFloatAppearance(data)
-
-    -- Arrastre libre multi-touch (solo si el bloqueo está desactivado), con
-    -- supresión del click accidental cuando el dedo/cursor sí se desplazó
-    local dragging, activeInput, dragStart, startPos = false, nil, nil, nil
-    local moveConn, endConn
-    connect(btn.InputBegan, function(input)
-        if s.Locked then return end
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
-            dragging = true activeInput = input dragStart = input.Position startPos = btn.Position
-            moveConn = connect(UserInputService.InputChanged, function(ci)
-                if dragging and ci == activeInput then
-                    task.defer(function()
-                        if not dragging then return end
-                        local delta = ci.Position - dragStart
-                        if delta.Magnitude > 6 then data._justDragged = true end
-                        local screen = Camera.ViewportSize
-                        local sz = btn.AbsoluteSize
-                        local nx = math.clamp(startPos.X.Offset + delta.X, 0, math.max(0, screen.X - sz.X))
-                        local ny = math.clamp(startPos.Y.Offset + delta.Y, 0, math.max(0, screen.Y - sz.Y))
-                        btn.Position = UDim2.new(0, nx, 0, ny)
-                    end)
-                end
-            end)
-            endConn = connect(UserInputService.InputEnded, function(ei)
-                if ei == activeInput then
-                    dragging = false activeInput = nil
-                    if moveConn then moveConn:Disconnect() moveConn = nil end
-                    if endConn then endConn:Disconnect() endConn = nil end
-                    s.X = btn.Position.X.Offset s.Y = btn.Position.Y.Offset
-                    saveConfig()
-                    task.delay(0.15, function() data._justDragged = false end)
-                end
-            end)
-        end
-    end)
-
-    connect(btn.MouseButton1Click, function()
-        if data._justDragged then return end
-        playUISound()
-        data.Fire()
-        if data.Refresh then data.Refresh() end
-    end)
-
-    if data.Refresh then data.Refresh() end
-end
-
-local function destroyFloatButton(data)
-    if data.Button then
-        pcall(function() data.Button:Destroy() end)
-        data.Button = nil data.Corner = nil data.Icon = nil
-    end
-end
-
-local function openFloatPopover(data, gear)
-    closeFloatPopover()
-    playUISound()
-    local W, H = 176, 192
-
-    -- Capa modal invisible: un click fuera del submenú lo cierra (UX estándar)
-    local Modal = create("TextButton", {
-        Name = "FloatPopoverModal", Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1, Text = "", ZIndex = 900, AutoButtonColor = false
-    }, ScreenGui)
-
-    local Pop = create("Frame", {
-        Name = "FloatShortcutPopover", Size = UDim2.new(0, W, 0, H),
-        BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.04,
-        BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 901
-    }, ScreenGui)
-    create("UICorner", {CornerRadius = UDim.new(0, 10)}, Pop)
-    create("UIStroke", {Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0), ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, Pop)
-    create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8)}, Pop)
-    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5)}, Pop)
-
-    create("TextLabel", {
-        Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, LayoutOrder = 1,
-        Text = "⚙ Acceso Directo", TextColor3 = CurrentTheme.ACCENT,
-        Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left
-    }, Pop)
-
-    local function buildRowToggle(order, labelText, initial, onChanged)
-        local row = create("Frame", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, LayoutOrder = order}, Pop)
-        create("TextLabel", {Size = UDim2.new(1, -42, 1, 0), BackgroundTransparency = 1, Text = labelText, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 10.5, TextXAlignment = Enum.TextXAlignment.Left}, row)
-        local state = initial and true or false
-        local track = create("TextButton", {Size = UDim2.new(0, 30, 0, 15), Position = UDim2.new(1, 0, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = state and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45), Text = "", AutoButtonColor = false}, row)
-        create("UICorner", {CornerRadius = UDim.new(1, 0)}, track)
-        local knob = create("Frame", {Size = UDim2.new(0, 11, 0, 11), Position = state and UDim2.new(1, -13, 0.5, -5.5) or UDim2.new(0, 2, 0.5, -5.5), BackgroundColor3 = CurrentTheme.TEXT_WHITE, BorderSizePixel = 0}, track)
-        create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
-        connect(track.MouseButton1Click, function()
-            state = not state
-            playUISound()
-            TweenService:Create(track, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {BackgroundColor3 = state and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}):Play()
-            TweenService:Create(knob, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {Position = state and UDim2.new(1, -13, 0.5, -5.5) or UDim2.new(0, 2, 0.5, -5.5)}):Play()
-            onChanged(state)
-        end)
-    end
-
-    -- Selector geométrico nativo de forma del botón flotante
-    local shapeRow = create("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 3}, Pop)
-    create("TextLabel", {Size = UDim2.new(0, 44, 1, 0), BackgroundTransparency = 1, Text = "Forma", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 10.5, TextXAlignment = Enum.TextXAlignment.Left}, shapeRow)
-    local shapeBtns = {}
-    local refreshShapeButtons
-    for i, sh in ipairs(FLOAT_SHAPES) do
-        local b = create("TextButton", {Size = UDim2.new(0, 32, 0, 22), Position = UDim2.new(0, 48 + (i - 1) * 36, 0.5, -11), BackgroundColor3 = Color3.fromRGB(30, 30, 35), Text = sh.Icon, TextSize = 12, Font = Enum.Font.GothamBold, TextColor3 = CurrentTheme.TEXT_MUTED, AutoButtonColor = false}, shapeRow)
-        create("UICorner", {CornerRadius = UDim.new(0, 5)}, b)
-        shapeBtns[sh.Id] = b
-        connect(b.MouseButton1Click, function()
-            playUISound()
-            data.Settings.Shape = sh.Id
-            saveConfig()
-            refreshShapeButtons()
-            applyFloatAppearance(data)
-        end)
-    end
-    refreshShapeButtons = function()
-        for id, b in pairs(shapeBtns) do
-            local selected = (data.Settings.Shape == id)
-            b.BackgroundColor3 = selected and CurrentTheme.ACCENT or Color3.fromRGB(30, 30, 35)
-            b.TextColor3 = selected and Color3.fromRGB(15, 15, 18) or CurrentTheme.TEXT_MUTED
-        end
-    end
-    refreshShapeButtons()
-
-    local function buildRowSlider(order, labelText, min, max, initial, fmt, onChanged)
-        local row = create("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, LayoutOrder = order}, Pop)
-        create("TextLabel", {Size = UDim2.new(1, -44, 0, 13), BackgroundTransparency = 1, Text = labelText, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 10.5, TextXAlignment = Enum.TextXAlignment.Left}, row)
-        local valLbl = create("TextLabel", {Size = UDim2.new(0, 42, 0, 13), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Text = fmt(initial), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10.5, TextXAlignment = Enum.TextXAlignment.Right}, row)
-        local track = create("Frame", {Size = UDim2.new(1, 0, 0, 5), Position = UDim2.new(0, 0, 0, 21), BackgroundColor3 = Color3.fromRGB(35, 35, 40), BorderSizePixel = 0}, row)
-        create("UICorner", {CornerRadius = UDim.new(0, 3)}, track)
-        local pct0 = (max == min) and 0 or (math.clamp(initial, min, max) - min) / (max - min)
-        local fill = create("Frame", {Size = UDim2.new(pct0, 0, 1, 0), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, track)
-        create("UICorner", {CornerRadius = UDim.new(0, 3)}, fill)
-        local hit = create("TextButton", {Size = UDim2.new(1, 0, 1, 12), Position = UDim2.new(0, 0, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, track)
-        local function applyVal(v, fire)
-            v = math.clamp(v, min, max)
-            local pct = (max == min) and 0 or (v - min) / (max - min)
-            fill.Size = UDim2.new(pct, 0, 1, 0)
-            valLbl.Text = fmt(v)
-            if fire ~= false then onChanged(v) end
-        end
-        local sliding = false
-        local slideConn, slideEndConn
-        local function snap(input)
-            local pct = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-            applyVal(min + pct * (max - min))
-        end
-        connect(hit.InputBegan, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                sliding = true snap(input)
-                slideConn = connect(UserInputService.InputChanged, function(ci)
-                    if sliding and (ci.UserInputType == Enum.UserInputType.MouseMovement or ci.UserInputType == Enum.UserInputType.Touch) then snap(ci) end
-                end)
-                slideEndConn = connect(UserInputService.InputEnded, function(ei)
-                    if ei.UserInputType == Enum.UserInputType.MouseButton1 or ei.UserInputType == Enum.UserInputType.Touch then
-                        sliding = false
-                        if slideConn then slideConn:Disconnect() slideConn = nil end
-                        if slideEndConn then slideEndConn:Disconnect() slideEndConn = nil end
-                    end
-                end)
-            end
-        end)
-    end
-
-    buildRowToggle(2, "Botón flotante", data.Settings.Enabled, function(state)
-        data.Settings.Enabled = state
-        saveConfig()
-        if state then spawnFloatButton(data) else destroyFloatButton(data) end
-    end)
-    buildRowToggle(4, "Bloquear posición", data.Settings.Locked, function(state)
-        data.Settings.Locked = state
-        saveConfig()
-    end)
-    buildRowSlider(5, "Tamaño", 30, 90, data.Settings.Size, function(v) return tostring(math.floor(v + 0.5)) end, function(v)
-        data.Settings.Size = v
-        saveConfig()
-        applyFloatAppearance(data)
-    end)
-    buildRowSlider(6, "Transparencia", 0, 0.85, data.Settings.Transparency, function(v) return string.format("%.2f", v) end, function(v)
-        data.Settings.Transparency = v
-        saveConfig()
-        if data.Button then data.Button.BackgroundTransparency = v end
-    end)
-
-    -- Posicionamiento junto al icono ⚙ con clamp al viewport, y seguimiento en
-    -- tiempo real si el menú se mueve/scrollea mientras el submenú está abierto
-    local function reposition()
-        if not Pop.Parent or not gear.Parent then return end
-        local gp = gear.AbsolutePosition
-        local gs = gear.AbsoluteSize
-        local guiOff = ScreenGui.AbsolutePosition
-        local vp = Camera.ViewportSize
-        local x = gp.X + gs.X + 6
-        if x + W > vp.X - 6 then x = math.max(6, gp.X - W - 6) end
-        local y = math.clamp(gp.Y - 30, 6, math.max(6, vp.Y - H - 6))
-        Pop.Position = UDim2.new(0, x - guiOff.X, 0, y - guiOff.Y)
-    end
-    reposition()
-    local followConn = gear:GetPropertyChangedSignal("AbsolutePosition"):Connect(reposition)
-    connect(Modal.MouseButton1Click, closeFloatPopover)
-    ActiveFloatPopover = {Frame = Pop, Modal = Modal, FollowConn = followConn}
-end
-
-local function AttachFloatingShortcut(anchor, opts)
-    local key = tostring(opts.Key)
-    local data = FloatingShortcuts[key]
-    if not data then
-        data = {
-            Key = key,
-            Text = opts.Text or "Atajo",
-            IsToggle = opts.IsToggle == true,
-            GetState = opts.GetState,
-            Fire = opts.Fire or function() end,
-            Settings = getFloatSettings(key),
-        }
-        data.Refresh = function()
-            local btn = data.Button
-            if not btn or not btn.Parent then return end
-            if data.IsToggle and data.GetState then
-                local on = data.GetState() and true or false
-                data.Icon.TextColor3 = on and CurrentTheme.ACCENT or Color3.fromRGB(185, 185, 195)
-            end
-        end
-        FloatingShortcuts[key] = data
-        -- Persistencia: si el atajo estaba activo, reaparece solo al cargar el hub
-        if data.Settings.Enabled then
-            task.defer(function()
-                if ScreenGui and ScreenGui.Parent then spawnFloatButton(data) end
-            end)
-        end
-    end
-
-    -- Icono contextual minimalista en el extremo del contenedor del elemento
-    local gear = create("TextButton", {
-        Name = "FloatShortcutGear",
-        Size = UDim2.new(0, 16, 0, 16),
-        Position = UDim2.new(1, opts.GearOffsetX or -24, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
-        BackgroundColor3 = CurrentTheme.BG_MAIN,
-        BackgroundTransparency = 0.35,
-        Text = "⚙", TextSize = 10, Font = Enum.Font.GothamBold,
-        TextColor3 = CurrentTheme.TEXT_MUTED, AutoButtonColor = false,
-    }, anchor)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, gear)
-
-    connect(gear.MouseButton1Click, function()
-        if not anchor.Visible then return end
-        openFloatPopover(data, gear)
-    end)
-    connect(gear.MouseEnter, function() gear.TextColor3 = CurrentTheme.ACCENT end)
-    connect(gear.MouseLeave, function() gear.TextColor3 = CurrentTheme.TEXT_MUTED end)
-
-    return data
-end
-
--- Los accesos flotantes de toggles siguen el acento del tema activo
-table.insert(KillerHub.TargetThemeElements, function()
-    for _, d in pairs(FloatingShortcuts) do
-        if d.Refresh then pcall(d.Refresh) end
-    end
-end)
-
--- ============================================================================
 -- 💎 SISTEMA PREMIUM DE NOTIFICACIONES DINÁMICAS
 -- ============================================================================
 local NotifContainer = create("Frame", {
@@ -888,7 +516,6 @@ local NotifContainer = create("Frame", {
     Position = UDim2.new(1, -250, 0, 10),
     BackgroundTransparency = 1
 }, ScreenGui)
-NotifUiScale = create("UIScale", {Scale = math.clamp(tonumber(Config.UiScale) or 1, 0.8, 1.2)}, NotifContainer)
 local NotifLayout = create("UIListLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder,
     Padding = UDim.new(0, 6),
@@ -1140,12 +767,12 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
     -- lado, se centran en el espacio libre junto al Hue sin importar el ancho de la ventana
     local InfoColumn = create("Frame", {Position = UDim2.new(0, 188, 0, contentTop), Size = UDim2.new(1, -200, 0, 128), BackgroundTransparency = 1}, MasterFrame)
 
-    -- 🎨 Previsualización ensanchada horizontalmente: ocupa todo el ancho libre
-    -- de la columna para una lectura cromática mucho más precisa y cómoda
+    -- 🎨 V4.3: previsualización extendida horizontalmente (ocupa todo el ancho
+    -- libre de la columna) -> mucha más precisión cromática al elegir tonos.
     local PreviewFrame = create("Frame", {
         AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 23),
-        Size = UDim2.new(1, -6, 0, 48),
+        Position = UDim2.new(0.5, 0, 0, 0),
+        Size = UDim2.new(1, -4, 0, 48),
         BackgroundColor3 = savedColor
     }, InfoColumn)
     create("UICorner", {CornerRadius = UDim.new(0, 10)}, PreviewFrame)
@@ -1153,7 +780,7 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
 
     local HexBox = create("TextBox", {
         AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 79),
+        Position = UDim2.new(0.5, 0, 0, 60),
         Size = UDim2.new(1, -8, 0, 26),
         BackgroundColor3 = Color3.fromRGB(25, 25, 30),
         Text = "",
@@ -1378,6 +1005,287 @@ end
 local TabMethods = {}
 TabMethods.__index = TabMethods
 
+-- ============================================================================
+-- ⚡ SISTEMA DE BOTONES FLOTANTES NATIVOS (SHORTCUTS) + PANEL CENTRALIZADO
+-- Cualquier Toggle o Button puede convertirse en un acceso directo flotante e
+-- independiente en pantalla. La tuerca ⚙️ vive en el extremo IZQUIERDO de la
+-- fila (lejos del interruptor para evitar clics accidentales) y abre una
+-- ventana dedicada en el centro de la pantalla (nunca se corta por los bordes).
+-- Persistencia: claves planas "SC_<id>_<prop>" dentro del mismo Config JSON
+-- (hereda gratis el autoguardado con debounce y la segmentación por PlaceId).
+-- ============================================================================
+local ShortcutBindings = {}     -- [id] = {Text, Fire, GetState} definición lógica del elemento
+local ShortcutState = {}        -- [id] = {Btn, Corner, Stroke, Label} instancias flotantes vivas
+local ShortcutPanelCache = {}   -- [id] = holder ScrollingFrame del contenido del panel (se construye 1 vez)
+
+local function scKey(id, prop) return "SC_" .. id .. "_" .. prop end
+local function getSC(id, prop, default)
+    local v = Config[scKey(id, prop)]
+    if v == nil then return default end
+    return v
+end
+
+-- Formas nativas: Círculo (radio total), Rectángulo largo (estirado horizontal),
+-- Cuadrado con bordes redondos (contenedor simétrico, radio 8)
+local function applyShortcutShape(btn, corner, shape, size)
+    if shape == "Círculo" then
+        btn.Size = UDim2.new(0, size, 0, size)
+        corner.CornerRadius = UDim.new(1, 0)
+    elseif shape == "Rectángulo" then
+        btn.Size = UDim2.new(0, math.floor(size * 1.9), 0, math.max(math.floor(size * 0.72), 22))
+        corner.CornerRadius = UDim.new(0, 8)
+    else -- "Cuadrado"
+        btn.Size = UDim2.new(0, size, 0, size)
+        corner.CornerRadius = UDim.new(0, 8)
+    end
+end
+
+local function applyShortcutVisuals(id)
+    local st = ShortcutState[id]
+    if not st then return end
+    local def = ShortcutBindings[id]
+    local size = mathClamp(tonumber(getSC(id, "Size", 48)) or 48, 28, 96)
+    local shape = getSC(id, "Shape", "Cuadrado")
+    local trans = mathClamp(tonumber(getSC(id, "Trans", 0.25)) or 0.25, 0, 0.95)
+    applyShortcutShape(st.Btn, st.Corner, shape, size)
+    st.Btn.BackgroundTransparency = trans
+    local isOn = (def and def.GetState) and def.GetState() or false
+    st.Label.TextColor3 = isOn and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+end
+
+local function destroyFloatingShortcut(id)
+    local st = ShortcutState[id]
+    if st and st.Btn then pcall(function() st.Btn:Destroy() end) end
+    ShortcutState[id] = nil
+end
+
+local function createFloatingShortcut(id)
+    local def = ShortcutBindings[id]
+    if not def or ShortcutState[id] then return end
+
+    -- Cascada de aparición si nunca se movió (posición guardada tiene prioridad)
+    local count = 0
+    for _ in pairs(ShortcutState) do count = count + 1 end
+    local px, py = Config[scKey(id, "X")], Config[scKey(id, "Y")]
+    local startPos = (type(px) == "number" and type(py) == "number")
+        and UDim2.new(0, px, 0, py)
+        or UDim2.new(0, 18 + (count * 12), 0, 130 + (count * 58))
+
+    -- 🕳 Estética "Void": fondo negro (semi)transparente + borde negro sólido
+    local FBtn = create("TextButton", {
+        Name = "KH_Float_" .. id, Position = startPos, Size = UDim2.new(0, 48, 0, 48),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.25,
+        Text = "", AutoButtonColor = false, Active = true, BorderSizePixel = 0
+    }, ScreenGui)
+    local Corner = create("UICorner", {CornerRadius = UDim.new(0, 8)}, FBtn)
+    local Stroke = create("UIStroke", {Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0), ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, FBtn)
+    local Lbl = create("TextLabel", {
+        Size = UDim2.new(1, -10, 1, -6), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1, Text = def.Text, TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font[Config.SelectedFont] or Enum.Font.GothamBold,
+        TextScaled = true, TextTruncate = Enum.TextTruncate.AtEnd
+    }, FBtn)
+    create("UITextSizeConstraint", {MaxTextSize = 13, MinTextSize = 8}, Lbl)
+
+    ShortcutState[id] = {Btn = FBtn, Corner = Corner, Stroke = Stroke, Label = Lbl}
+
+    -- Drag libre (respeta el Lock) con supresión de clic tras arrastrar:
+    -- si el botón se movió más de 6px respecto al inicio, el click se ignora.
+    local dragging, activeInput, dragStart, pressStartPos
+    local moveConn, endConn
+    connect(FBtn.InputBegan, function(input)
+        if Config[scKey(id, "Locked")] == true then return end
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
+            dragging = true
+            activeInput = input
+            dragStart = input.Position
+            pressStartPos = FBtn.Position
+            moveConn = connect(UserInputService.InputChanged, function(changedInput)
+                if dragging and changedInput == activeInput then
+                    local delta = changedInput.Position - dragStart
+                    local screenSize = Camera.ViewportSize
+                    local btnSize = FBtn.AbsoluteSize
+                    local newX = mathClamp(pressStartPos.X.Offset + delta.X, 0, math.max(screenSize.X - btnSize.X, 0))
+                    local newY = mathClamp(pressStartPos.Y.Offset + delta.Y, 0, math.max(screenSize.Y - btnSize.Y, 0))
+                    FBtn.Position = UDim2.new(0, newX, 0, newY)
+                end
+            end)
+            endConn = connect(UserInputService.InputEnded, function(endedInput)
+                if endedInput == activeInput then
+                    dragging = false
+                    activeInput = nil
+                    if moveConn then moveConn:Disconnect() moveConn = nil end
+                    if endConn then endConn:Disconnect() endConn = nil end
+                    Config[scKey(id, "X")] = FBtn.Position.X.Offset
+                    Config[scKey(id, "Y")] = FBtn.Position.Y.Offset
+                    saveConfig()
+                end
+            end)
+        end
+    end)
+
+    connect(FBtn.MouseButton1Click, function()
+        if pressStartPos then
+            local movedX = math.abs(FBtn.Position.X.Offset - pressStartPos.X.Offset)
+            local movedY = math.abs(FBtn.Position.Y.Offset - pressStartPos.Y.Offset)
+            if movedX > 6 or movedY > 6 then return end -- fue un drag, no un tap
+        end
+        playUISound()
+        if def.Fire then task.spawn(def.Fire) end
+    end)
+
+    applyShortcutVisuals(id)
+end
+
+-- Cuando el tema cambia, los flotantes activos re-sincronizan su color de estado
+table.insert(KillerHub.TargetThemeElements, function()
+    for id in pairs(ShortcutState) do applyShortcutVisuals(id) end
+end)
+
+-- 🪟 VENTANA DEDICADA DE CONFIGURACIÓN (centro de pantalla, tamaño medio/grande)
+local ShortcutPanelTitle = nil
+local ShortcutPanelOpenContent = nil
+
+local function ensureShortcutPanel()
+    if ShortcutPanel then return end
+    ShortcutPanel = create("Frame", {
+        Name = "ShortcutConfigPanel", Visible = false,
+        Size = UDim2.new(0, 330, 0, 340),
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0,
+        Active = true, ClipsDescendants = true
+    }, ScreenGui)
+    ShortcutPanel:SetAttribute("CenterDrag", true)
+    create("UICorner", {CornerRadius = UDim.new(0, 12)}, ShortcutPanel)
+    local pStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, ShortcutPanel)
+
+    local PTop = create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, ShortcutPanel)
+    ShortcutPanelTitle = create("TextLabel", {
+        Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1,
+        Text = "Shortcut", TextColor3 = CurrentTheme.TEXT_WHITE,
+        Font = Enum.Font.GothamBold, TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd
+    }, PTop)
+    local CloseBtn = create("TextButton", {
+        Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -31, 0.5, -12),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 30), Text = "X",
+        TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false
+    }, PTop)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, CloseBtn)
+    connect(CloseBtn.MouseButton1Click, function()
+        playUISound()
+        ShortcutPanel.Visible = false
+    end)
+    makeDraggable(PTop, ShortcutPanel)
+
+    table.insert(KillerHub.TargetThemeElements, function()
+        if not ShortcutPanel then return end
+        ShortcutPanel.BackgroundColor3 = CurrentTheme.BG_MAIN
+        pStroke.Color = CurrentTheme.BORDER
+        PTop.BackgroundColor3 = CurrentTheme.BG_SIDEBAR
+        ShortcutPanelTitle.TextColor3 = CurrentTheme.TEXT_WHITE
+        CloseBtn.TextColor3 = CurrentTheme.TEXT_MUTED
+    end)
+end
+
+-- El contenido del panel reutiliza los widgets nativos de la librería (toggles,
+-- sliders, dropdown) sobre un contenedor "pseudo-tab": hereda autoguardado,
+-- temas y fuentes sin duplicar código. _NoGear evita recursión de tuercas ⚙️.
+local function buildShortcutPanelContent(id)
+    ensureShortcutPanel()
+    if ShortcutPanelCache[id] then return ShortcutPanelCache[id] end
+
+    local holder = create("ScrollingFrame", {
+        Name = "SCContent_" .. id,
+        Size = UDim2.new(1, -16, 1, -50), Position = UDim2.new(0, 8, 0, 44),
+        BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT,
+        CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, BorderSizePixel = 0
+    }, ShortcutPanel)
+    local lay = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)}, holder)
+    local sizeConn = lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        holder.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 10)
+    end)
+    table.insert(Connections, sizeConn)
+
+    -- Defaults amigables antes de instanciar los widgets (solo si no hay valor)
+    if Config[scKey(id, "Size")] == nil then Config[scKey(id, "Size")] = 48 end
+    if Config[scKey(id, "Trans")] == nil then Config[scKey(id, "Trans")] = 0.25 end
+
+    local pseudo = setmetatable({Frame = holder, _NoGear = true}, TabMethods)
+    pseudo:CreateSection("Acceso Directo Flotante")
+    -- Instanciación: genera o elimina el botón flotante independiente
+    pseudo:CreateToggle(scKey(id, "Enabled"), "Botón Flotante Activo", function(state)
+        if state then createFloatingShortcut(id) else destroyFloatingShortcut(id) end
+    end)
+    -- Forma geométrica nativa (3 diseños limpios)
+    pseudo:CreateDropdown(scKey(id, "Shape"), "Forma del Botón:", {"Cuadrado", "Círculo", "Rectángulo"}, function()
+        applyShortcutVisuals(id)
+    end)
+    -- Lock: fija el botón para evitar arrastres accidentales en pleno juego
+    pseudo:CreateToggle(scKey(id, "Locked"), "Bloquear Posición (Lock)", function() end)
+    -- Ajustes dinámicos en tiempo real
+    pseudo:CreateSlider(scKey(id, "Size"), "Tamaño del Botón", 28, 96, function() applyShortcutVisuals(id) end)
+    pseudo:CreateSlider(scKey(id, "Trans"), "Transparencia (Estilo Void)", 0, 0.9, function() applyShortcutVisuals(id) end)
+    pseudo:CreateButton("Restablecer Posición", function()
+        Config[scKey(id, "X")] = nil
+        Config[scKey(id, "Y")] = nil
+        local st = ShortcutState[id]
+        if st then st.Btn.Position = UDim2.new(0, 24, 0, 140) end
+        saveConfig()
+    end)
+
+    ShortcutPanelCache[id] = holder
+    return holder
+end
+
+local function openShortcutPanel(id)
+    local def = ShortcutBindings[id]
+    if not def then return end
+    local content = buildShortcutPanelContent(id)
+    if ShortcutPanelOpenContent and ShortcutPanelOpenContent ~= content then
+        ShortcutPanelOpenContent.Visible = false
+    end
+    ShortcutPanelOpenContent = content
+    content.Visible = true
+    ShortcutPanelTitle.Text = "⚙  " .. def.Text
+    ShortcutPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ShortcutPanel.Visible = true
+end
+
+-- ⚙️ Tuerca en el extremo IZQUIERDO de la fila: registra el binding lógico,
+-- abre el panel centralizado y restaura el flotante al ejecutar el script.
+local function addShortcutGear(parentRow, id, displayText, fireFn, getStateFn)
+    ShortcutBindings[id] = {Text = displayText, Fire = fireFn, GetState = getStateFn}
+
+    local Gear = create("TextButton", {
+        Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 7, 0.5, -10),
+        BackgroundColor3 = Color3.fromRGB(22, 22, 26), BackgroundTransparency = 0.15,
+        Text = "", AutoButtonColor = false
+    }, parentRow)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, Gear)
+    local gStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER, Transparency = 0.2}, Gear)
+    local gIcon = create("ImageLabel", {
+        Size = UDim2.new(1, -6, 1, -6), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1, Image = "rbxassetid://10747372517", ImageColor3 = CurrentTheme.TEXT_MUTED
+    }, Gear)
+
+    connect(Gear.MouseButton1Click, function()
+        playUISound()
+        openShortcutPanel(id)
+    end)
+
+    table.insert(KillerHub.TargetThemeElements, function()
+        gStroke.Color = CurrentTheme.BORDER
+        gIcon.ImageColor3 = CurrentTheme.TEXT_MUTED
+    end)
+
+    -- ♻️ Auto-restauración: si este shortcut quedó activo en la config, el
+    -- botón flotante reaparece solo al ejecutar el script (sin abrir el panel)
+    if Config[scKey(id, "Enabled")] == true then
+        task.defer(function() createFloatingShortcut(id) end)
+    end
+end
+
 function TabMethods:RegisterElement(inst, textLabel, tabName)
     table.insert(KillerHub.AllElements, {Instance = inst, Label = textLabel, Tab = tabName})
     -- 🩹 FIX DE RENDIMIENTO: antes esto llamaba a KillerHub:SetFont(), que recorre
@@ -1468,8 +1376,9 @@ function TabMethods:CreateToggle(flagName, text, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -84, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -70, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
+    -- ⚙️ V4.3: la etiqueta cede el extremo izquierdo a la tuerca de shortcut
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -96, 1, 0), Position = UDim2.new(0, 34, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
@@ -1484,12 +1393,11 @@ function TabMethods:CreateToggle(flagName, text, callback)
             Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         }):Play()
     end
-    
-    local floatData = nil -- acceso directo flotante (se enlaza más abajo)
+
     local function executeSet(bool)
         updateGlobalFlags(flagName, bool) Config[flagName] = bool saveConfig()
         task.spawn(stateUpdate)
-        if floatData and floatData.Refresh then task.spawn(floatData.Refresh) end
+        applyShortcutVisuals(flagName) -- sincroniza el botón flotante si existe
         task.spawn(callback, bool)
     end
 
@@ -1497,19 +1405,19 @@ function TabMethods:CreateToggle(flagName, text, callback)
         playUISound()
         executeSet(not Flags[flagName].CurrentValue)
     end)
+
+    -- ⚙️ V4.3: tuerca de shortcut (se omite en widgets internos del propio panel)
+    if not self._NoGear and string.sub(flagName, 1, 3) ~= "SC_" then
+        addShortcutGear(ToggleButton, flagName, text,
+            function() executeSet(not Flags[flagName].CurrentValue) end,
+            function() return Flags[flagName].CurrentValue == true end)
+    end
     
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
     task.spawn(function() stateUpdate() pcall(callback, Flags[flagName].CurrentValue) end)
 
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
-    
-    -- ⚙ Icono contextual: abre el submenú flotante para configurar el shortcut
-    floatData = AttachFloatingShortcut(ToggleButton, {
-        Key = flagName, Text = text, IsToggle = true, GearOffsetX = -28,
-        GetState = function() return Flags[flagName] and Flags[flagName].CurrentValue end,
-        Fire = function() executeSet(not Flags[flagName].CurrentValue) end,
-    })
     
     local toggleObj = {
         Set = function(_, bool) executeSet(bool) end,
@@ -1568,7 +1476,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, TSFrame)
     
     local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, Text = ""}, TSFrame)
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -96, 1, 0), Position = UDim2.new(0, 34, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     
     local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
@@ -1620,11 +1528,22 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         if not skipCallback then pcall(callbackSlider, v) end
     end
 
+    -- ⚙️ V4.3: lógica unificada (clic en la fila = clic en el botón flotante)
+    local function executeToggle(nextState)
+        updateGlobalFlags(flagToggle, nextState) Config[flagToggle] = nextState saveConfig()
+        stateUpdate() applyShortcutVisuals(flagToggle) pcall(callbackToggle, nextState)
+    end
+
     connect(ToggleButton.MouseButton1Click, function()
-        local nextState = not Flags[flagToggle].CurrentValue
-        updateGlobalFlags(flagToggle, nextState) Config[flagToggle] = nextState saveConfig() playUISound()
-        stateUpdate() pcall(callbackToggle, nextState)
+        playUISound()
+        executeToggle(not Flags[flagToggle].CurrentValue)
     end)
+
+    if not self._NoGear and string.sub(flagToggle, 1, 3) ~= "SC_" then
+        addShortcutGear(ToggleButton, flagToggle, text,
+            function() executeToggle(not Flags[flagToggle].CurrentValue) end,
+            function() return Flags[flagToggle].CurrentValue == true end)
+    end
 
     connect(ValueBox.FocusLost, function()
         local inputNum = tonumber(ValueBox.Text)
@@ -1666,7 +1585,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     
     local tsObj = {
-        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
+        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() applyShortcutVisuals(flagToggle) pcall(callbackToggle, bool) end,
         SetSlider = function(_, value) runSliderValue(value) end
     }
     KillerHub.Elements[flagToggle] = tsObj
@@ -2035,7 +1954,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MasterFrame)
 
     local MainTrigger = create("TextButton", {Size = UDim2.new(1, -80, 0, CLOSED_H), BackgroundTransparency = 1, Text = ""}, MasterFrame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
+    local Label = create("TextLabel", {Size = UDim2.new(1, -34, 1, 0), Position = UDim2.new(0, 34, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
 
     local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, MainTrigger)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
@@ -2057,12 +1976,23 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         Panel.Sync()
     end
 
-    connect(MainTrigger.MouseButton1Click, function()
-        local nextVal = not Flags[flagToggle].CurrentValue
+    -- ⚙️ V4.3: lógica unificada para la fila y el botón flotante
+    local function executeToggle(nextVal)
         updateGlobalFlags(flagToggle, nextVal)
-        Config[flagToggle] = nextVal saveConfig() playUISound()
-        stateUpdate() pcall(callbackToggle, nextVal)
+        Config[flagToggle] = nextVal saveConfig()
+        stateUpdate() applyShortcutVisuals(flagToggle) pcall(callbackToggle, nextVal)
+    end
+
+    connect(MainTrigger.MouseButton1Click, function()
+        playUISound()
+        executeToggle(not Flags[flagToggle].CurrentValue)
     end)
+
+    if not self._NoGear and string.sub(flagToggle, 1, 3) ~= "SC_" then
+        addShortcutGear(MainTrigger, flagToggle, text,
+            function() executeToggle(not Flags[flagToggle].CurrentValue) end,
+            function() return Flags[flagToggle].CurrentValue == true end)
+    end
 
     local open = false
     connect(ColorBtn.MouseButton1Click, function() 
@@ -2080,7 +2010,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
 
     local tsObj = {
         SetToggle = function(_, bool)
-            updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool)
+            updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() applyShortcutVisuals(flagToggle) pcall(callbackToggle, bool)
         end,
         SetColor = function(_, newColor) Panel.SetColor(newColor) end
     }
@@ -2277,13 +2207,13 @@ function TabMethods:CreateButton(text, callback)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
     
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
+
+    -- ⚙️ V4.3: los botones también pueden convertirse en atajo flotante
+    if not self._NoGear then
+        addShortcutGear(Button, "Btn_" .. text, text, function() pcall(callback) end, nil)
+    end
+
     addInteractiveFeedback(Button)
-    
-    -- ⚙ Acceso directo flotante configurable también para este botón
-    AttachFloatingShortcut(Button, {
-        Key = "Btn_" .. text, Text = text, IsToggle = false, GearOffsetX = -22,
-        Fire = function() pcall(callback) end,
-    })
     self:RegisterElement(Button, Button, self.Frame.Name)
     
     local btnObj = {
@@ -2341,7 +2271,9 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
 end
 
-local applySearchFilter = nil -- se asigna en el bloque del buscador global (más abajo)
+-- 🔍 V4.3: declaración adelantada (se asigna en la sección del buscador global)
+-- para que cambiar de pestaña re-aplique el filtro activo automáticamente.
+local applySearchFilter = nil
 
 function KillerHub:CreateTab(name, iconId)
     if not SafeAssert("CreateTab", {
@@ -2376,7 +2308,6 @@ function KillerHub:CreateTab(name, iconId)
     KillerHub.TabRegistry[name] = {Frame = frame, Btn = btn, Label = btnLabel, Icon = iconImg, Line = line}
 
     local function selectTab()
-        if closeFloatPopover then closeFloatPopover() end
         for tName, reg in pairs(KillerHub.TabRegistry) do
             if tName == name then
                 reg.Frame.Visible = true
@@ -2391,8 +2322,7 @@ function KillerHub:CreateTab(name, iconId)
             end
         end
         KillerHub.CurrentTab = name
-        -- Re-aplica el filtro de búsqueda sobre la pestaña recién abierta
-        if applySearchFilter then task.defer(applySearchFilter) end
+        if applySearchFilter then task.defer(applySearchFilter) end -- re-filtra la nueva pestaña activa
     end
     connect(btn.MouseButton1Click, function() if KillerHub.CurrentTab ~= name then selectTab() playUISound() end end)
     if isFirstTab or name == "Settings" then task.spawn(selectTab) end
@@ -2415,23 +2345,23 @@ function KillerHub:CreateTab(name, iconId)
 end
 
 -- ============================================================================
--- 🔍 BARRA DE BÚSQUEDA GLOBAL ACTIVA (FILTRO EN TIEMPO REAL)
--- Filtra únicamente los elementos de la pestaña visible (mucho menos trabajo por
--- pulsación en GUIs masivas), con debounce + task.defer para no bloquear nunca el
--- ciclo principal del juego. Al vaciar el texto, todo se restaura en todas las
--- pestañas; al cambiar de pestaña con texto activo, el filtro se re-aplica solo.
+-- 🔍 BARRA DE BÚSQUEDA GLOBAL ACTIVA (V4.3 - filtro en tiempo real optimizado)
+-- Solo recorre/oculta los elementos de la PESTAÑA ACTIVA (el resto de pestañas
+-- están ocultas de todos modos, tocarlas era trabajo desperdiciado), usa
+-- plain-find (sin patrón Lua: más rápido y sin errores con caracteres
+-- especiales tipo "%" o "-") y mantiene el debounce con task.defer.
 -- ============================================================================
 applySearchFilter = function()
     local q = string.lower(SearchInput.Text)
-    local currentFrame = (KillerHub.CurrentTab or "") .. "Frame"
+    local currentFrameName = KillerHub.CurrentTab and (KillerHub.CurrentTab .. "Frame")
+    if not currentFrameName then return end
     local count = 0
     for _, el in pairs(KillerHub.AllElements) do
-        if el.Instance and el.Label then
+        if el.Instance and el.Label and el.Tab == currentFrameName then
             if q == "" then
-                if not el.Instance.Visible then el.Instance.Visible = true end
-            elseif el.Tab == currentFrame then
-                local match = string.find(string.lower(el.Label.Text or ""), q, 1, true) ~= nil
-                if el.Instance.Visible ~= match then el.Instance.Visible = match end
+                el.Instance.Visible = true
+            else
+                el.Instance.Visible = string.find(string.lower(el.Label.Text or ""), q, 1, true) ~= nil
             end
         end
         count = count + 1
@@ -2441,7 +2371,6 @@ end
 
 local searchThread
 connect(SearchInput:GetPropertyChangedSignal("Text"), function()
-    ClearSearchBtn.Visible = (#SearchInput.Text > 0)
     if searchThread then task.cancel(searchThread) end
     searchThread = task.defer(function()
         task.wait(0.12)
@@ -2462,7 +2391,6 @@ local TopFonts = {
 }
 SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, function(selected) KillerHub:SetFont(selected) end)
 SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
-SettingsTab:CreateSlider("UiScale", "Escala de Interfaz (DPI Móvil)", 0.8, 1.2, function(v) updateDpiScale() end)
 
 SettingsTab:CreateSection("Controles del Menú")
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
@@ -2473,8 +2401,9 @@ SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.
 SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
 
-SettingsTab:CreateSection("Sistema")
-SettingsTab:CreateParagraph("🌐 Configuración Multi-Juego Activa", "Autoguardado inteligente segmentado por juego (PlaceId: " .. tostring(PLACE_ID) .. ") en " .. CONFIG_FILE .. " — sin perfiles manuales ni corrupción de datos al cambiar de experiencia.")
+SettingsTab:CreateSection("Atajos Flotantes (Shortcuts)")
+SettingsTab:CreateParagraph("⚙️ Botones Flotantes", "Toca la tuerca situada a la IZQUIERDA de cualquier Toggle o Botón para abrir su panel de atajos: crea un botón flotante independiente, elige su forma (círculo, rectángulo largo o cuadrado redondeado), bloquea su posición y ajusta tamaño y transparencia en tiempo real.")
+SettingsTab:CreateParagraph("🎮 Config Multi-Juego", "La configuración se guarda automáticamente por juego usando el PlaceId. No necesitas gestionar perfiles: cada experiencia carga sus propios ajustes.")
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
