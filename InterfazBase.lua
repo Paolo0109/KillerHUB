@@ -372,22 +372,40 @@ connect(UserInputService.InputBegan, function(input, gp)
     end
 end)
 
-local activeTweens = {}
+local activeTweens = setmetatable({}, {__mode = "k"})
+
+-- 🩹 BUG FIX (revert visual del Color Picker): antes, addInteractiveFeedback() guardaba
+-- "baseColor" UNA SOLA VEZ al crear el botón. Cualquier color elegido después en el
+-- Color Picker (ColorBtn) quedaba aplicado de verdad en Config/Flags, pero al sacar el
+-- mouse del cuadrito (MouseLeave, típicamente al cerrar el menú) el tween de "hover
+-- feedback" regresaba el BackgroundColor3 a ese snapshot viejo, dando la falsa
+-- impresión de que el color (o el guardado) no se había aplicado.
+-- InteractiveBaseColor guarda el color "real" vigente de cada botón y se mantiene
+-- sincronizado vía setSwatchColor() cada vez que el color picker asigna un color de verdad.
+local InteractiveBaseColor = setmetatable({}, {__mode = "k"})
+
+local function setSwatchColor(inst, color)
+    inst.BackgroundColor3 = color
+    InteractiveBaseColor[inst] = color
+end
+
 local function addInteractiveFeedback(inst)
     if not inst:IsA("TextButton") then return end
-    local baseColor = inst.BackgroundColor3
-    
+    InteractiveBaseColor[inst] = InteractiveBaseColor[inst] or inst.BackgroundColor3
+
     connect(inst.MouseEnter, function()
         if activeTweens[inst] then activeTweens[inst]:Cancel() end
+        local base = InteractiveBaseColor[inst] or inst.BackgroundColor3
         activeTweens[inst] = TweenService:Create(inst, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = baseColor:Lerp(Color3.fromRGB(255, 255, 255), 0.08)
+            BackgroundColor3 = base:Lerp(Color3.fromRGB(255, 255, 255), 0.08)
         })
         activeTweens[inst]:Play()
     end)
     connect(inst.MouseLeave, function()
         if activeTweens[inst] then activeTweens[inst]:Cancel() end
+        local base = InteractiveBaseColor[inst] or inst.BackgroundColor3
         activeTweens[inst] = TweenService:Create(inst, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = baseColor
+            BackgroundColor3 = base
         })
         activeTweens[inst]:Play()
     end)
@@ -1308,7 +1326,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         Canvas.BackgroundColor3 = color3FromHSV(h, 1, 1)
 
         PreviewFrame.BackgroundColor3 = col
-        ColorBtn.BackgroundColor3 = col
+        setSwatchColor(ColorBtn, col)
 
         if not HexBox:IsFocused() then
             HexBox.Text = stringFormat("#%02X%02X%02X", mathRound(col.R * 255), mathRound(col.G * 255), mathRound(col.B * 255))
@@ -1425,7 +1443,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
+        setSwatchColor(ColorBtn, Flags[flagColor].CurrentValue)
         PreviewFrame.BackgroundColor3 = Flags[flagColor].CurrentValue
     end
 
@@ -1440,6 +1458,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
         TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 176 or 36)}):Play()
+        if not open then saveConfig() end -- 💾 Autoguardado explícito al cerrar el menú del color picker
     end)
     
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
@@ -1586,7 +1605,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         Canvas.BackgroundColor3 = color3FromHSV(h, 1, 1)
 
         PreviewFrame.BackgroundColor3 = col
-        ColorBtn.BackgroundColor3 = col
+        setSwatchColor(ColorBtn, col)
 
         if not HexBox:IsFocused() then
             HexBox.Text = stringFormat("#%02X%02X%02X", mathRound(col.R * 255), mathRound(col.G * 255), mathRound(col.B * 255))
@@ -1702,11 +1721,12 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
         TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 176 or 36)}):Play()
+        if not open then saveConfig() end -- 💾 Autoguardado explícito al cerrar el menú del color picker
     end)
     
     table.insert(KillerHub.TargetThemeElements, function() 
         local col = Flags[flagColor].CurrentValue
-        ColorBtn.BackgroundColor3 = col 
+        setSwatchColor(ColorBtn, col)
         PreviewFrame.BackgroundColor3 = col
     end)
 
