@@ -1,5 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.3.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.2.0)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -13,7 +13,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- 🛠 ANTI-CRASH Y SEGURIDAD ANTI-DETECCIÓN AVANZADA
+-- 🛠 ANTI-CRASH UNIVERSAL INTEGRADO (GetSafeUIParent)
 local function GetSafeUIParent()
     local success, result = pcall(function()
         if gethui then return gethui() end
@@ -26,12 +26,8 @@ end
 
 local TargetParent = GetSafeUIParent()
 
--- Ofuscación interna de nombres para mitigar escaneos por strings fijos del Anti-Cheat
-local obfuscatedName = "KH_" .. tostring(math.random(100000, 999999))
-for _, child in ipairs(TargetParent:GetChildren()) do
-    if string.match(child.Name, "^KH_%d+$") or child.Name == "KillerHub_Universal" then
-        child:Destroy()
-    end
+if TargetParent:FindFirstChild("KillerHub_Universal") then
+    TargetParent.KillerHub_Universal:Destroy()
 end
 
 local Themes = {
@@ -145,7 +141,7 @@ end
 -- ============================================================================
 -- 🖥 INTERFAZ CON CANVASGROUP DE ALTO RENDIMIENTO
 -- ============================================================================
-local ScreenGui = create("ScreenGui", {Name = obfuscatedName, IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
+local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
 
 local function playUISound()
     if not Config.Volume or Config.Volume <= 0 then return end
@@ -157,7 +153,7 @@ local function playUISound()
 end
 
 local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
-local MainStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
+local MainStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
 
 local BordeGradient = create("UIGradient", {
@@ -494,6 +490,7 @@ function KillerHub:AddTask(obj)
     return obj
 end
 
+-- 🛠 OPTIMIZACIÓN DE RENDIMIENTO GENERAL (Garbage Collection Integrado)
 function KillerHub:Destroy()
     self:Unload()
 end
@@ -508,6 +505,7 @@ function KillerHub:Unload()
     end
     if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
     
+    -- Limpieza profunda de memoria
     table.clear(Connections)
     table.clear(self._Trash)
     table.clear(self.Tabs)
@@ -1138,8 +1136,235 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
 end
 
 -- ============================================================================
--- 💎 NUEVO COMPONENTE: COLOR PICKER CON PALETA VISUAL 2D CANVAS Y HUE SLIDER
+-- 🎨 EXCELENTÍSIMO SISTEMA DE COLOR PICKER HSV INTERACTIVO COMPLETO
 -- ============================================================================
+local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callback, getActiveState)
+    if Config[flagColor] == nil then 
+        Config[flagColor] = {defaultColor:ToHSV()} 
+    end
+    
+    local initialH, initialS, initialV = unpack(Config[flagColor])
+    updateGlobalFlags(flagColor, Color3.fromHSV(initialH, initialS, initialV))
+
+    local PickerContainer = create("Frame", {
+        Size = UDim2.new(1, -24, 0, 110),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true
+    }, parentFrame)
+
+    -- 🌟 1. SATURATION-VALUE CANVAS (CUADRO PRINCIPAL INTERACTIVO)
+    local SVCanvas = create("Frame", {
+        Size = UDim2.new(0, 140, 0, 100),
+        Position = UDim2.new(0, 10, 0, 5),
+        BackgroundColor3 = Color3.fromHSV(initialH, 1, 1),
+        BorderSizePixel = 0
+    }, PickerContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, SVCanvas)
+
+    -- Degradado Blanco (Saturación en Eje X)
+    local SatGrad = create("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0
+    }, SVCanvas)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, SatGrad)
+    create("UIGradient", {
+        Color = ColorSequence.new(Color3.new(1, 1, 1)),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+    }, SatGrad)
+
+    -- Degradado Negro (Valor/Brillo en Eje Y)
+    local ValGrad = create("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0
+    }, SVCanvas)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, ValGrad)
+    create("UIGradient", {
+        Color = ColorSequence.new(Color3.new(0, 0, 0)),
+        Rotation = 90,
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(1, 0)
+        })
+    }, ValGrad)
+
+    -- Puntero Selector del Canvas
+    local SVKnob = create("Frame", {
+        Size = UDim2.new(0, 10, 0, 10),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        Position = UDim2.new(initialS, 0, 1 - initialV, 0) -- Invertido en Y
+    }, SVCanvas)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVKnob)
+    create("UIStroke", {Thickness = 1.5, Color = Color3.new(0, 0, 0)}, SVKnob)
+
+    -- 🌟 2. HUE SLIDER (BARRA VERTICAL ARCOÍRIS REPOTENCIADA)
+    local HueSlider = create("Frame", {
+        Size = UDim2.new(0, 18, 0, 100),
+        Position = UDim2.new(0, 165, 0, 5),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0
+    }, PickerContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, HueSlider)
+
+    local RainbowGrad = create("UIGradient", {
+        Rotation = 90,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
+            ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+        })
+    }, HueSlider)
+
+    -- Puntero Selector del Hue Slider
+    local HueKnob = create("Frame", {
+        Size = UDim2.new(1, 4, 0, 4),
+        Position = UDim2.new(0, -2, initialH, 0),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0
+    }, HueSlider)
+    create("UICorner", {CornerRadius = UDim.new(0, 2)}, HueKnob)
+    create("UIStroke", {Thickness = 1, Color = Color3.new(0, 0, 0)}, HueKnob)
+
+    -- 🌟 3. PREVISUALIZACIÓN DE COLOR REAL
+    local PreviewBox = create("Frame", {
+        Size = UDim2.new(1, -200, 0, 40),
+        Position = UDim2.new(0, 195, 0, 5),
+        BackgroundColor3 = Color3.fromHSV(initialH, initialS, initialV)
+    }, PickerContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, PreviewBox)
+    create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, PreviewBox)
+
+    local HexLabel = create("TextBox", {
+        Size = UDim2.new(1, -200, 0, 22),
+        Position = UDim2.new(0, 195, 0, 50),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 30),
+        Text = "#" .. Color3.fromHSV(initialH, initialS, initialV):ToHex():upper(),
+        TextColor3 = CurrentTheme.TEXT_WHITE,
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        ClearTextOnFocus = false
+    }, PickerContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, HexLabel)
+    local HexStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, HexLabel)
+
+    local function updatePicker(h, s, v, source)
+        h = math.clamp(h, 0, 1)
+        s = math.clamp(s, 0, 1)
+        v = math.clamp(v, 0, 1)
+
+        Config[flagColor] = {h, s, v}
+        saveConfig()
+
+        local finalColor = Color3.fromHSV(h, s, v)
+        updateGlobalFlags(flagColor, finalColor)
+
+        SVCanvas.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+        PreviewBox.BackgroundColor3 = finalColor
+        
+        if source ~= "HexInput" then
+            HexLabel.Text = "#" .. finalColor:ToHex():upper()
+        end
+
+        if source ~= "SVDrag" then
+            SVKnob.Position = UDim2.new(s, 0, 1 - v, 0)
+        end
+        if source ~= "HueDrag" then
+            HueKnob.Position = UDim2.new(0, -2, h, 0)
+        end
+
+        pcall(callback, finalColor)
+    end
+
+    -- Entrada de Texto HEX
+    connect(HexLabel.FocusLost, function()
+        if getActiveState and not getActiveState() then return end
+        local rawText = HexLabel.Text:gsub("#", "")
+        local success, parsedColor = pcall(function() return Color3.fromHex(rawText) end)
+        if success and parsedColor then
+            local h, s, v = parsedColor:ToHSV()
+            updatePicker(h, s, v, "HexInput")
+        else
+            local currentH, currentS, currentV = unpack(Config[flagColor])
+            HexLabel.Text = "#" .. Color3.fromHSV(currentH, currentS, currentV):ToHex():upper()
+        end
+    end)
+
+    -- Interacción Hue Slider (Tono)
+    local draggingHue = false
+    local function snapHue(input)
+        if getActiveState and not getActiveState() then return end
+        local pct = math.clamp((input.Position.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
+        local _, s, v = unpack(Config[flagColor])
+        updatePicker(pct, s, v, "HueDrag")
+    end
+
+    connect(HueSlider.InputBegan, function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            draggingHue = true snapHue(input)
+        end
+    end)
+
+    connect(UserInputService.InputChanged, function(input)
+        if draggingHue and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            snapHue(input)
+        end
+    end)
+
+    connect(UserInputService.InputEnded, function(input)
+        if draggingHue and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            draggingHue = false
+        end
+    end)
+
+    -- Interacción SV Canvas (Saturación + Valor)
+    local draggingSV = false
+    local function snapSV(input)
+        if getActiveState and not getActiveState() then return end
+        local pctX = math.clamp((input.Position.X - SVCanvas.AbsolutePosition.X) / SVCanvas.AbsoluteSize.X, 0, 1)
+        local pctY = 1 - math.clamp((input.Position.Y - SVCanvas.AbsolutePosition.Y) / SVCanvas.AbsoluteSize.Y, 0, 1)
+        local h, _, _ = unpack(Config[flagColor])
+        updatePicker(h, pctX, pctY, "SVDrag")
+    end
+
+    connect(SVCanvas.InputBegan, function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            draggingSV = true snapSV(input)
+        end
+    end)
+
+    connect(UserInputService.InputChanged, function(input)
+        if draggingSV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            snapSV(input)
+        end
+    end)
+
+    connect(UserInputService.InputEnded, function(input)
+        if draggingSV and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            draggingSV = false
+        end
+    end)
+
+    local function reloadFromConfig()
+        local h, s, v = unpack(Config[flagColor])
+        updatePicker(h, s, v)
+    end
+
+    table.insert(KillerHub.TargetThemeElements, function()
+        HexStroke.Color = CurrentTheme.BORDER
+    end)
+
+    return PickerContainer, reloadFromConfig
+end
+
 function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     if not SafeAssert("CreateColorPicker", {
         ["flagColor"] = {value = flagColor, types = {"string"}},
@@ -1147,10 +1372,6 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         ["defaultColor"] = {value = defaultColor, types = {"Color3"}},
         ["callback"] = {value = callback, types = {"function"}}
     }) then return end
-
-    if Config[flagColor] == nil then Config[flagColor] = {defaultColor.R, defaultColor.G, defaultColor.B} end
-    local initialColor = Color3.new(unpack(Config[flagColor]))
-    updateGlobalFlags(flagColor, initialColor)
 
     local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
     MasterFrame:SetAttribute("ThemeRole", "BG_SECONDARY") MasterFrame:SetAttribute("CustomColorLabel", true)
@@ -1160,124 +1381,118 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     local Trigger = create("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, Text = ""}, MasterFrame)
     local Label = create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Trigger)
     
-    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 18), Position = UDim2.new(1, -42, 0.5, -9), BackgroundColor3 = initialColor, Text = ""}, Trigger)
+    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 18), Position = UDim2.new(1, -42, 0.5, -9), BackgroundColor3 = Color3.new(1,1,1), Text = ""}, Trigger)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
-    -- Contenedor del Canvas Visual Avanzado
-    local CanvasContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 140), Position = UDim2.new(0, 12, 0, 42), BackgroundTransparency = 1, Visible = false}, MasterFrame)
-
-    -- SV Canvas (Saturación y Valor/Brillo)
-    local SVCanvas = create("ImageLabel", {Size = UDim2.new(1, -22, 1, 0), Position = UDim2.new(0, 0, 0, 0), Image = "rbxassetid://4155801252", ScaleType = Enum.ScaleType.Stretch}, CanvasContainer)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, SVCanvas)
-    
-    local SVCursor = create("Frame", {Size = UDim2.new(0, 8, 0, 8), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 1}, SVCanvas)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVCursor)
-    create("UIStroke", {Thickness = 1, Color = Color3.new(0, 0, 0)}, SVCursor)
-
-    -- Hue Slider (Tono vertical)
-    local HueSlider = create("ImageLabel", {Size = UDim2.new(0, 14, 1, 0), Position = UDim2.new(1, -14, 0, 0), Image = "rbxassetid://3641079629", ScaleType = Enum.ScaleType.Stretch}, CanvasContainer)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, HueSlider)
-    
-    local HueCursor = create("Frame", {Size = UDim2.new(1, 4, 0, 4), Position = UDim2.new(-2, 0, 0, 0), BackgroundColor3 = Color3.new(1,1,1)}, HueSlider)
-    create("UIStroke", {Thickness = 1, Color = Color3.new(0, 0, 0)}, HueCursor)
-
-    -- Lógica de transformación del color Hsv
-    local currentH, currentS, currentV = initialColor:ToHSV()
-
-    local function updateColorOutputs(skipCallback)
-        local finalColor = Color3.fromHSV(currentH, currentS, currentV)
-        Config[flagColor] = {finalColor.R, finalColor.G, finalColor.B}
-        updateGlobalFlags(flagColor, finalColor)
-        ColorBtn.BackgroundColor3 = finalColor
-        SVCanvas.ImageColor3 = Color3.fromHSV(currentH, 1, 1)
-        
-        -- Sincronizar cursores visuales
-        SVCursor.Position = UDim2.new(currentS, 0, 1 - currentV, 0)
-        HueCursor.Position = UDim2.new(0, -2, currentH, 0)
-        
-        saveConfig()
-        if not skipCallback then pcall(callback, finalColor) end
-    end
-
-    -- Entrada Drag en SV Canvas
-    local isSlidingSV = false
-    local function updateSV(input)
-        local absPos = SVCanvas.AbsolutePosition
-        local absSize = SVCanvas.AbsoluteSize
-        local pctX = math.clamp((input.Position.X - absPos.X) / absSize.X, 0, 1)
-        local pctY = math.clamp((input.Position.Y - absPos.Y) / absSize.Y, 0, 1)
-        currentS = pctX
-        currentV = 1 - pctY
-        updateColorOutputs()
-    end
-
-    connect(SVCanvas.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isSlidingSV = true updateSV(input)
-            local dragConn, endConn
-            dragConn = UserInputService.InputChanged:Connect(function(changed)
-                if isSlidingSV and (changed.UserInputType == Enum.UserInputType.MouseMovement or changed.UserInputType == Enum.UserInputType.Touch) then updateSV(changed) end
-            end)
-            endConn = UserInputService.InputEnded:Connect(function(ended)
-                if ended.UserInputType == Enum.UserInputType.MouseButton1 or ended.UserInputType == Enum.UserInputType.Touch then
-                    isSlidingSV = false dragConn:Disconnect() endConn:Disconnect()
-                end
-            end)
-        end
+    local PickerContainer, reloadPicker = BuildHSVColorPicker(MasterFrame, flagColor, defaultColor, function(col)
+        ColorBtn.BackgroundColor3 = col
+        pcall(callback, col)
     end)
-
-    -- Entrada Drag en Hue Slider
-    local isSlidingHue = false
-    local function updateHue(input)
-        local absPos = HueSlider.AbsolutePosition
-        local absSize = HueSlider.AbsoluteSize
-        currentH = math.clamp((input.Position.Y - absPos.Y) / absSize.Y, 0, 1)
-        updateColorOutputs()
-    end
-
-    connect(HueSlider.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isSlidingHue = true updateHue(input)
-            local dragConn, endConn
-            dragConn = UserInputService.InputChanged:Connect(function(changed)
-                if isSlidingHue and (changed.UserInputType == Enum.UserInputType.MouseMovement or changed.UserInputType == Enum.UserInputType.Touch) then updateHue(changed) end
-            end)
-            endConn = UserInputService.InputEnded:Connect(function(ended)
-                if ended.UserInputType == Enum.UserInputType.MouseButton1 or ended.UserInputType == Enum.UserInputType.Touch then
-                    isSlidingHue = false dragConn:Disconnect() endConn:Disconnect()
-                end
-            end)
-        end
-    end)
+    PickerContainer.Position = UDim2.new(0, 12, 0, 40)
 
     local open = false
     connect(Trigger.MouseButton1Click, function() 
         open = not open playUISound() 
-        CanvasContainer.Visible = open
-        TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 192 or 36)}):Play()
+        TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 150 or 36)}):Play()
     end)
     
-    table.insert(KillerHub.TargetThemeElements, function() ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue end)
+    table.insert(KillerHub.TargetThemeElements, function() 
+        ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue 
+    end)
     
-    -- Inicialización
-    updateColorOutputs(true)
-    task.spawn(pcall, callback, Flags[flagColor].CurrentValue)
+    task.spawn(function()
+        reloadPicker()
+    end)
 
     addInteractiveFeedback(Trigger)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
     
     local cpObj = {
-        Set = function(_, newColor)
-            currentH, currentS, currentV = newColor:ToHSV()
-            updateColorOutputs()
+        Set = function(_, newColor) 
+            local h, s, v = newColor:ToHSV()
+            Config[flagColor] = {h, s, v}
+            reloadPicker()
         end
     }
     KillerHub.Elements[flagColor] = cpObj
     return cpObj
 end
 
+-- ============================================================================
+-- 🔄 TOGGLE COLOR PICKER UNIFICADO Y ALTAMENTE REACTIVO
+-- ============================================================================
 function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, defaultColor, callbackToggle, callbackColor)
-    return self:CreateColorPicker(flagColor, text, defaultColor, callbackColor)
+    if not SafeAssert("CreateToggleColorPicker", {
+        ["flagToggle"] = {value = flagToggle, types = {"string"}},
+        ["flagColor"] = {value = flagColor, types = {"string"}},
+        ["text"] = {value = text, types = {"string"}},
+        ["defaultColor"] = {value = defaultColor, types = {"Color3"}},
+        ["callbackToggle"] = {value = callbackToggle, types = {"function"}},
+        ["callbackColor"] = {value = callbackColor, types = {"function"}}
+    }) then return end
+
+    if Config[flagToggle] == nil then Config[flagToggle] = false end
+    updateGlobalFlags(flagToggle, Config[flagToggle])
+
+    local MasterFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
+    MasterFrame:SetAttribute("ThemeRole", "BG_SECONDARY") MasterFrame:SetAttribute("CustomColorLabel", true)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, MasterFrame)
+    local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MasterFrame)
+
+    local MainTrigger = create("TextButton", {Size = UDim2.new(1, -80, 0, 36), BackgroundTransparency = 1, Text = ""}, MasterFrame)
+    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
+
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, MainTrigger)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
+    local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
+
+    local ColorBtn = create("TextButton", {Size = UDim2.new(0, 26, 0, 18), Position = UDim2.new(1, -38, 0, 9), BackgroundColor3 = Color3.new(1,1,1), Text = ""}, MasterFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
+
+    local isPickerOpen = false
+
+    local PickerContainer, reloadPicker = BuildHSVColorPicker(MasterFrame, flagColor, defaultColor, function(col)
+        ColorBtn.BackgroundColor3 = col
+        pcall(callbackColor, col)
+    end, function()
+        return Flags[flagToggle].CurrentValue
+    end)
+    PickerContainer.Position = UDim2.new(0, 12, 0, 40)
+
+    local function stateUpdate()
+        local active = Flags[flagToggle].CurrentValue
+        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
+        Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+        ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
+        ColorBtn.BackgroundTransparency = active and 0 or 0.6 -- Difuminado si el toggle está apagado
+    end
+
+    connect(MainTrigger.MouseButton1Click, function()
+        local nextVal = not Flags[flagToggle].CurrentValue
+        updateGlobalFlags(flagToggle, nextVal)
+        Config[flagToggle] = nextVal saveConfig() playUISound()
+        stateUpdate() 
+        pcall(callbackToggle, nextVal)
+    end)
+
+    connect(ColorBtn.MouseButton1Click, function() 
+        if not Flags[flagToggle].CurrentValue then return end -- Bloquear si está inactivo
+        isPickerOpen = not isPickerOpen playUISound() 
+        TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, isPickerOpen and 150 or 36)}):Play()
+    end)
+    
+    table.insert(KillerHub.TargetThemeElements, stateUpdate)
+    
+    task.spawn(function() 
+        reloadPicker()
+        stateUpdate() 
+        pcall(callbackToggle, Flags[flagToggle].CurrentValue) 
+    end)
+
+    addInteractiveFeedback(MainTrigger) addInteractiveFeedback(ColorBtn)
+    self:RegisterElement(MasterFrame, Label, self.Frame.Name)
 end
 
 function TabMethods:CreateClipboardButton(text, textToCopy)
@@ -1427,9 +1642,6 @@ function TabMethods:CreateButton(text, callback)
     return btnObj
 end
 
--- ============================================================================
--- 💎 NUEVO COMPONENTE: KEYBIND CON MODO DE EJECUCIÓN (TOGGLE / HOLD)
--- ============================================================================
 function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     if not SafeAssert("CreateKeybind", {
         ["flagName"] = {value = flagName, types = {"string"}},
@@ -1438,108 +1650,44 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
         ["callback"] = {value = callback, types = {"function"}}
     }) then return end
 
-    local bindModeFlag = flagName .. "_Mode"
     if Config[flagName] == nil then Config[flagName] = defaultKey.Name end
-    if Config[bindModeFlag] == nil then Config[bindModeFlag] = "Toggle" end -- Por defecto es Toggle
-
     updateGlobalFlags(flagName, Config[flagName])
-    updateGlobalFlags(bindModeFlag, Config[bindModeFlag])
 
-    local KFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ClipsDescendants = true}, self.Frame)
+    local KFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     KFrame:SetAttribute("ThemeRole", "BG_SECONDARY") KFrame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, KFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, KFrame)
     
-    local Lbl = create("TextLabel", {Size = UDim2.new(1, -190, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, KFrame)
-    
-    -- Botón del Keybind
-    local BBtn = create("TextButton", {Size = UDim2.new(0, 80, 0, 24), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(30, 30, 35), Text = Config[flagName], TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11}, KFrame)
+    local Lbl = create("TextLabel", {Size = UDim2.new(1, -120, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, KFrame)
+    local BBtn = create("TextButton", {Size = UDim2.new(0, 85, 0, 24), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(30, 30, 35), Text = Config[flagName], TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11}, KFrame)
     BBtn:SetAttribute("ThemeRole", "TEXT_ACCENT")
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, BBtn)
     create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, BBtn)
-
-    -- Botón de Modo (Toggle / Hold)
-    local MBtn = create("TextButton", {Size = UDim2.new(0, 75, 0, 24), Position = UDim2.new(1, -98, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = Color3.fromRGB(22, 22, 26), Text = "Modo: " .. Config[bindModeFlag], TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 10}, KFrame)
-    create("UICorner", {CornerRadius = UDim.new(0, 5)}, MBtn)
-    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, MBtn)
     
     local listening = false
-    local isHoldActive = false
-    local isToggleActive = false
-
     connect(BBtn.MouseButton1Click, function() listening = true BBtn.Text = "..." playUISound() end)
     
-    -- Switch de Modo
-    connect(MBtn.MouseButton1Click, function()
-        playUISound()
-        local currentMode = Config[bindModeFlag]
-        local nextMode = (currentMode == "Toggle") and "Hold" or "Toggle"
-        Config[bindModeFlag] = nextMode
-        updateGlobalFlags(bindModeFlag, nextMode)
-        saveConfig()
-        MBtn.Text = "Modo: " .. nextMode
-    end)
-
-    -- Motor Reactivo de Entradas (Began / Ended)
     connect(UserInputService.InputBegan, function(input, gp)
         if listening then
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 listening = false Config[flagName] = input.KeyCode.Name 
                 updateGlobalFlags(flagName, input.KeyCode.Name)
-                saveConfig() BBtn.Text = input.KeyCode.Name
-            elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+                saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
+            elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.ButtonX or input.KeyCode == Enum.KeyCode.ButtonY then
                 listening = false Config[flagName] = input.UserInputType.Name 
                 updateGlobalFlags(flagName, input.UserInputType.Name)
-                saveConfig() BBtn.Text = input.UserInputType.Name
-            end
-            return
-        end
-
-        if not gp then
-            local registeredKey = Flags[flagName].CurrentValue
-            local mode = Config[bindModeFlag]
-
-            if input.KeyCode.Name == registeredKey or input.UserInputType.Name == registeredKey then
-                if mode == "Toggle" then
-                    isToggleActive = not isToggleActive
-                    pcall(callback, input.KeyCode, isToggleActive)
-                elseif mode == "Hold" then
-                    isHoldActive = true
-                    pcall(callback, input.KeyCode, true)
-                end
+                saveConfig() BBtn.Text = input.UserInputType.Name pcall(callback, input.UserInputType)
             end
         end
     end)
 
-    connect(UserInputService.InputEnded, function(input, gp)
-        if not gp and not listening then
-            local registeredKey = Flags[flagName].CurrentValue
-            local mode = Config[bindModeFlag]
-
-            if (input.KeyCode.Name == registeredKey or input.UserInputType.Name == registeredKey) and mode == "Hold" then
-                if isHoldActive then
-                    isHoldActive = false
-                    pcall(callback, input.KeyCode, false)
-                end
-            end
-        end
+    task.spawn(function()
+        local key = Enum.KeyCode[Flags[flagName].CurrentValue] or Enum.UserInputType[Flags[flagName].CurrentValue]
+        if key then pcall(callback, key) end
     end)
 
-    addInteractiveFeedback(BBtn) addInteractiveFeedback(MBtn)
+    addInteractiveFeedback(BBtn)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
-
-    local bindObj = {
-        SetMode = function(_, newMode)
-            if newMode == "Toggle" or newMode == "Hold" then
-                Config[bindModeFlag] = newMode
-                updateGlobalFlags(bindModeFlag, newMode)
-                MBtn.Text = "Modo: " .. newMode
-                saveConfig()
-            end
-        end
-    }
-    KillerHub.Elements[flagName] = bindObj
-    return bindObj
 end
 
 function KillerHub:CreateTab(name, iconId)
@@ -1641,7 +1789,7 @@ SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v)
 
 SettingsTab:CreateSection("Controles del Menú")
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
-    print("Se presionó la tecla de control: " .. tostring(key))
+    print("Se presionó la tecla: " .. tostring(key))
 end)
 SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, function(v) updateButtonSize() end)
 SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
@@ -1654,6 +1802,7 @@ SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() Kille
 
 task.defer(function() KillerHub:SetTheme(Config.SelectedTheme or "Obsidian") end)
 
+-- Publicación y Sincronización Inicial de Flags globales
 getgenv().KillerHub = KillerHub
 getgenv().KillerHub.Flags = Flags
 
