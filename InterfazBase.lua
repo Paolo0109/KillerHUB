@@ -207,30 +207,40 @@ end)
 table.insert(Connections, perfConn)
 
 local function makeDraggable(clickObject, dragObject)
-    local dragging, dragStart, startPos, activeInput
+    local dragging, activeInput, startPos, dragStartOffset
     local moveConn, endConn
     
     connect(clickObject.InputBegan, function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
-            dragging = true activeInput = input dragStart = input.Position startPos = dragObject.Position
+            dragging = true 
+            activeInput = input 
+            
+            local mouseLoc = UserInputService:GetMouseLocation()
+            if dragObject.Name == "MainFrame" then
+                dragStartOffset = mouseLoc - Vector2.new(dragObject.Position.X.Offset, dragObject.Position.Y.Offset)
+            else
+                dragStartOffset = mouseLoc - Vector2.new(dragObject.Position.X.Offset, dragObject.Position.Y.Offset)
+            end
             
             moveConn = UserInputService.InputChanged:Connect(function(changedInput)
                 if dragging and (changedInput == activeInput or changedInput.UserInputType == Enum.UserInputType.Touch or changedInput.UserInputType == Enum.UserInputType.MouseMovement) then
                     task.defer(function()
                         if not dragging then return end
-                        local delta = changedInput.Position - dragStart
+                        local currMouse = UserInputService:GetMouseLocation()
+                        local targetOffset = currMouse - dragStartOffset
                         local screenSize = Camera.ViewportSize
+                        
                         if dragObject.Name == "MainFrame" then
                             local frameSize = dragObject.AbsoluteSize
-                            local absoluteX = (screenSize.X * 0.5) + (startPos.X.Offset + delta.X)
-                            local absoluteY = (screenSize.Y * 0.5) + (startPos.Y.Offset + delta.Y)
+                            local absoluteX = (screenSize.X * 0.5) + targetOffset.X
+                            local absoluteY = (screenSize.Y * 0.5) + targetOffset.Y
                             local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
                             local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
                             dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
                         else
                             local btnSize = dragObject.AbsoluteSize
-                            local newX = math.clamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
-                            local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
+                            local newX = math.clamp(targetOffset.X, 0, screenSize.X - btnSize.X)
+                            local newY = math.clamp(targetOffset.Y, 0, screenSize.Y - btnSize.Y)
                             dragObject.Position = UDim2.new(0, newX, 0, newY)
                         end
                     end)
@@ -239,7 +249,8 @@ local function makeDraggable(clickObject, dragObject)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
                 if endedInput == activeInput or endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
-                    dragging = false activeInput = nil
+                    dragging = false 
+                    activeInput = nil
                     if moveConn then moveConn:Disconnect() moveConn = nil end
                     if endConn then endConn:Disconnect() end
                     if dragObject.Name == "MainFrame" then
@@ -1274,12 +1285,9 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
             HexLabel.Text = "#" .. finalColor:ToHex():upper()
         end
 
-        if source ~= "SVDrag" then
-            SVKnob.Position = UDim2.new(s, 0, 1 - v, 0)
-        end
-        if source ~= "HueDrag" then
-            HueKnob.Position = UDim2.new(0, -2, h, 0)
-        end
+        -- [SOLUCIÓN ERROR 2]: Se fuerza la actualización física de las guías visuales en cada invocación
+        SVKnob.Position = UDim2.new(s, 0, 1 - v, 0)
+        HueKnob.Position = UDim2.new(0, -2, h, 0)
 
         pcall(callback, finalColor)
     end
@@ -1393,6 +1401,9 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     local open = false
     connect(Trigger.MouseButton1Click, function() 
         open = not open playUISound() 
+        if open then
+            reloadPicker() -- [SOLUCIÓN ERROR 3]: Sincroniza la interfaz visual antes de expandir el menú
+        end
         TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 150 or 36)}):Play()
     end)
     
@@ -1466,7 +1477,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
-        ColorBtn.BackgroundTransparency = active and 0 or 0.6 -- Difuminado si el toggle está apagado
+        ColorBtn.BackgroundTransparency = active and 0 or 0.6
     end
 
     connect(MainTrigger.MouseButton1Click, function()
@@ -1478,8 +1489,11 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     end)
 
     connect(ColorBtn.MouseButton1Click, function() 
-        if not Flags[flagToggle].CurrentValue then return end -- Bloquear si está inactivo
+        if not Flags[flagToggle].CurrentValue then return end
         isPickerOpen = not isPickerOpen playUISound() 
+        if isPickerOpen then
+            reloadPicker() -- [SOLUCIÓN ERROR 3]: Sincroniza el estado HSV al desplegarse desde el Toggle
+        end
         TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, isPickerOpen and 150 or 36)}):Play()
     end)
     
