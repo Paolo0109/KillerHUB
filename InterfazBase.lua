@@ -1,5 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.2.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.2.1)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -12,6 +12,9 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
+
+-- Variables de control de arrastre global
+_G.KillerHub_DraggingColor = false
 
 -- 🛠 ANTI-CRASH UNIVERSAL INTEGRADO (GetSafeUIParent)
 local function GetSafeUIParent()
@@ -217,58 +220,83 @@ local perfConn = RunService.Heartbeat:Connect(function(dt)
 end)
 table.insert(Connections, perfConn)
 
+-- Guardado de conexiones de arrastre activas para evitar fugas al descargar (Unload)
+local ActiveDragConnections = {}
+
 local function makeDraggable(clickObject, dragObject)
-    local dragging, activeInput, startPos, dragStartOffset
-    local moveConn, endConn
+    local dragging = false
+    local dragInput = nil
+    local dragStartOffset = Vector2.new(0, 0)
     
+    local renderConn = nil
+    local inputChangedConn = nil
+    local inputEndedConn = nil
+
+    local function cleanupDragging()
+        dragging = false
+        dragInput = nil
+        if renderConn then renderConn:Disconnect() renderConn = nil end
+        if inputChangedConn then inputChangedConn:Disconnect() inputChangedConn = nil end
+        if inputEndedConn then inputEndedConn:Disconnect() inputEndedConn = nil end
+        
+        ActiveDragConnections[dragObject] = nil
+
+        if dragObject.Name == "MainFrame" then
+            Config.MainFrameX = dragObject.Position.X.Offset
+            Config.MainFrameY = dragObject.Position.Y.Offset
+            saveConfig()
+        elseif dragObject.Name == "KillerHubToggle" then
+            Config.BtnX = dragObject.Position.X.Offset
+            Config.BtnY = dragObject.Position.Y.Offset
+            saveConfig()
+        end
+    end
+
+    -- Registramos una función de limpieza global en caso de Unload abrupto
+    ActiveDragConnections[dragObject] = cleanupDragging
+
     connect(clickObject.InputBegan, function(input)
+        -- Evitamos arrastrar la UI si estamos interactuando con los color pickers
+        if _G.KillerHub_DraggingColor and dragObject.Name == "MainFrame" then return end
+
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
-            dragging = true 
-            activeInput = input 
+            dragging = true
+            dragInput = input -- Bloqueamos el arrastre a este dedo/input específico (No multi-touch glitch)
             
             local mouseLoc = UserInputService:GetMouseLocation()
             dragStartOffset = mouseLoc - Vector2.new(dragObject.Position.X.Offset, dragObject.Position.Y.Offset)
             
-            moveConn = UserInputService.InputChanged:Connect(function(changedInput)
-                if dragging and (changedInput == activeInput or changedInput.UserInputType == Enum.UserInputType.Touch or changedInput.UserInputType == Enum.UserInputType.MouseMovement) then
-                    task.defer(function()
-                        if not dragging then return end
-                        local currMouse = UserInputService:GetMouseLocation()
-                        local targetOffset = currMouse - dragStartOffset
-                        local screenSize = Camera.ViewportSize
-                        
-                        if dragObject.Name == "MainFrame" then
-                            local frameSize = dragObject.AbsoluteSize
-                            local absoluteX = (screenSize.X * 0.5) + targetOffset.X
-                            local absoluteY = (screenSize.Y * 0.5) + targetOffset.Y
-                            local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
-                            local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
-                            dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
-                        else
-                            local btnSize = dragObject.AbsoluteSize
-                            local newX = math.clamp(targetOffset.X, 0, screenSize.X - btnSize.X)
-                            local newY = math.clamp(targetOffset.Y, 0, screenSize.Y - btnSize.Y)
-                            dragObject.Position = UDim2.new(0, newX, 0, newY)
-                        end
-                    end)
+            -- RenderStepped Directo: Reducción del delay visual y respuesta inmediata a bajones de FPS
+            renderConn = RunService.RenderStepped:Connect(function()
+                if not dragging or not dragInput then return end
+                local currMouse = UserInputService:GetMouseLocation()
+                local targetOffset = currMouse - dragStartOffset
+                local screenSize = Camera.ViewportSize
+                
+                if dragObject.Name == "MainFrame" then
+                    local frameSize = dragObject.AbsoluteSize
+                    local absoluteX = (screenSize.X * 0.5) + targetOffset.X
+                    local absoluteY = (screenSize.Y * 0.5) + targetOffset.Y
+                    local clampedX = math.clamp(absoluteX, frameSize.X / 2, screenSize.X - (frameSize.X / 2))
+                    local clampedY = math.clamp(absoluteY, frameSize.Y / 2, screenSize.Y - (frameSize.Y / 2))
+                    dragObject.Position = UDim2.new(0.5, clampedX - (screenSize.X * 0.5), 0.5, clampedY - (screenSize.Y * 0.5))
+                else
+                    local btnSize = dragObject.AbsoluteSize
+                    local newX = math.clamp(targetOffset.X, 0, screenSize.X - btnSize.X)
+                    local newY = math.clamp(targetOffset.Y, 0, screenSize.Y - btnSize.Y)
+                    dragObject.Position = UDim2.new(0, newX, 0, newY)
+                end
+            end)
+
+            inputChangedConn = UserInputService.InputChanged:Connect(function(changedInput)
+                if changedInput == dragInput then
+                    -- Actualiza el estado si es necesario, procesado en el RenderStepped principal
                 end
             end)
             
-            endConn = UserInputService.InputEnded:Connect(function(endedInput)
-                if endedInput == activeInput or endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
-                    dragging = false 
-                    activeInput = nil
-                    if moveConn then moveConn:Disconnect() moveConn = nil end
-                    if endConn then endConn:Disconnect() end
-                    if dragObject.Name == "MainFrame" then
-                        Config.MainFrameX = dragObject.Position.X.Offset
-                        Config.MainFrameY = dragObject.Position.Y.Offset
-                        saveConfig()
-                    elseif dragObject.Name == "KillerHubToggle" then
-                        Config.BtnX = dragObject.Position.X.Offset
-                        Config.BtnY = dragObject.Position.Y.Offset
-                        saveConfig()
-                    end
+            inputEndedConn = UserInputService.InputEnded:Connect(function(endedInput)
+                if endedInput == dragInput then
+                    cleanupDragging()
                 end
             end)
         end
@@ -378,7 +406,7 @@ end
 -- 📦 API CORE Y MOTOR REACTIVO (ATRIBUTOS DE ARQUITECTURA)
 -- ============================================================================
 local KillerHub = {
-    Running = true, -- Cancel Token para prevenir loops zombies de fondo
+    Running = true,
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
     Elements = {} 
@@ -516,6 +544,13 @@ end
 
 function KillerHub:Unload()
     self.Running = false -- Rompe todos los loops asíncronos en ejecución
+    
+    -- Limpiar arrastres activos de forma segura para evitar memory leaks
+    for dragObject, cleanupFunc in pairs(ActiveDragConnections) do
+        pcall(cleanupFunc)
+    end
+    table.clear(ActiveDragConnections)
+
     for _, conn in ipairs(Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
     end
@@ -723,6 +758,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     return toggleObj
 end
 
+-- Eliminación de todo rastro visual o técnico de Toggle Premium redundante
 function TabMethods:CreatePremiumToggle(flagName, text, callback)
     return self:CreateToggle(flagName, text, callback)
 end
@@ -995,7 +1031,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         pcall(callback, name)
     end
 
-    -- 🛠 SOLUCIÓN MEMORY LEAK: Tabla para liberar conexiones viejas de las opciones del dropdown
+    -- 🛠 SOLUCIÓN DEFINITIVA A MEMORY LEAKS EN DROPDOWNS
     local optionConnections = {}
     local function clearOptionConnections()
         for _, conn in ipairs(optionConnections) do
@@ -1006,7 +1042,11 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
 
     local function makeOptions()
         clearOptionConnections()
-        for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+        for _, child in ipairs(OptsScroll:GetChildren()) do 
+            if child:IsA("TextButton") then 
+                child:Destroy() 
+            end 
+        end
         for i, name in ipairs(options) do
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = Color3.fromRGB(25, 25, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
@@ -1238,7 +1278,7 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
         Size = UDim2.new(0, 10, 0, 10),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.new(1, 1, 1),
-        Position = UDim2.new(initialS, 0, 1 - initialV, 0) -- Invertido en Y
+        Position = UDim2.new(initialS, 0, 1 - initialV, 0)
     }, SVCanvas)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVKnob)
     create("UIStroke", {Thickness = 1.5, Color = Color3.new(0, 0, 0)}, SVKnob)
@@ -1282,7 +1322,7 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
         BackgroundColor3 = Color3.fromHSV(initialH, initialS, initialV)
     }, PickerContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, PreviewBox)
-    create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, PreviewBox)
+    local PreviewStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, PreviewBox)
 
     local HexLabel = create("TextBox", {
         Size = UDim2.new(1, -200, 0, 22),
@@ -1302,6 +1342,7 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
         s = math.clamp(s, 0, 1)
         v = math.clamp(v, 0, 1)
 
+        -- 🛠 CORRECCIÓN BUG VISUAL: Sincronización Inmediata de Config y Flags
         Config[flagColor] = {h, s, v}
         saveConfig()
 
@@ -1346,7 +1387,9 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
 
     connect(HueSlider.InputBegan, function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            draggingHue = true snapHue(input)
+            draggingHue = true
+            _G.KillerHub_DraggingColor = true -- Desactivar arrastre de UI principal temporalmente
+            snapHue(input)
         end
     end)
 
@@ -1359,6 +1402,7 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
     connect(UserInputService.InputEnded, function(input)
         if draggingHue and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
             draggingHue = false
+            _G.KillerHub_DraggingColor = false -- Habilitar arrastre de UI
         end
     end)
 
@@ -1374,7 +1418,9 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
 
     connect(SVCanvas.InputBegan, function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            draggingSV = true snapSV(input)
+            draggingSV = true
+            _G.KillerHub_DraggingColor = true -- Desactivar arrastre de UI principal
+            snapSV(input)
         end
     end)
 
@@ -1387,6 +1433,7 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
     connect(UserInputService.InputEnded, function(input)
         if draggingSV and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
             draggingSV = false
+            _G.KillerHub_DraggingColor = false -- Habilitar arrastre de UI
         end
     end)
 
@@ -1397,6 +1444,7 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
 
     table.insert(KillerHub.TargetThemeElements, function()
         HexStroke.Color = CurrentTheme.BORDER
+        PreviewStroke.Color = CurrentTheme.BORDER
     end)
 
     return PickerContainer, reloadFromConfig
