@@ -127,8 +127,22 @@ local function copyTable(target, source)
 end
 copyTable(Config, DefaultConfig)
 
+-- 🩹 FIX DE RENDIMIENTO: saveConfig() se llama en cada muestra de arrastre de
+-- sliders/keybinds/toggles (varias veces por frame mientras el mouse se mueve).
+-- Antes solo el Color Picker protegía esto con su propio "requestSave" por frame;
+-- el resto de los widgets golpeaban writefile() en cada pixel de movimiento, lo
+-- cual es I/O real y puede causar microstutter o throttling del executor.
+-- Ahora el debounce vive en la fuente: colapsa cualquier ráfaga de llamadas del
+-- mismo resumption cycle en un solo writefile, sin cambiar la firma de la función
+-- ni el comportamiento observable (el último valor siempre se persiste).
+local pendingConfigSave = false
 local function saveConfig()
-    if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) end) end
+    if pendingConfigSave then return end
+    pendingConfigSave = true
+    task.defer(function()
+        pendingConfigSave = false
+        if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) end) end
+    end)
 end
 
 pcall(function()
@@ -184,9 +198,34 @@ local function playUISound()
     end)
 end
 
-local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
+local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, ZIndex = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
 local MainStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
+
+-- 💎 SOMBRA SUAVE DE ELEVACIÓN (puramente visual, sin dependencias externas ni assets)
+-- Un frame ligeramente más grande y desplazado, detrás del MainFrame (ZIndex 0),
+-- que se mantiene sincronizado en tamaño/posición vía eventos (no por frame, así
+-- que no añade costo de RenderStepped).
+local MainFrameShadow = create("Frame", {
+    Name = "MainFrameShadow",
+    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+    BackgroundTransparency = 0.55,
+    BorderSizePixel = 0,
+    ZIndex = 0,
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Size = UDim2.new(0, 0, 0, 0),
+    Position = UDim2.new(0.5, 0, 0.5, 4)
+}, ScreenGui)
+create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainFrameShadow)
+
+local function syncMainFrameShadow()
+    MainFrameShadow.Size = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset + 18, MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset + 18)
+    MainFrameShadow.Position = UDim2.new(MainFrame.Position.X.Scale, MainFrame.Position.X.Offset, MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset + 4)
+end
+table.insert(Connections, MainFrame:GetPropertyChangedSignal("Size"):Connect(syncMainFrameShadow))
+table.insert(Connections, MainFrame:GetPropertyChangedSignal("Position"):Connect(syncMainFrameShadow))
+table.insert(Connections, MainFrame:GetPropertyChangedSignal("Visible"):Connect(function() MainFrameShadow.Visible = MainFrame.Visible end))
+syncMainFrameShadow()
 
 local BordeGradient = create("UIGradient", {
     Color = ColorSequence.new({
@@ -435,9 +474,21 @@ local NotifLayout = create("UIListLayout", {
     VerticalAlignment = Enum.VerticalAlignment.Bottom
 }, NotifContainer)
 
+-- 🛡️ TOPE DE NOTIFICACIONES APILADAS: si algo (o alguien) llama a Notify() en ráfaga,
+-- esto evita que se acumulen decenas de frames en pantalla comiéndose memoria/GPU;
+-- simplemente cierra la más vieja antes de abrir una nueva por encima del límite.
+local MAX_ACTIVE_NOTIFS = 5
+local ActiveNotifs = {}
+
 function KillerHub:Notify(title, text, duration, customColor)
     duration = duration or 4
     local accentColor = customColor or CurrentTheme.ACCENT
+
+    if #ActiveNotifs >= MAX_ACTIVE_NOTIFS then
+        local oldest = table.remove(ActiveNotifs, 1)
+        if oldest and oldest.Parent then pcall(function() oldest:Destroy() end) end
+    end
+
     local NotifFrame = create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
         BackgroundColor3 = CurrentTheme.BG_MAIN,
@@ -485,12 +536,18 @@ function KillerHub:Notify(title, text, duration, customColor)
         end)
     end
 
+    table.insert(ActiveNotifs, NotifFrame)
+
     TweenService:Create(NotifFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 46)}):Play()
     
     task.delay(duration, function()
         if not NotifFrame or not NotifFrame.Parent then return end
         local t = TweenService:Create(NotifFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
-        t.Completed:Connect(function() pcall(function() NotifFrame:Destroy() end) end)
+        t.Completed:Connect(function()
+            pcall(function() NotifFrame:Destroy() end)
+            local idx = table.find(ActiveNotifs, NotifFrame)
+            if idx then table.remove(ActiveNotifs, idx) end
+        end)
         t:Play()
     end)
 end
@@ -622,7 +679,24 @@ TabMethods.__index = TabMethods
 
 function TabMethods:RegisterElement(inst, textLabel, tabName)
     table.insert(KillerHub.AllElements, {Instance = inst, Label = textLabel, Tab = tabName})
-    task.defer(function() KillerHub:SetFont(Config.SelectedFont or "GothamMedium") end)
+    -- 🩹 FIX DE RENDIMIENTO: antes esto llamaba a KillerHub:SetFont(), que recorre
+    -- TODOS los descendientes del ScreenGui, por cada widget nuevo creado. Con N
+    -- elementos eso es O(n²) solo para construir el menú (perceptible con GUIs
+    -- grandes, especialmente en móvil). Como el widget recién creado ya nace con
+    -- la fuente por defecto de Roblox, basta con aplicarle la fuente actual
+    -- únicamente a él y a sus propios descendientes.
+    local fontEnum = Enum.Font[Config.SelectedFont] or Enum.Font.GothamMedium
+    task.defer(function()
+        if not inst or not inst.Parent then return end
+        if inst:IsA("TextLabel") or inst:IsA("TextBox") or inst:IsA("TextButton") then
+            inst.Font = fontEnum
+        end
+        for _, v in ipairs(inst:GetDescendants()) do
+            if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then
+                v.Font = fontEnum
+            end
+        end
+    end)
 end
 
 function TabMethods:CreateParagraph(title, text)
