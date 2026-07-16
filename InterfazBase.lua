@@ -1,5 +1,16 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.2.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V4.3.0)
+-- ============================================================================
+-- Novedades V4.3 (todo aditivo, la API anterior NO cambió):
+--  • Color Picker: previsualización más ancha horizontalmente.
+--  • Sistema de Botones Flotantes (Shortcuts): cada Toggle/Botón tiene una
+--    tuerca ⚙ que abre un mini-menú (crear botón, forma, lock, tamaño,
+--    transparencia) con estilo "Void". Todo perezoso: cero costo si no se usa.
+--  • Configuración multi-juego con perfiles (archivos separados por PlaceId).
+--  • Búsqueda global (ya existía, verificada y conservada).
+--  • Nuevo componente Tab:CreateGraph() (telemetría en tiempo real).
+--  • KillerHub:RegisterTheme() para temas personalizados por Hex/Color3.
+--  • Escala DPI dinámica (UIScale) para móviles, en Settings.
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -104,23 +115,55 @@ local Themes = {
 
 local CurrentTheme = Themes["Obsidian"]
 
--- 📂 CARPETA DEDICADA: aísla el JSON de esta librería de cualquier otro script
--- que también autoguarde (incluso si ese script usa un nombre genérico tipo
--- "config.json" en la raíz). Al vivir en su propia carpeta, dos autoguardados
--- corriendo al mismo tiempo (este + el de tu otro archivo) nunca se pisan.
+-- 📂 CONFIGURACIÓN MULTI-JUEGO CON PERFILES (V4.3):
+-- Cada juego (game.PlaceId) tiene su propia subcarpeta, así las configs de
+-- distintos juegos nunca se mezclan. Dentro de cada juego puedes tener varios
+-- perfiles con nombre ("Default", "Legit", "Rage"...). El archivo
+-- "_active.txt" recuerda qué perfil se usó por última vez en ese juego.
+-- Además se migra automáticamente el viejo Core_Config.json la primera vez.
 local CONFIG_FOLDER = "KillerHub_Config"
-local CONFIG_FILE = CONFIG_FOLDER .. "/Core_Config.json"
+local GAME_FOLDER = CONFIG_FOLDER .. "/Game_" .. tostring(game.PlaceId)
+local LEGACY_CONFIG_FILE = CONFIG_FOLDER .. "/Core_Config.json"
+local ACTIVE_PROFILE_FILE = GAME_FOLDER .. "/_active.txt"
 
 pcall(function()
-    if isfolder and makefolder and not isfolder(CONFIG_FOLDER) then
-        makefolder(CONFIG_FOLDER)
+    if isfolder and makefolder then
+        if not isfolder(CONFIG_FOLDER) then makefolder(CONFIG_FOLDER) end
+        if not isfolder(GAME_FOLDER) then makefolder(GAME_FOLDER) end
+    end
+end)
+
+local function sanitizeProfileName(name)
+    name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub("[^%w%-%_ ]", "")
+    return name
+end
+
+local ActiveProfile = "Default"
+pcall(function()
+    if isfile and readfile and isfile(ACTIVE_PROFILE_FILE) then
+        local ok, raw = pcall(readfile, ACTIVE_PROFILE_FILE)
+        if ok and raw then
+            raw = sanitizeProfileName(raw)
+            if #raw > 0 then ActiveProfile = raw end
+        end
+    end
+end)
+
+local CONFIG_FILE = GAME_FOLDER .. "/" .. ActiveProfile .. ".json"
+
+-- 🩹 MIGRACIÓN: si existe el config viejo único y este juego aún no tiene
+-- archivo propio, se copia tal cual (solo la primera vez, no se borra el viejo).
+pcall(function()
+    if isfile and readfile and writefile and isfile(LEGACY_CONFIG_FILE) and not isfile(CONFIG_FILE) then
+        local ok, raw = pcall(readfile, LEGACY_CONFIG_FILE)
+        if ok and raw and #raw > 0 then pcall(writefile, CONFIG_FILE, raw) end
     end
 end)
 
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium",
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
-    MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100
+    MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100, UiScale = 1
 }
 local Config = {} 
 local Flags = {}
@@ -179,6 +222,34 @@ pcall(function()
     end
 end)
 
+-- 🎨 UTILIDAD HEX (V4.3): convierte "#RRGGBB" / "RRGGBB" / Color3 a Color3.
+local function parseHexColor(val)
+    if typeof(val) == "Color3" then return val end
+    if type(val) ~= "string" then return nil end
+    local raw = val:gsub("#", "")
+    if #raw == 6 and raw:match("^%x+$") then
+        return color3FromRGB(tonumber(raw:sub(1, 2), 16), tonumber(raw:sub(3, 4), 16), tonumber(raw:sub(5, 6), 16))
+    end
+    return nil
+end
+
+local THEME_KEYS = {"BG_MAIN", "BG_SIDEBAR", "BG_SECONDARY", "ACCENT", "PREMIUM_GOLD", "TEXT_WHITE", "TEXT_MUTED", "BORDER"}
+
+-- 🎨 Restaura temas personalizados guardados en config (se registraron con
+-- KillerHub:RegisterTheme en sesiones anteriores).
+pcall(function()
+    if type(Config.CustomThemes) == "table" then
+        for name, stored in pairs(Config.CustomThemes) do
+            if type(name) == "string" and type(stored) == "table" then
+                local base = Themes["Obsidian"]
+                local t = {}
+                for _, k in ipairs(THEME_KEYS) do t[k] = parseHexColor(stored[k]) or base[k] end
+                Themes[name] = t
+            end
+        end
+    end
+end)
+
 if Themes[Config.SelectedTheme] then CurrentTheme = Themes[Config.SelectedTheme] end
 
 local function create(instanceType, properties, parent)
@@ -215,6 +286,13 @@ end
 -- 🖥 INTERFAZ CON CANVASGROUP DE ALTO RENDIMIENTO
 -- ============================================================================
 local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
+
+-- 📱 ESCALA DPI DINÁMICA (V4.3): un único UIScale sobre el ScreenGui escala
+-- toda la interfaz (menú, botones flotantes, notificaciones) sin recrear nada.
+local UiScaleObj = create("UIScale", {Scale = math.clamp(tonumber(Config.UiScale) or 1, 0.7, 1.3)}, ScreenGui)
+local function updateUiScale()
+    UiScaleObj.Scale = math.clamp(tonumber(Config.UiScale) or 1, 0.7, 1.3)
+end
 
 local function playUISound()
     if not Config.Volume or Config.Volume <= 0 then return end
@@ -453,6 +531,391 @@ local function addInteractiveFeedback(inst)
 end
 
 -- ============================================================================
+-- ⚡ SISTEMA DE BOTONES FLOTANTES / SHORTCUTS ESTILO "VOID" (V4.3)
+-- Cada Toggle y Botón registra una "fuente" (ShortcutSources). Los botones
+-- flotantes y el mini-menú contextual se crean de forma PEREZOSA: si el usuario
+-- nunca toca la tuerca ⚙, este sistema no genera ni un solo frame ni conexión.
+-- Persisten por perfil en Config.Shortcuts y reaparecen solos al ejecutar.
+-- ============================================================================
+local ShortcutSources = {}  -- key -> {Kind="toggle"|"button", Label, Activate, GetState}
+local ShortcutButtons = {}  -- key -> {Instance, Update}
+local ActiveShortcutMenu = nil
+local ShortcutMenuConn = nil
+
+local SHORTCUT_SHAPES = {"Circle", "Square", "Rounded"}
+local SHORTCUT_SHAPE_RADII = {Circle = UDim.new(1, 0), Square = UDim.new(0, 0), Rounded = UDim.new(0, 8)}
+local VOID_BLACK = Color3.fromRGB(0, 0, 0)
+
+local function getShortcutDefaults()
+    local vp = Camera.ViewportSize
+    local scale = UiScaleObj.Scale
+    return {Shape = "Rounded", Locked = false, Size = 44, Transparency = 0.35, X = math.floor((vp.X / scale) - 90), Y = 220}
+end
+
+local function copyShortcutData(src)
+    local d = {}
+    for k, v in pairs(src) do d[k] = v end
+    return d
+end
+
+local function destroyShortcut(key, forget)
+    local entry = ShortcutButtons[key]
+    if entry and entry.Instance then pcall(function() entry.Instance:Destroy() end) end
+    ShortcutButtons[key] = nil
+    if forget and Config.Shortcuts then
+        Config.Shortcuts[key] = nil
+        saveConfig()
+    end
+end
+
+local function spawnShortcut(key)
+    local src = ShortcutSources[key]
+    if not src then return end
+    Config.Shortcuts = type(Config.Shortcuts) == "table" and Config.Shortcuts or {}
+    local data = Config.Shortcuts[key]
+    if not data then
+        data = getShortcutDefaults()
+        Config.Shortcuts[key] = data
+        saveConfig()
+    end
+    -- Sanitiza valores leídos del JSON (por si fueron editados a mano)
+    data.Size = math.clamp(tonumber(data.Size) or 44, 24, 80)
+    data.Transparency = math.clamp(tonumber(data.Transparency) or 0.35, 0, 0.85)
+    data.X = tonumber(data.X) or 100
+    data.Y = tonumber(data.Y) or 200
+    if not SHORTCUT_SHAPE_RADII[data.Shape] then data.Shape = "Rounded" end
+
+    if ShortcutButtons[key] then destroyShortcut(key, false) end
+
+    -- 🖤 Estilo "Void": borde negro sólido + centro negro semi-transparente
+    local btn = create("TextButton", {
+        Name = "KillerHubShortcut",
+        Size = UDim2.fromOffset(data.Size, data.Size),
+        Position = UDim2.fromOffset(data.X, data.Y),
+        BackgroundColor3 = VOID_BLACK,
+        BackgroundTransparency = data.Transparency,
+        Text = "",
+        AutoButtonColor = false,
+        Active = true
+    }, ScreenGui)
+    local corner = create("UICorner", {CornerRadius = SHORTCUT_SHAPE_RADII[data.Shape]}, btn)
+    local stroke = create("UIStroke", {Thickness = 2, Color = VOID_BLACK, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, btn)
+    local lbl = create("TextLabel", {
+        Size = UDim2.new(1, -8, 1, -8),
+        Position = UDim2.new(0, 4, 0, 4),
+        BackgroundTransparency = 1,
+        Text = src.Label,
+        TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        TextWrapped = true,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, btn)
+
+    local entry = {Instance = btn}
+    local function refreshVisual()
+        if src.Kind == "toggle" and src.GetState then
+            local ok, on = pcall(src.GetState)
+            lbl.TextColor3 = (ok and on) and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+        end
+    end
+    entry.Update = refreshVisual
+    ShortcutButtons[key] = entry
+
+    -- 🛡️ Tap vs Drag: se activa SOLO si el dedo/cursor no se movió más de 8px,
+    -- así arrastrar nunca dispara el toggle por accidente. Si Locked=true no se mueve.
+    local dragging, activeInput, dragStart, startPos, moved
+    local dragConn, endConn
+
+    connect(btn.InputBegan, function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
+            dragging = true
+            activeInput = input
+            dragStart = input.Position
+            startPos = btn.Position
+            moved = false
+
+            dragConn = connect(UserInputService.InputChanged, function(changedInput)
+                if dragging and changedInput == activeInput then
+                    local delta = changedInput.Position - dragStart
+                    if delta.Magnitude > 8 then moved = true end
+                    if not data.Locked then
+                        local scale = UiScaleObj.Scale
+                        local vp = Camera.ViewportSize
+                        local newX = math.clamp(startPos.X.Offset + (delta.X / scale), 0, (vp.X / scale) - data.Size)
+                        local newY = math.clamp(startPos.Y.Offset + (delta.Y / scale), 0, (vp.Y / scale) - data.Size)
+                        btn.Position = UDim2.fromOffset(newX, newY)
+                    end
+                end
+            end)
+
+            endConn = connect(UserInputService.InputEnded, function(endedInput)
+                if endedInput == activeInput then
+                    dragging = false
+                    activeInput = nil
+                    if dragConn then dragConn:Disconnect() dragConn = nil end
+                    if endConn then endConn:Disconnect() endConn = nil end
+                    if moved then
+                        data.X = btn.Position.X.Offset
+                        data.Y = btn.Position.Y.Offset
+                        saveConfig()
+                    else
+                        playUISound()
+                        pcall(src.Activate)
+                        refreshVisual()
+                    end
+                end
+            end)
+        end
+    end)
+
+    connect(btn.Destroying, function()
+        if dragConn then dragConn:Disconnect() dragConn = nil end
+        if endConn then endConn:Disconnect() endConn = nil end
+        if ShortcutButtons[key] and ShortcutButtons[key].Instance == btn then ShortcutButtons[key] = nil end
+    end)
+
+    refreshVisual()
+    return btn
+end
+
+-- Los widgets (Toggle/Botón) se registran aquí al crearse; si el perfil ya
+-- tenía un shortcut guardado para esa key, reaparece automáticamente.
+local function RegisterShortcutSource(key, source)
+    ShortcutSources[key] = source
+    if Config.Shortcuts and Config.Shortcuts[key] then
+        task.defer(function()
+            if ScreenGui and ScreenGui.Parent then pcall(spawnShortcut, key) end
+        end)
+    end
+end
+
+local function CloseShortcutMenu()
+    if ActiveShortcutMenu then pcall(function() ActiveShortcutMenu:Destroy() end) ActiveShortcutMenu = nil end
+    if ShortcutMenuConn then ShortcutMenuConn:Disconnect() ShortcutMenuConn = nil end
+end
+
+-- Mini-controles internos del menú contextual (ligeros, sin registrar en la API)
+local function CreateMiniToggleRow(parent, labelText, initial, callback)
+    local row = create("Frame", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1}, parent)
+    create("TextLabel", {Size = UDim2.new(1, -44, 1, 0), BackgroundTransparency = 1, Text = labelText, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    local track = create("Frame", {Size = UDim2.new(0, 30, 0, 16), Position = UDim2.new(1, -30, 0.5, -8), BackgroundColor3 = Color3.fromRGB(40, 40, 45)}, row)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, track)
+    local knob = create("Frame", {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 2, 0.5, -6), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, track)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
+    local hit = create("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = ""}, row)
+
+    local state = initial
+    local function paint()
+        track.BackgroundColor3 = state and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
+        knob.Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+    end
+    connect(hit.MouseButton1Click, function()
+        state = not state
+        playUISound()
+        paint()
+        callback(state)
+    end)
+    paint()
+end
+
+local function CreateMiniSliderRow(parent, labelText, min, max, initial, callback)
+    local row = create("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1}, parent)
+    create("TextLabel", {Size = UDim2.new(1, -34, 0, 14), BackgroundTransparency = 1, Text = labelText, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    local valLabel = create("TextLabel", {Size = UDim2.new(0, 32, 0, 14), Position = UDim2.new(1, -32, 0, 0), BackgroundTransparency = 1, Text = tostring(math.floor(initial)), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right}, row)
+    local track = create("Frame", {Size = UDim2.new(1, 0, 0, 6), Position = UDim2.new(0, 0, 0, 20), BackgroundColor3 = Color3.fromRGB(35, 35, 40), Active = true}, row)
+    create("UICorner", {CornerRadius = UDim.new(0, 3)}, track)
+    local fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, track)
+    create("UICorner", {CornerRadius = UDim.new(0, 3)}, fill)
+
+    local value = math.clamp(initial, min, max)
+    local function apply(v, fire)
+        value = math.clamp(v, min, max)
+        local pct = (max == min) and 0 or (value - min) / (max - min)
+        fill.Size = UDim2.new(pct, 0, 1, 0)
+        valLabel.Text = tostring(mathRound(value * 100) / 100)
+        if fire then callback(value) end
+    end
+
+    local sliding, sConn, eConn = false, nil, nil
+    local function snap(input)
+        local pct = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        apply(min + pct * (max - min), true)
+    end
+    connect(track.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            sliding = true
+            snap(input)
+            sConn = connect(UserInputService.InputChanged, function(ci)
+                if sliding and (ci.UserInputType == Enum.UserInputType.MouseMovement or ci.UserInputType == Enum.UserInputType.Touch) then snap(ci) end
+            end)
+            eConn = connect(UserInputService.InputEnded, function(ei)
+                if ei.UserInputType == Enum.UserInputType.MouseButton1 or ei.UserInputType == Enum.UserInputType.Touch then
+                    sliding = false
+                    if sConn then sConn:Disconnect() sConn = nil end
+                    if eConn then eConn:Disconnect() eConn = nil end
+                    saveConfig()
+                end
+            end)
+        end
+    end)
+    connect(row.Destroying, function()
+        if sConn then sConn:Disconnect() sConn = nil end
+        if eConn then eConn:Disconnect() eConn = nil end
+    end)
+    apply(value, false)
+end
+
+-- ⚙ Mini-menú contextual flotante (singleton: solo uno abierto a la vez)
+local function OpenShortcutMenu(gearBtn, key)
+    local src = ShortcutSources[key]
+    if not src then return end
+    if ActiveShortcutMenu and ActiveShortcutMenu:GetAttribute("SKey") == key then
+        CloseShortcutMenu()
+        return
+    end
+    CloseShortcutMenu()
+    playUISound()
+
+    local scale = UiScaleObj.Scale
+    local vp = Camera.ViewportSize
+    local menuW, menuH = 178, 218
+
+    local posX = (gearBtn.AbsolutePosition.X + gearBtn.AbsoluteSize.X + 8) / scale
+    local posY = gearBtn.AbsolutePosition.Y / scale
+    if (posX + menuW) * scale > vp.X - 6 then posX = (gearBtn.AbsolutePosition.X - 8) / scale - menuW end
+    if posX < 0 then posX = 6 end
+    if (posY + menuH) * scale > vp.Y - 6 then posY = math.max(6 / scale, (vp.Y - 10) / scale - menuH) end
+
+    local menu = create("Frame", {
+        Name = "ShortcutMenu",
+        Size = UDim2.fromOffset(menuW, menuH),
+        Position = UDim2.fromOffset(posX, posY),
+        BackgroundColor3 = CurrentTheme.BG_MAIN,
+        BorderSizePixel = 0,
+        Active = true
+    }, ScreenGui)
+    menu:SetAttribute("SKey", key)
+    create("UICorner", {CornerRadius = UDim.new(0, 8)}, menu)
+    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, menu)
+    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5)}, menu)
+    create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8)}, menu)
+    ActiveShortcutMenu = menu
+
+    -- Título + botón cerrar
+    local titleRow = create("Frame", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1}, menu)
+    local titleLbl = create("TextLabel", {Size = UDim2.new(1, -22, 1, 0), BackgroundTransparency = 1, Text = src.Label, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd}, titleRow)
+    local closeBtn = create("TextButton", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -16, 0, 0), BackgroundTransparency = 1, Text = "✕", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 11}, titleRow)
+    connect(closeBtn.MouseButton1Click, function() playUISound() CloseShortcutMenu() end)
+
+    -- Datos de trabajo: si ya existe el botón se edita en vivo; si no, se usa
+    -- una copia temporal que solo se guarda al pulsar "Crear Botón Flotante".
+    Config.Shortcuts = type(Config.Shortcuts) == "table" and Config.Shortcuts or {}
+    local menuData = Config.Shortcuts[key] and copyShortcutData(Config.Shortcuts[key]) or getShortcutDefaults()
+
+    local function applyLive()
+        local entry = ShortcutButtons[key]
+        if entry and entry.Instance then
+            entry.Instance.Size = UDim2.fromOffset(menuData.Size, menuData.Size)
+            entry.Instance.BackgroundTransparency = menuData.Transparency
+            local c = entry.Instance:FindFirstChildWhichIsA("UICorner")
+            if c then c.CornerRadius = SHORTCUT_SHAPE_RADII[menuData.Shape] or UDim.new(0, 8) end
+            Config.Shortcuts[key] = copyShortcutData(menuData)
+        end
+    end
+
+    -- Botón Crear / Eliminar
+    local createBtn = create("TextButton", {Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = CurrentTheme.BG_SECONDARY, Text = "", Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = CurrentTheme.TEXT_WHITE}, menu)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, createBtn)
+    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, createBtn)
+    local function paintCreateBtn()
+        createBtn.Text = ShortcutButtons[key] and "🗑 Eliminar Botón Flotante" or "✚ Crear Botón Flotante"
+    end
+    connect(createBtn.MouseButton1Click, function()
+        playUISound()
+        if ShortcutButtons[key] then
+            destroyShortcut(key, true)
+        else
+            Config.Shortcuts[key] = copyShortcutData(menuData)
+            spawnShortcut(key)
+        end
+        paintCreateBtn()
+    end)
+    paintCreateBtn()
+
+    -- Selector de forma (previews visuales: círculo / cuadrado / redondeado)
+    local shapeRow = create("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1}, menu)
+    create("TextLabel", {Size = UDim2.new(0, 46, 1, 0), BackgroundTransparency = 1, Text = "Forma:", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left}, shapeRow)
+    local shapePreviews = {}
+    for i, shapeName in ipairs(SHORTCUT_SHAPES) do
+        local pv = create("TextButton", {Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0, 48 + (i - 1) * 28, 0, 1), BackgroundColor3 = CurrentTheme.BG_SECONDARY, Text = "", AutoButtonColor = false}, shapeRow)
+        create("UICorner", {CornerRadius = SHORTCUT_SHAPE_RADII[shapeName]}, pv)
+        create("UIStroke", {Thickness = 2, Color = VOID_BLACK}, pv)
+        shapePreviews[shapeName] = pv
+        connect(pv.MouseButton1Click, function()
+            playUISound()
+            menuData.Shape = shapeName
+            for n, b in pairs(shapePreviews) do b.BackgroundColor3 = (n == shapeName) and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY end
+            applyLive()
+            saveConfig()
+        end)
+    end
+    for n, b in pairs(shapePreviews) do b.BackgroundColor3 = (n == menuData.Shape) and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY end
+
+    -- Lock de posición
+    CreateMiniToggleRow(menu, "🔒 Bloquear posición", menuData.Locked == true, function(state)
+        menuData.Locked = state
+        applyLive()
+        saveConfig()
+    end)
+
+    -- Tamaño
+    CreateMiniSliderRow(menu, "Tamaño", 24, 80, menuData.Size, function(v)
+        menuData.Size = v
+        applyLive()
+    end)
+
+    -- Transparencia del centro
+    CreateMiniSliderRow(menu, "Transparencia", 0, 0.85, menuData.Transparency, function(v)
+        menuData.Transparency = v
+        applyLive()
+    end)
+
+    -- Clic/tap fuera del menú lo cierra
+    ShortcutMenuConn = connect(UserInputService.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local m = ActiveShortcutMenu
+            if m then
+                local p, s = m.AbsolutePosition, m.AbsoluteSize
+                local pos = input.Position
+                if pos.X < p.X or pos.X > p.X + s.X or pos.Y < p.Y or pos.Y > p.Y + s.Y then
+                    CloseShortcutMenu()
+                end
+            end
+        end
+    end)
+end
+
+-- Pequeña tuerca ⚙ reutilizable que se ancla a la derecha de un widget
+local function AttachShortcutGear(parent, key)
+    local gear = create("TextButton", {
+        Name = "ShortcutGear",
+        Size = UDim2.new(0, 20, 0, 20),
+        Position = UDim2.new(1, -30, 0.5, -10),
+        BackgroundTransparency = 1,
+        Text = "⚙",
+        TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        ZIndex = 5
+    }, parent)
+    connect(gear.MouseButton1Click, function()
+        OpenShortcutMenu(gear, key)
+    end)
+    return gear
+end
+
+-- ============================================================================
 -- 📦 API CORE Y MOTOR REACTIVO (ATRIBUTOS DE ARQUITECTURA)
 -- ============================================================================
 local KillerHub = {
@@ -610,6 +1073,7 @@ function KillerHub:Destroy()
 end
 
 function KillerHub:Unload()
+    CloseShortcutMenu()
     for _, conn in ipairs(Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
     end
@@ -628,6 +1092,8 @@ function KillerHub:Unload()
     table.clear(self.AllElements)
     table.clear(self.TargetThemeElements)
     table.clear(self.Elements)
+    table.clear(ShortcutButtons)
+    table.clear(ShortcutSources)
     
     if getgenv().KillerHub then getgenv().KillerHub = nil end
     warn("❌ KillerHub desunificado por completo y memoria liberada.")
@@ -673,7 +1139,161 @@ function KillerHub:SetTheme(themeName)
     for _, refreshCallback in ipairs(self.TargetThemeElements) do
         pcall(refreshCallback)
     end
+    -- Los botones flotantes conservan su estilo "Void" negro, solo se
+    -- resincroniza el color de estado (acento) con el nuevo tema.
+    for _, entry in pairs(ShortcutButtons) do
+        if entry.Update then pcall(entry.Update) end
+    end
     self:SetFont(Config.SelectedFont or "GothamMedium")
+end
+
+-- ============================================================================
+-- 🎨 TEMAS PERSONALIZADOS POR HEX / COLOR3 (V4.3)
+-- Uso: KillerHub:RegisterTheme("MiTema", {ACCENT = "#FF8800", BG_MAIN = "#101010", ...})
+-- Las claves que falten se rellenan con las del tema Obsidian. El tema queda
+-- guardado en el perfil y aparece en el dropdown de Settings automáticamente.
+-- ============================================================================
+local ThemeDropdownObj -- se asigna cuando se construye la pestaña Settings
+
+local function rebuildThemeList()
+    local list = {}
+    for name in pairs(Themes) do table.insert(list, name) end
+    table.sort(list)
+    return list
+end
+
+function KillerHub:RegisterTheme(themeName, colorTable)
+    if type(themeName) ~= "string" or #themeName == 0 or type(colorTable) ~= "table" then
+        warn("⚠️ [KillerHub] RegisterTheme esperaba (string, table).")
+        return false
+    end
+    local base = Themes["Obsidian"]
+    local t = {}
+    local stored = {}
+    for _, k in ipairs(THEME_KEYS) do
+        local col = parseHexColor(colorTable[k]) or base[k]
+        t[k] = col
+        stored[k] = stringFormat("#%02X%02X%02X", mathRound(col.R * 255), mathRound(col.G * 255), mathRound(col.B * 255))
+    end
+    Themes[themeName] = t
+    Config.CustomThemes = type(Config.CustomThemes) == "table" and Config.CustomThemes or {}
+    Config.CustomThemes[themeName] = stored
+    saveConfig()
+    if ThemeDropdownObj then pcall(function() ThemeDropdownObj:Refresh(rebuildThemeList()) end) end
+    return true
+end
+
+-- ============================================================================
+-- 📂 API DE PERFILES MULTI-JUEGO (V4.3) — guardar/cargar/borrar perfiles
+-- con nombre dentro de la carpeta propia de cada PlaceId.
+-- ============================================================================
+local ProfileDropdownObj -- se asigna cuando se construye la pestaña Settings
+
+local function getAllProfiles()
+    local list = {}
+    pcall(function()
+        if listfiles then
+            for _, f in ipairs(listfiles(GAME_FOLDER)) do
+                local n = tostring(f):match("([^/\\]+)%.json$")
+                if n then table.insert(list, n) end
+            end
+        end
+    end)
+    if not table.find(list, ActiveProfile) then table.insert(list, ActiveProfile) end
+    table.sort(list)
+    return list
+end
+
+-- Re-aplica la tabla Config a todos los widgets ya construidos (se usa tras
+-- cargar un perfil). Los elementos sin método Set/SetToggle simplemente se
+-- omiten; el tema, fuente, tamaños, opacidad y escala se fuerzan al final.
+local function applyConfigToElements()
+    for key, obj in pairs(KillerHub.Elements) do
+        local val = Config[key]
+        if val ~= nil and type(obj) == "table" then
+            if type(obj.SetToggle) == "function" then
+                pcall(function() obj:SetToggle(val == true) end)
+            elseif type(obj.Set) == "function" then
+                if type(val) == "table" and #val >= 3 then
+                    pcall(function() obj:Set(Color3.new(val[1], val[2], val[3])) end)
+                elseif type(val) ~= "table" then
+                    pcall(function() obj:Set(val) end)
+                end
+            end
+        end
+    end
+    updateGuiSize()
+    updateUiOpacity()
+    updateButtonSize()
+    updateUiScale()
+    -- Shortcuts: se reconstruyen según el perfil recién cargado
+    for k in pairs(ShortcutButtons) do destroyShortcut(k, false) end
+    Config.Shortcuts = type(Config.Shortcuts) == "table" and Config.Shortcuts or {}
+    for k in pairs(Config.Shortcuts) do pcall(spawnShortcut, k) end
+    KillerHub:SetTheme(Themes[Config.SelectedTheme] and Config.SelectedTheme or "Obsidian")
+end
+
+function KillerHub:SaveProfile(profileName)
+    profileName = sanitizeProfileName(profileName)
+    if #profileName == 0 then profileName = "Default" end
+    local target = GAME_FOLDER .. "/" .. profileName .. ".json"
+    if writefile then
+        local ok, encoded = pcall(function() return HttpService:JSONEncode(Config) end)
+        if ok and encoded then pcall(writefile, target, encoded) end
+    end
+    ActiveProfile = profileName
+    CONFIG_FILE = target
+    pcall(function() if writefile then writefile(ACTIVE_PROFILE_FILE, profileName) end end)
+    if ProfileDropdownObj then pcall(function() ProfileDropdownObj:Refresh(getAllProfiles()) end) end
+    KillerHub:Notify("💾 Perfil Guardado", "Perfil '" .. profileName .. "' guardado para este juego.", 3)
+    return true
+end
+
+function KillerHub:LoadProfile(profileName)
+    profileName = sanitizeProfileName(profileName)
+    local target = GAME_FOLDER .. "/" .. profileName .. ".json"
+    local okFile, raw = pcall(function()
+        if isfile and readfile and isfile(target) then return readfile(target) end
+        return nil
+    end)
+    if not okFile or not raw or #raw == 0 then
+        KillerHub:Notify("❌ Perfil no encontrado", "No existe el perfil '" .. profileName .. "' en este juego.", 4, Color3.fromRGB(240, 50, 50))
+        return false
+    end
+    local okData, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not okData or type(data) ~= "table" then
+        KillerHub:Notify("❌ Perfil corrupto", "El archivo del perfil '" .. profileName .. "' no se pudo leer.", 4, Color3.fromRGB(240, 50, 50))
+        return false
+    end
+    for k in pairs(Config) do Config[k] = nil end
+    copyTable(Config, DefaultConfig)
+    for k, v in pairs(data) do Config[k] = v end
+    ActiveProfile = profileName
+    CONFIG_FILE = target
+    pcall(function() if writefile then writefile(ACTIVE_PROFILE_FILE, profileName) end end)
+    applyConfigToElements()
+    saveConfig()
+    KillerHub:Notify("📂 Perfil Cargado", "Perfil '" .. profileName .. "' aplicado correctamente.", 3)
+    return true
+end
+
+function KillerHub:DeleteProfile(profileName)
+    profileName = sanitizeProfileName(profileName)
+    if profileName == ActiveProfile then
+        KillerHub:Notify("⚠️ Acción denegada", "No puedes borrar el perfil que está activo.", 4, Color3.fromRGB(240, 170, 40))
+        return false
+    end
+    pcall(function() if delfile then delfile(GAME_FOLDER .. "/" .. profileName .. ".json") end end)
+    if ProfileDropdownObj then pcall(function() ProfileDropdownObj:Refresh(getAllProfiles()) end) end
+    return true
+end
+
+function KillerHub:GetProfiles()
+    return getAllProfiles()
+end
+
+function KillerHub:GetCurrentProfile()
+    return ActiveProfile
 end
 
 -- ============================================================================
@@ -698,7 +1318,7 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVPickerKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, SVPickerKnob)
 
-    local HueSlider = create("Frame", {Position = UDim2.new(0, 156, 0, contentTop), Size = UDim2.new(0, 20, 0, 128), BorderSizePixel = 0, Active = true}, MasterFrame)
+    local HueSlider = create("Frame", {Position = UDim2.new(0, 150, 0, contentTop), Size = UDim2.new(0, 20, 0, 128), BorderSizePixel = 0, Active = true}, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, HueSlider)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, HueSlider)
     create("UIGradient", {
@@ -718,13 +1338,15 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, HueKnob)
 
     -- Columna derecha auto-centrada: la previsualización y el hex ya no van pegados a un
-    -- lado, se centran en el espacio libre junto al Hue sin importar el ancho de la ventana
-    local InfoColumn = create("Frame", {Position = UDim2.new(0, 188, 0, contentTop), Size = UDim2.new(1, -200, 0, 128), BackgroundTransparency = 1}, MasterFrame)
+    -- lado, se centran en el espacio libre junto al Hue sin importar el ancho de la ventana.
+    -- (V4.3) La previsualización ahora ocupa todo el ancho disponible de la columna,
+    -- haciéndola más larga horizontalmente sin desbordar la ventana mínima.
+    local InfoColumn = create("Frame", {Position = UDim2.new(0, 182, 0, contentTop), Size = UDim2.new(1, -194, 0, 128), BackgroundTransparency = 1}, MasterFrame)
 
     local PreviewFrame = create("Frame", {
         AnchorPoint = Vector2.new(0.5, 0),
         Position = UDim2.new(0.5, 0, 0, 0),
-        Size = UDim2.new(0, 58, 0, 58),
+        Size = UDim2.new(1, -6, 0, 58),
         BackgroundColor3 = savedColor
     }, InfoColumn)
     create("UICorner", {CornerRadius = UDim.new(0, 10)}, PreviewFrame)
@@ -959,6 +1581,11 @@ TabMethods.__index = TabMethods
 
 function TabMethods:RegisterElement(inst, textLabel, tabName)
     table.insert(KillerHub.AllElements, {Instance = inst, Label = textLabel, Tab = tabName})
+    -- (V4.3) Si hay una búsqueda activa, el elemento recién creado también la respeta
+    local q = string.lower(SearchInput.Text or "")
+    if q ~= "" and textLabel then
+        inst.Visible = string.find(string.lower(textLabel.Text or ""), q) and true or false
+    end
     -- 🩹 FIX DE RENDIMIENTO: antes esto llamaba a KillerHub:SetFont(), que recorre
     -- TODOS los descendientes del ScreenGui, por cada widget nuevo creado. Con N
     -- elementos eso es O(n²) solo para construir el menú (perceptible con GUIs
@@ -1047,11 +1674,13 @@ function TabMethods:CreateToggle(flagName, text, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -96, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd}, ToggleButton)
+    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -72, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
+
+    local shortcutKey = "T:" .. flagName
 
     local function stateUpdate()
         local active = Flags[flagName].CurrentValue
@@ -1062,6 +1691,9 @@ function TabMethods:CreateToggle(flagName, text, callback)
         TweenService:Create(Knob, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         }):Play()
+        -- Sincroniza el botón flotante (shortcut) si existe para este toggle
+        local sc = ShortcutButtons[shortcutKey]
+        if sc and sc.Update then pcall(sc.Update) end
     end
     
     local function executeSet(bool)
@@ -1074,6 +1706,19 @@ function TabMethods:CreateToggle(flagName, text, callback)
         playUISound()
         executeSet(not Flags[flagName].CurrentValue)
     end)
+
+    -- ⚙ Tuerca de shortcut (V4.3): abre el mini-menú contextual de este toggle
+    AttachShortcutGear(ToggleButton, shortcutKey)
+    RegisterShortcutSource(shortcutKey, {
+        Kind = "toggle",
+        Label = text,
+        Activate = function()
+            executeSet(not Flags[flagName].CurrentValue)
+        end,
+        GetState = function()
+            return Flags[flagName] and Flags[flagName].CurrentValue
+        end
+    })
     
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
     task.spawn(function() stateUpdate() pcall(callback, Flags[flagName].CurrentValue) end)
@@ -1355,6 +2000,137 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     
     KillerHub.Elements[flagName] = sliderObj
     return sliderObj
+end
+
+-- ============================================================================
+-- 📈 GRÁFICO DE TELEMETRÍA EN TIEMPO REAL (V4.3)
+-- Dibuja una línea dinámica con un pool fijo de segmentos reutilizados (NUNCA
+-- crea/destruye instancias por muestra -> cero basura para el GC). Solo se
+-- actualiza cuando hay un valor nuevo y la pestaña está visible.
+-- Uso:
+--   local g = Tab:CreateGraph("Ping del Servidor", {Min = 0, Max = 300, Unit = "ms",
+--          Interval = 0.5, Source = function() return ping end})
+--   g:Push(123)  -- modo manual
+-- ============================================================================
+function TabMethods:CreateGraph(text, options)
+    if not SafeAssert("CreateGraph", {
+        ["text"] = {value = text, types = {"string"}},
+        ["options"] = {value = options, types = {"table", "nil"}}
+    }) then return end
+
+    options = options or {}
+    local minV = tonumber(options.Min) or 0
+    local maxV = tonumber(options.Max) or 100
+    local unit = tostring(options.Unit or "")
+    local interval = math.max(tonumber(options.Interval) or 0.5, 0.1)
+    local source = options.Source
+    local autoScale = options.AutoScale == true
+    local MAX_POINTS = 42
+
+    local GraphFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 100), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3}, self.Frame)
+    GraphFrame:SetAttribute("ThemeRole", "BG_SECONDARY") GraphFrame:SetAttribute("CustomColorLabel", true)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, GraphFrame)
+    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, GraphFrame)
+
+    local TitleLbl = create("TextLabel", {Size = UDim2.new(1, -110, 0, 16), Position = UDim2.new(0, 12, 0, 8), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, GraphFrame)
+    TitleLbl:SetAttribute("ThemeRole", "TEXT_ACCENT")
+    local ValueLbl = create("TextLabel", {Size = UDim2.new(0, 100, 0, 16), Position = UDim2.new(1, -112, 0, 8), BackgroundTransparency = 1, Text = "--" .. unit, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right}, GraphFrame)
+
+    local Canvas = create("Frame", {Size = UDim2.new(1, -24, 1, -40), Position = UDim2.new(0, 12, 0, 32), BackgroundColor3 = Color3.fromRGB(10, 10, 13), BackgroundTransparency = 0.2, ClipsDescendants = true}, GraphFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, Canvas)
+
+    -- Pool fijo de segmentos de línea (se reciclan en cada redibujado)
+    local segments = {}
+    for i = 1, MAX_POINTS - 1 do
+        local seg = create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 2), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, Visible = false}, Canvas)
+        segments[i] = seg
+    end
+
+    local values = {}
+
+    local function formatGraphValue(v)
+        if v % 1 ~= 0 then return string.format("%.1f", v) end
+        return tostring(math.floor(v))
+    end
+
+    local function redraw()
+        local w, h = Canvas.AbsoluteSize.X, Canvas.AbsoluteSize.Y
+        if w <= 4 or h <= 4 then return end
+        local n = #values
+        local span = math.max(maxV - minV, 1e-9)
+        for i = 1, MAX_POINTS - 1 do
+            local seg = segments[i]
+            if i < n then
+                local x1 = ((i - 1) / (MAX_POINTS - 1)) * w
+                local y1 = h - (math.clamp((values[i] - minV) / span, 0, 1) * h)
+                local x2 = (i / (MAX_POINTS - 1)) * w
+                local y2 = h - (math.clamp((values[i + 1] - minV) / span, 0, 1) * h)
+                local dx, dy = x2 - x1, y2 - y1
+                seg.Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy), 2)
+                seg.Position = UDim2.fromOffset((x1 + x2) * 0.5, (y1 + y2) * 0.5)
+                seg.Rotation = math.deg(math.atan2(dy, dx))
+                seg.Visible = true
+            else
+                seg.Visible = false
+            end
+        end
+    end
+
+    local function push(v)
+        v = tonumber(v)
+        if not v then return end
+        table.insert(values, v)
+        if #values > MAX_POINTS then table.remove(values, 1) end
+        if autoScale and #values > 0 then
+            local lo, hi = values[1], values[1]
+            for _, x in ipairs(values) do
+                if x < lo then lo = x end
+                if x > hi then hi = x end
+            end
+            minV, maxV = lo, (hi > lo) and hi or (lo + 1)
+        end
+        ValueLbl.Text = formatGraphValue(v) .. unit
+        redraw()
+    end
+
+    -- Redibuja si la ventana cambia de tamaño (AbsoluteSize del canvas)
+    connect(Canvas:GetPropertyChangedSignal("AbsoluteSize"), redraw)
+
+    -- Modo automático: sondea Source() solo mientras la pestaña esté visible
+    if type(source) == "function" then
+        task.spawn(function()
+            while task.wait(interval) do
+                if not ScreenGui or not ScreenGui.Parent then break end
+                if GraphFrame.Visible and menuVisible then
+                    local ok, res = pcall(source)
+                    if ok then push(res) end
+                end
+            end
+        end)
+    end
+
+    table.insert(KillerHub.TargetThemeElements, function()
+        for _, seg in ipairs(segments) do seg.BackgroundColor3 = CurrentTheme.ACCENT end
+        ValueLbl.TextColor3 = CurrentTheme.TEXT_WHITE
+    end)
+
+    self:RegisterElement(GraphFrame, TitleLbl, self.Frame.Name)
+
+    local graphObj = {
+        Push = function(_, v) push(v) end,
+        Clear = function()
+            table.clear(values)
+            ValueLbl.Text = "--" .. unit
+            redraw()
+        end,
+        SetRange = function(_, newMin, newMax)
+            minV = tonumber(newMin) or minV
+            maxV = tonumber(newMax) or maxV
+            redraw()
+        end
+    }
+    KillerHub.Elements[text] = graphObj
+    return graphObj
 end
 
 function TabMethods:CreateDropdown(flagName, text, options, callback)
@@ -1847,6 +2623,18 @@ function TabMethods:CreateButton(text, callback)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
     
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
+
+    -- ⚙ Tuerca de shortcut (V4.3): permite crear un botón flotante de este botón
+    local shortcutKey = "B:" .. text
+    AttachShortcutGear(Button, shortcutKey)
+    RegisterShortcutSource(shortcutKey, {
+        Kind = "button",
+        Label = text,
+        Activate = function()
+            pcall(callback)
+        end
+    })
+
     addInteractiveFeedback(Button)
     self:RegisterElement(Button, Button, self.Frame.Name)
     
@@ -1994,7 +2782,7 @@ end)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
 SettingsTab:CreateSection("Personalización")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
+ThemeDropdownObj = SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", rebuildThemeList(), function(selected) KillerHub:SetTheme(selected) end)
 
 local TopFonts = {
     "Gotham", "GothamMedium", "GothamBold", "GothamBlack", "Roboto", "RobotoMono", 
@@ -2011,6 +2799,21 @@ SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, 
 SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
 SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
+SettingsTab:CreateSlider("UiScale", "Escala DPI (Móvil)", 0.7, 1.3, function(v) updateUiScale() end)
+
+-- 📂 Perfiles multi-juego: cada PlaceId guarda sus propios perfiles con nombre
+SettingsTab:CreateSection("Perfiles por Juego")
+SettingsTab:CreateParagraph("🎮 Juego Actual", "PlaceId: " .. tostring(game.PlaceId) .. "  |  Perfil activo: " .. ActiveProfile)
+SettingsTab:CreateInput("ProfileNameInput", "Nombre del perfil:", "Ej: Legit, Rage, Farm...", function() end)
+SettingsTab:CreateButton("💾 Guardar / Crear Perfil", function()
+    local name = (Flags["ProfileNameInput"] and Flags["ProfileNameInput"].CurrentValue) or ""
+    KillerHub:SaveProfile(name)
+end)
+-- Se fija en vacío para que el dropdown no auto-cargue un perfil al iniciar
+if Config.SelectedProfile == nil then Config.SelectedProfile = "" end
+ProfileDropdownObj = SettingsTab:CreateDropdown("SelectedProfile", "Cargar Perfil:", getAllProfiles(), function(selected)
+    if selected and selected ~= "" then KillerHub:LoadProfile(selected) end
+end)
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
