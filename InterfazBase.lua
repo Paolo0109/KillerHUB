@@ -118,8 +118,19 @@ local function copyTable(target, source)
 end
 copyTable(Config, DefaultConfig)
 
+-- 💾 DEBOUNCED CONFIG SAVE (Evita escrituras masivas por segundo en Sliders)
+local savePending = false
 local function saveConfig()
-    if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) end) end
+    if savePending then return end
+    savePending = true
+    task.delay(0.5, function()
+        savePending = false
+        if writefile then 
+            pcall(function() 
+                writefile(CONFIG_FILE, HttpService:JSONEncode(Config)) 
+            end) 
+        end
+    end)
 end
 
 pcall(function()
@@ -216,11 +227,7 @@ local function makeDraggable(clickObject, dragObject)
             activeInput = input 
             
             local mouseLoc = UserInputService:GetMouseLocation()
-            if dragObject.Name == "MainFrame" then
-                dragStartOffset = mouseLoc - Vector2.new(dragObject.Position.X.Offset, dragObject.Position.Y.Offset)
-            else
-                dragStartOffset = mouseLoc - Vector2.new(dragObject.Position.X.Offset, dragObject.Position.Y.Offset)
-            end
+            dragStartOffset = mouseLoc - Vector2.new(dragObject.Position.X.Offset, dragObject.Position.Y.Offset)
             
             moveConn = UserInputService.InputChanged:Connect(function(changedInput)
                 if dragging and (changedInput == activeInput or changedInput.UserInputType == Enum.UserInputType.Touch or changedInput.UserInputType == Enum.UserInputType.MouseMovement) then
@@ -371,6 +378,7 @@ end
 -- 📦 API CORE Y MOTOR REACTIVO (ATRIBUTOS DE ARQUITECTURA)
 -- ============================================================================
 local KillerHub = {
+    Running = true, -- Cancel Token para prevenir loops zombies de fondo
     Tabs = {}, Frames = {}, Buttons = {}, Config = Config, Flags = Flags,
     CurrentTab = nil, AllElements = {}, TargetThemeElements = {}, _Trash = {},
     Elements = {} 
@@ -507,6 +515,7 @@ function KillerHub:Destroy()
 end
 
 function KillerHub:Unload()
+    self.Running = false -- Rompe todos los loops asíncronos en ejecución
     for _, conn in ipairs(Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
     end
@@ -697,7 +706,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
         BindToState = function(self, evaluationFunction, checkInterval)
             checkInterval = checkInterval or 0.5
             task.spawn(function()
-                while task.wait(checkInterval) do
+                while KillerHub.Running and task.wait(checkInterval) do
                     if not ScreenGui or not ScreenGui.Parent then break end
                     local success, result = pcall(evaluationFunction)
                     if success and typeof(result) == "boolean" then
@@ -904,7 +913,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
             baseFactor = baseFactor or 0.15
             updateInterval = updateInterval or 0.5
             task.spawn(function()
-                while task.wait(updateInterval) do
+                while KillerHub.Running and task.wait(updateInterval) do
                     if not ScreenGui or not ScreenGui.Parent then break end
                     local ping = 0
                     pcall(function()
@@ -986,17 +995,28 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         pcall(callback, name)
     end
 
+    -- 🛠 SOLUCIÓN MEMORY LEAK: Tabla para liberar conexiones viejas de las opciones del dropdown
+    local optionConnections = {}
+    local function clearOptionConnections()
+        for _, conn in ipairs(optionConnections) do
+            if conn then pcall(function() conn:Disconnect() end) end
+        end
+        table.clear(optionConnections)
+    end
+
     local function makeOptions()
+        clearOptionConnections()
         for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
         for i, name in ipairs(options) do
             local OptBtn = create("TextButton", {Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = Color3.fromRGB(25, 25, 30), Text = name, TextColor3 = (name == Flags[flagName].CurrentValue) and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, LayoutOrder = i}, OptsScroll)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             
-            connect(OptBtn.MouseButton1Click, function()
+            local clickConn = OptBtn.MouseButton1Click:Connect(function()
                 playUISound()
                 selectOption(name)
                 makeOptions()
             end)
+            table.insert(optionConnections, clickConn)
             addInteractiveFeedback(OptBtn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
@@ -1042,7 +1062,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         BindToDynamicList = function(self, queryFunction, refreshInterval)
             refreshInterval = refreshInterval or 2.0
             task.spawn(function()
-                while task.wait(refreshInterval) do
+                while KillerHub.Running and task.wait(refreshInterval) do
                     if not ScreenGui or not ScreenGui.Parent then break end
                     local success, newList = pcall(queryFunction)
                     if success and type(newList) == "table" then
@@ -1099,7 +1119,16 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
     end)
 
     local cacheButtons = {}
+    local optionConnections = {}
+    local function clearOptionConnections()
+        for _, conn in ipairs(optionConnections) do
+            if conn then pcall(function() conn:Disconnect() end) end
+        end
+        table.clear(optionConnections)
+    end
+
     local function makeList()
+        clearOptionConnections()
         for _, child in ipairs(OptsScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
         table.clear(cacheButtons)
         
@@ -1109,7 +1138,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
             create("UICorner", {CornerRadius = UDim.new(0, 5)}, OptBtn)
             cacheButtons[name] = OptBtn
             
-            connect(OptBtn.MouseButton1Click, function()
+            local clickConn = OptBtn.MouseButton1Click:Connect(function()
                 local nextState = not Config[flagName][name]
                 Config[flagName][name] = nextState
                 saveConfig() playUISound() updateText()
@@ -1121,6 +1150,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
                 }):Play()
                 pcall(callback, Config[flagName])
             end)
+            table.insert(optionConnections, clickConn)
             addInteractiveFeedback(OptBtn)
         end
         OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
@@ -1285,7 +1315,6 @@ local function BuildHSVColorPicker(parentFrame, flagColor, defaultColor, callbac
             HexLabel.Text = "#" .. finalColor:ToHex():upper()
         end
 
-        -- [SOLUCIÓN ERROR 2]: Se fuerza la actualización física de las guías visuales en cada invocación
         SVKnob.Position = UDim2.new(s, 0, 1 - v, 0)
         HueKnob.Position = UDim2.new(0, -2, h, 0)
 
@@ -1402,7 +1431,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     connect(Trigger.MouseButton1Click, function() 
         open = not open playUISound() 
         if open then
-            reloadPicker() -- [SOLUCIÓN ERROR 3]: Sincroniza la interfaz visual antes de expandir el menú
+            reloadPicker()
         end
         TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 150 or 36)}):Play()
     end)
@@ -1492,7 +1521,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         if not Flags[flagToggle].CurrentValue then return end
         isPickerOpen = not isPickerOpen playUISound() 
         if isPickerOpen then
-            reloadPicker() -- [SOLUCIÓN ERROR 3]: Sincroniza el estado HSV al desplegarse desde el Toggle
+            reloadPicker()
         end
         TweenService:Create(MasterFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, isPickerOpen and 150 or 36)}):Play()
     end)
