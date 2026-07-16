@@ -13,6 +13,15 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
+-- ⚡ FAST-PATH LOCALS (caché de funciones matemáticas/color de uso frecuente en Luau,
+-- evita resoluciones de tabla globales repetidas durante el arrastre del Color Picker)
+local mathClamp = math.clamp
+local mathRound = math.round
+local stringFormat = string.format
+local color3FromHSV = Color3.fromHSV
+local color3FromRGB = Color3.fromRGB
+local color3ToHSV = Color3.toHSV
+
 -- 🛠 ANTI-CRASH UNIVERSAL INTEGRADO (GetSafeUIParent)
 local function GetSafeUIParent()
     local success, result = pcall(function()
@@ -1198,12 +1207,12 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local ColorBtn = create("TextButton", {Size = UDim2.new(0, 26, 0, 18), Position = UDim2.new(1, -38, 0, 9), BackgroundColor3 = savedColor, Text = ""}, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
-    -- Canvas S-V de Gradient
+    -- Canvas S-V de Gradient (elemento principal, agrandado para mayor precisión táctil)
     local Canvas = create("ImageLabel", {
         Position = UDim2.new(0, 12, 0, 40),
-        Size = UDim2.new(0, 90, 0, 90),
+        Size = UDim2.new(0, 112, 0, 112),
         Image = "rbxassetid://4155801252",
-        BackgroundColor3 = Color3.fromHSV(Color3.toHSV(savedColor)),
+        BackgroundColor3 = color3FromHSV(color3ToHSV(savedColor)),
         BorderSizePixel = 0,
         Active = true
     }, MasterFrame)
@@ -1218,10 +1227,10 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVPickerKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, SVPickerKnob)
 
-    -- Barra Fina Arcoíris (Tono / Hue)
+    -- Barra Fina Arcoíris (Tono / Hue), estirada a la nueva altura del Canvas
     local HueSlider = create("Frame", {
-        Position = UDim2.new(0, 112, 0, 40),
-        Size = UDim2.new(0, 15, 0, 90),
+        Position = UDim2.new(0, 134, 0, 40),
+        Size = UDim2.new(0, 16, 0, 112),
         BorderSizePixel = 0,
         Active = true
     }, MasterFrame)
@@ -1250,58 +1259,96 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, HueKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, HueKnob)
 
+    -- Previsualización minimalista (chica) + entrada Hex editable en columna derecha
     local PreviewFrame = create("Frame", {
-        Position = UDim2.new(0, 137, 0, 40),
-        Size = UDim2.new(1, -149, 0, 60),
+        Position = UDim2.new(0, 162, 0, 40),
+        Size = UDim2.new(1, -174, 0, 32),
         BackgroundColor3 = savedColor
     }, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, PreviewFrame)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, PreviewFrame)
 
-    local HexLabel = create("TextLabel", {
-        Position = UDim2.new(0, 137, 0, 105),
-        Size = UDim2.new(1, -149, 0, 20),
-        BackgroundTransparency = 1,
-        TextColor3 = CurrentTheme.TEXT_MUTED,
+    local HexBox = create("TextBox", {
+        Position = UDim2.new(0, 162, 0, 80),
+        Size = UDim2.new(1, -174, 0, 28),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 30),
+        Text = "",
+        PlaceholderText = "FFFFFF",
+        PlaceholderColor3 = Color3.fromRGB(100, 105, 115),
+        TextColor3 = CurrentTheme.TEXT_WHITE,
         Font = Enum.Font.GothamBold,
-        TextSize = 11,
+        TextSize = 12,
+        ClearTextOnFocus = false,
         TextXAlignment = Enum.TextXAlignment.Center
     }, MasterFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, HexBox)
+    create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, HexBox)
 
-    local h, s, v = Color3.toHSV(savedColor)
+    local h, s, v = color3ToHSV(savedColor)
+
+    -- Guardado inmediato pero "debounced" a un solo writefile por frame,
+    -- evita I/O redundante mientras se arrastra sin perder persistencia en tiempo real
+    local pendingSave = false
+    local function requestSave()
+        if pendingSave then return end
+        pendingSave = true
+        task.defer(function()
+            saveConfig()
+            pendingSave = false
+        end)
+    end
 
     local function refreshColor(skipCallback)
-        local col = Color3.fromHSV(h, s, v)
+        local col = color3FromHSV(h, s, v)
         Config[flagColor] = {col.R, col.G, col.B}
         updateGlobalFlags(flagColor, col)
 
         SVPickerKnob.Position = UDim2.new(s, -5, 1 - v, -5)
         HueKnob.Position = UDim2.new(0.5, -9, h, -2)
-        Canvas.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+        Canvas.BackgroundColor3 = color3FromHSV(h, 1, 1)
 
         PreviewFrame.BackgroundColor3 = col
         ColorBtn.BackgroundColor3 = col
 
-        HexLabel.Text = string.format("#%02X%02X%02X", math.round(col.R * 255), math.round(col.G * 255), math.round(col.B * 255))
+        if not HexBox:IsFocused() then
+            HexBox.Text = stringFormat("#%02X%02X%02X", mathRound(col.R * 255), mathRound(col.G * 255), mathRound(col.B * 255))
+        end
+
+        -- Persiste cada micro-cambio de inmediato (bug fix: ya no depende de cerrar/reabrir)
+        requestSave()
 
         if not skipCallback then
-            pcall(callbackColor, col)
+            task.spawn(function() pcall(callbackColor, col) end)
         end
     end
 
     local function updateSV(input)
-        local pctX = math.clamp((input.Position.X - Canvas.AbsolutePosition.X) / Canvas.AbsoluteSize.X, 0, 1)
-        local pctY = 1 - math.clamp((input.Position.Y - Canvas.AbsolutePosition.Y) / Canvas.AbsoluteSize.Y, 0, 1)
+        local pctX = mathClamp((input.Position.X - Canvas.AbsolutePosition.X) / Canvas.AbsoluteSize.X, 0, 1)
+        local pctY = 1 - mathClamp((input.Position.Y - Canvas.AbsolutePosition.Y) / Canvas.AbsoluteSize.Y, 0, 1)
         s = pctX
         v = pctY
         refreshColor()
     end
 
     local function updateHue(input)
-        local pctY = math.clamp((input.Position.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
+        local pctY = mathClamp((input.Position.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
         h = pctY
         refreshColor()
     end
+
+    -- Entrada Hex editable: al perder el foco (Enter o click afuera) recalcula todo
+    connect(HexBox.FocusLost, function()
+        local raw = HexBox.Text:gsub("#", ""):upper()
+        if #raw == 6 and raw:match("^%x+$") then
+            local r = tonumber(raw:sub(1, 2), 16)
+            local g = tonumber(raw:sub(3, 4), 16)
+            local b = tonumber(raw:sub(5, 6), 16)
+            h, s, v = color3ToHSV(color3FromRGB(r, g, b))
+            refreshColor()
+        else
+            refreshColor() -- texto inválido: restaura el hex al color actual
+        end
+    end)
 
     -- Drags táctiles multi-touch independientes con control de scrolling en pestaña
     local svDragging = false
@@ -1328,7 +1375,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                     setTabScrolling(MasterFrame, true)
                     saveConfig()
                     if svDragConn then svDragConn:Disconnect() svDragConn = nil end
-                    if svEndConn then svEndConn:Disconnect() end
+                    if svEndConn then svEndConn:Disconnect() svEndConn = nil end
                 end
             end)
         end
@@ -1358,10 +1405,19 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
                     setTabScrolling(MasterFrame, true)
                     saveConfig()
                     if hueDragConn then hueDragConn:Disconnect() hueDragConn = nil end
-                    if hueEndConn then hueEndConn:Disconnect() end
+                    if hueEndConn then hueEndConn:Disconnect() hueEndConn = nil end
                 end
             end)
         end
+    end)
+
+    -- Limpieza de memoria: si el contenedor se destruye a mitad de un arrastre
+    -- (cambio de pestaña, cierre del hub, etc.) se desconectan los listeners de InputService
+    connect(MasterFrame.Destroying, function()
+        if svDragConn then svDragConn:Disconnect() svDragConn = nil end
+        if svEndConn then svEndConn:Disconnect() svEndConn = nil end
+        if hueDragConn then hueDragConn:Disconnect() hueDragConn = nil end
+        if hueEndConn then hueEndConn:Disconnect() hueEndConn = nil end
     end)
 
     local function stateUpdate()
@@ -1371,7 +1427,6 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         ColorBtn.BackgroundColor3 = Flags[flagColor].CurrentValue
         PreviewFrame.BackgroundColor3 = Flags[flagColor].CurrentValue
-        HexLabel.TextColor3 = CurrentTheme.TEXT_MUTED
     end
 
     connect(MainTrigger.MouseButton1Click, function()
@@ -1384,7 +1439,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local open = false
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
-        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 138 or 36)}):Play()
+        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 176 or 36)}):Play()
     end)
     
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
@@ -1399,9 +1454,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
             updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool)
         end,
         SetColor = function(_, newColor)
-            h, s, v = Color3.toHSV(newColor)
+            h, s, v = color3ToHSV(newColor)
             refreshColor()
-            saveConfig()
         end
     }
     KillerHub.Elements[flagToggle] = tsObj
@@ -1431,12 +1485,12 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     local ColorBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 18), Position = UDim2.new(1, -42, 0.5, -9), BackgroundColor3 = savedColor, Text = ""}, Trigger)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
-    -- Canvas S-V de Gradient
+    -- Canvas S-V de Gradient (elemento principal, agrandado para mayor precisión táctil)
     local Canvas = create("ImageLabel", {
         Position = UDim2.new(0, 12, 0, 40),
-        Size = UDim2.new(0, 90, 0, 90),
+        Size = UDim2.new(0, 112, 0, 112),
         Image = "rbxassetid://4155801252",
-        BackgroundColor3 = Color3.fromHSV(Color3.toHSV(savedColor)),
+        BackgroundColor3 = color3FromHSV(color3ToHSV(savedColor)),
         BorderSizePixel = 0,
         Active = true
     }, MasterFrame)
@@ -1451,10 +1505,10 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVPickerKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, SVPickerKnob)
 
-    -- Barra Fina Arcoíris (Tono / Hue)
+    -- Barra Fina Arcoíris (Tono / Hue), estirada a la nueva altura del Canvas
     local HueSlider = create("Frame", {
-        Position = UDim2.new(0, 112, 0, 40),
-        Size = UDim2.new(0, 15, 0, 90),
+        Position = UDim2.new(0, 134, 0, 40),
+        Size = UDim2.new(0, 16, 0, 112),
         BorderSizePixel = 0,
         Active = true
     }, MasterFrame)
@@ -1483,58 +1537,96 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, HueKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, HueKnob)
 
+    -- Previsualización minimalista (chica) + entrada Hex editable en columna derecha
     local PreviewFrame = create("Frame", {
-        Position = UDim2.new(0, 137, 0, 40),
-        Size = UDim2.new(1, -149, 0, 60),
+        Position = UDim2.new(0, 162, 0, 40),
+        Size = UDim2.new(1, -174, 0, 32),
         BackgroundColor3 = savedColor
     }, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, PreviewFrame)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, PreviewFrame)
 
-    local HexLabel = create("TextLabel", {
-        Position = UDim2.new(0, 137, 0, 105),
-        Size = UDim2.new(1, -149, 0, 20),
-        BackgroundTransparency = 1,
-        TextColor3 = CurrentTheme.TEXT_MUTED,
+    local HexBox = create("TextBox", {
+        Position = UDim2.new(0, 162, 0, 80),
+        Size = UDim2.new(1, -174, 0, 28),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 30),
+        Text = "",
+        PlaceholderText = "FFFFFF",
+        PlaceholderColor3 = Color3.fromRGB(100, 105, 115),
+        TextColor3 = CurrentTheme.TEXT_WHITE,
         Font = Enum.Font.GothamBold,
-        TextSize = 11,
+        TextSize = 12,
+        ClearTextOnFocus = false,
         TextXAlignment = Enum.TextXAlignment.Center
     }, MasterFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, HexBox)
+    create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, HexBox)
 
-    local h, s, v = Color3.toHSV(savedColor)
+    local h, s, v = color3ToHSV(savedColor)
+
+    -- Guardado inmediato pero "debounced" a un solo writefile por frame,
+    -- evita I/O redundante mientras se arrastra sin perder persistencia en tiempo real
+    local pendingSave = false
+    local function requestSave()
+        if pendingSave then return end
+        pendingSave = true
+        task.defer(function()
+            saveConfig()
+            pendingSave = false
+        end)
+    end
 
     local function refreshColor(skipCallback)
-        local col = Color3.fromHSV(h, s, v)
+        local col = color3FromHSV(h, s, v)
         Config[flagColor] = {col.R, col.G, col.B}
         updateGlobalFlags(flagColor, col)
 
         SVPickerKnob.Position = UDim2.new(s, -5, 1 - v, -5)
         HueKnob.Position = UDim2.new(0.5, -9, h, -2)
-        Canvas.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+        Canvas.BackgroundColor3 = color3FromHSV(h, 1, 1)
 
         PreviewFrame.BackgroundColor3 = col
         ColorBtn.BackgroundColor3 = col
 
-        HexLabel.Text = string.format("#%02X%02X%02X", math.round(col.R * 255), math.round(col.G * 255), math.round(col.B * 255))
+        if not HexBox:IsFocused() then
+            HexBox.Text = stringFormat("#%02X%02X%02X", mathRound(col.R * 255), mathRound(col.G * 255), mathRound(col.B * 255))
+        end
+
+        -- Persiste cada micro-cambio de inmediato (bug fix: ya no depende de cerrar/reabrir)
+        requestSave()
 
         if not skipCallback then
-            pcall(callback, col)
+            task.spawn(function() pcall(callback, col) end)
         end
     end
 
     local function updateSV(input)
-        local pctX = math.clamp((input.Position.X - Canvas.AbsolutePosition.X) / Canvas.AbsoluteSize.X, 0, 1)
-        local pctY = 1 - math.clamp((input.Position.Y - Canvas.AbsolutePosition.Y) / Canvas.AbsoluteSize.Y, 0, 1)
+        local pctX = mathClamp((input.Position.X - Canvas.AbsolutePosition.X) / Canvas.AbsoluteSize.X, 0, 1)
+        local pctY = 1 - mathClamp((input.Position.Y - Canvas.AbsolutePosition.Y) / Canvas.AbsoluteSize.Y, 0, 1)
         s = pctX
         v = pctY
         refreshColor()
     end
 
     local function updateHue(input)
-        local pctY = math.clamp((input.Position.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
+        local pctY = mathClamp((input.Position.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
         h = pctY
         refreshColor()
     end
+
+    -- Entrada Hex editable: al perder el foco (Enter o click afuera) recalcula todo
+    connect(HexBox.FocusLost, function()
+        local raw = HexBox.Text:gsub("#", ""):upper()
+        if #raw == 6 and raw:match("^%x+$") then
+            local r = tonumber(raw:sub(1, 2), 16)
+            local g = tonumber(raw:sub(3, 4), 16)
+            local b = tonumber(raw:sub(5, 6), 16)
+            h, s, v = color3ToHSV(color3FromRGB(r, g, b))
+            refreshColor()
+        else
+            refreshColor() -- texto inválido: restaura el hex al color actual
+        end
+    end)
 
     -- Drags táctiles multi-touch independientes con control de scrolling en pestaña
     local svDragging = false
@@ -1561,7 +1653,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
                     setTabScrolling(MasterFrame, true)
                     saveConfig()
                     if svDragConn then svDragConn:Disconnect() svDragConn = nil end
-                    if svEndConn then svEndConn:Disconnect() end
+                    if svEndConn then svEndConn:Disconnect() svEndConn = nil end
                 end
             end)
         end
@@ -1591,23 +1683,31 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
                     setTabScrolling(MasterFrame, true)
                     saveConfig()
                     if hueDragConn then hueDragConn:Disconnect() hueDragConn = nil end
-                    if hueEndConn then hueEndConn:Disconnect() end
+                    if hueEndConn then hueEndConn:Disconnect() hueEndConn = nil end
                 end
             end)
         end
     end)
 
+    -- Limpieza de memoria: si el contenedor se destruye a mitad de un arrastre
+    -- (cambio de pestaña, cierre del hub, etc.) se desconectan los listeners de InputService
+    connect(MasterFrame.Destroying, function()
+        if svDragConn then svDragConn:Disconnect() svDragConn = nil end
+        if svEndConn then svEndConn:Disconnect() svEndConn = nil end
+        if hueDragConn then hueDragConn:Disconnect() hueDragConn = nil end
+        if hueEndConn then hueEndConn:Disconnect() hueEndConn = nil end
+    end)
+
     local open = false
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
-        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 138 or 36)}):Play()
+        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 176 or 36)}):Play()
     end)
     
     table.insert(KillerHub.TargetThemeElements, function() 
         local col = Flags[flagColor].CurrentValue
         ColorBtn.BackgroundColor3 = col 
         PreviewFrame.BackgroundColor3 = col
-        HexLabel.TextColor3 = CurrentTheme.TEXT_MUTED
     end)
 
     refreshColor(true)
@@ -1616,9 +1716,8 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
 
     local cpObj = {
         Set = function(_, newColor)
-            h, s, v = Color3.toHSV(newColor)
+            h, s, v = color3ToHSV(newColor)
             refreshColor()
-            saveConfig()
         end
     }
     KillerHub.Elements[flagColor] = cpObj
