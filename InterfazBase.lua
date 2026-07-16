@@ -854,7 +854,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     updateGlobalFlags(flagToggle, Config[flagToggle])
     updateGlobalFlags(flagSlider, Config[flagSlider])
     
-    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
+    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 54), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     TSFrame:SetAttribute("ThemeRole", "BG_SECONDARY") TSFrame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, TSFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, TSFrame)
@@ -867,17 +867,22 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
-    local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 16), Position = UDim2.new(0, 12, 0, 28), BackgroundTransparency = 1}, TSFrame)
-    local ValueBox = create("TextBox", {Size = UDim2.new(0, 45, 1, 0), Position = UDim2.new(1, 0, 0, -2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false}, SliderContainer)
+    local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 12, 0, 27), BackgroundTransparency = 1}, TSFrame)
+
+    -- Caja de valor estilo "textbox" oscura semitransparente, separada del track
+    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, ValueBoxBg)
+    create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50), Transparency = 0.3}, ValueBoxBg)
+    local ValueBox = create("TextBox", {Size = UDim2.new(1, -8, 1, 0), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false}, ValueBoxBg)
     ValueBox:SetAttribute("ThemeRole", "TEXT_ACCENT")
     
-    local STrack = create("Frame", {Size = UDim2.new(1, -50, 0, 4), Position = UDim2.new(0, 0, 0.5, -2), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
-    create("UICorner", {CornerRadius = UDim.new(0, 2)}, STrack)
+    local STrack = create("Frame", {Size = UDim2.new(1, -60, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
+    create("UICorner", {CornerRadius = UDim.new(0, 3)}, STrack)
     local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
-    create("UICorner", {CornerRadius = UDim.new(0, 2)}, SFill)
+    create("UICorner", {CornerRadius = UDim.new(0, 3)}, SFill)
     
-    local SKnob = create("TextButton", {Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, SKnob)
+    local SKnob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, -6, 0.5, -6), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, SKnob)
 
     local function stateUpdate()
         local active = Flags[flagToggle].CurrentValue
@@ -886,13 +891,24 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
     end
 
+    -- Mismo formato flexible que CreateSlider: enteros sin decimales, y hasta 3 cifras en rangos 0-1
+    local function formatValue(v)
+        if max <= 1 then
+            return string.format("%.3f", v)
+        elseif v % 1 ~= 0 then
+            return string.format("%.2f", v)
+        else
+            return tostring(math.floor(v))
+        end
+    end
+
     local function runSliderValue(v, skipCallback)
         v = math.clamp(v, min, max) 
         updateGlobalFlags(flagSlider, v) Config[flagSlider] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
         SFill.Size = UDim2.new(pct, 0, 1, 0)
-        SKnob.Position = UDim2.new(pct, -5, 0.5, -5)
-        if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
+        SKnob.Position = UDim2.new(pct, -6, 0.5, -6)
+        ValueBox.Text = formatValue(v)
         if not skipCallback then pcall(callbackSlider, v) end
     end
 
@@ -961,25 +977,43 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     if Config[flagName] == nil then Config[flagName] = min end
     updateGlobalFlags(flagName, Config[flagName])
     
-    local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Active = true}, self.Frame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, -60, 0, 16), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
-    local ValueBox = create("TextBox", {Size = UDim2.new(0, 50, 0, 16), Position = UDim2.new(1, -2, 0, 2), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, ClearTextOnFocus = false}, SliderFrame)
+    local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Active = true}, self.Frame)
+    local Label = create("TextLabel", {Size = UDim2.new(1, -12, 0, 16), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
+
+    -- Caja de valor estilo "textbox" oscura semitransparente, separada del track (a un lado)
+    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 54, 0, 20), Position = UDim2.new(1, -2, 0, 22), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 5)}, ValueBoxBg)
+    create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50), Transparency = 0.3}, ValueBoxBg)
+    local ValueBox = create("TextBox", {Size = UDim2.new(1, -8, 1, 0), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false}, ValueBoxBg)
     ValueBox:SetAttribute("ThemeRole", "TEXT_ACCENT")
-    
-    local Track = create("Frame", {Size = UDim2.new(1, -4, 0, 6), Position = UDim2.new(0, 2, 0, 24), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderFrame)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, Track)
+
+    -- Track más corto (ya no ocupa todo el ancho horizontal) y un poco más grueso
+    local Track = create("Frame", {Size = UDim2.new(1, -64, 0, 8), Position = UDim2.new(0, 2, 0, 26), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, Track)
     local Fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, Track)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, Fill)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, Fill)
     
-    local Knob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, Knob)
+    local Knob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, -7, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
+    create("UICorner", {CornerRadius = UDim.new(0, 4)}, Knob)
+
+    -- Formato flexible: enteros como 1000 se muestran sin decimales, y los rangos 0-1
+    -- (u otros con decimales) muestran hasta 3 cifras, permitiendo escribir 0.0, 0.00 o 0.000
+    local function formatValue(v)
+        if max <= 1 then
+            return string.format("%.3f", v)
+        elseif v % 1 ~= 0 then
+            return string.format("%.2f", v)
+        else
+            return tostring(math.floor(v))
+        end
+    end
 
     local function runSliderValue(v, skipCallback)
         v = math.clamp(v, min, max) 
         updateGlobalFlags(flagName, v) Config[flagName] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
-        Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -6, 0.5, -6)
-        if max <= 1 then ValueBox.Text = string.format("%.2f", v) else ValueBox.Text = tostring(math.floor(v)) end
+        Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -7, 0.5, -7)
+        ValueBox.Text = formatValue(v)
         if not skipCallback then pcall(callback, v) end
     end
     
@@ -1301,10 +1335,10 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local ColorBtn = create("TextButton", {Size = UDim2.new(0, 26, 0, 18), Position = UDim2.new(1, -38, 0, 9), BackgroundColor3 = savedColor, Text = ""}, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
-    -- Canvas S-V de Gradient (elemento principal, agrandado para mayor precisión táctil)
+    -- Canvas S-V de Gradient (agrandado para mayor precisión y comodidad visual)
     local Canvas = create("ImageLabel", {
-        Position = UDim2.new(0, 12, 0, 40),
-        Size = UDim2.new(0, 112, 0, 112),
+        Position = UDim2.new(0, 12, 0, 44),
+        Size = UDim2.new(0, 128, 0, 128),
         Image = "rbxassetid://4155801252",
         BackgroundColor3 = color3FromHSV(color3ToHSV(savedColor)),
         BorderSizePixel = 0,
@@ -1314,17 +1348,17 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, Canvas)
 
     local SVPickerKnob = create("Frame", {
-        Size = UDim2.new(0, 10, 0, 10),
+        Size = UDim2.new(0, 12, 0, 12),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         BorderSizePixel = 0
     }, Canvas)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVPickerKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, SVPickerKnob)
 
-    -- Barra Fina Arcoíris (Tono / Hue), estirada a la nueva altura del Canvas
+    -- Barra Arcoíris (Tono / Hue), más grande y más separada del canvas
     local HueSlider = create("Frame", {
-        Position = UDim2.new(0, 134, 0, 40),
-        Size = UDim2.new(0, 16, 0, 112),
+        Position = UDim2.new(0, 156, 0, 44),
+        Size = UDim2.new(0, 20, 0, 128),
         BorderSizePixel = 0,
         Active = true
     }, MasterFrame)
@@ -1353,18 +1387,19 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, HueKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, HueKnob)
 
-    -- Previsualización minimalista (chica) + entrada Hex editable en columna derecha
+    -- Previsualización como cuadro pequeño (ya no ocupa todo el ancho horizontal)
+    -- + entrada Hex editable debajo, conservando la opción de escribir el color en números/letras
     local PreviewFrame = create("Frame", {
-        Position = UDim2.new(0, 162, 0, 40),
-        Size = UDim2.new(1, -174, 0, 32),
+        Position = UDim2.new(0, 192, 0, 44),
+        Size = UDim2.new(0, 44, 0, 44),
         BackgroundColor3 = savedColor
     }, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, PreviewFrame)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, PreviewFrame)
 
     local HexBox = create("TextBox", {
-        Position = UDim2.new(0, 162, 0, 80),
-        Size = UDim2.new(1, -174, 0, 28),
+        Position = UDim2.new(0, 192, 0, 98),
+        Size = UDim2.new(1, -204, 0, 30),
         BackgroundColor3 = Color3.fromRGB(25, 25, 30),
         Text = "",
         PlaceholderText = "FFFFFF",
@@ -1397,8 +1432,8 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         Config[flagColor] = {col.R, col.G, col.B}
         updateGlobalFlags(flagColor, col)
 
-        SVPickerKnob.Position = UDim2.new(s, -5, 1 - v, -5)
-        HueKnob.Position = UDim2.new(0.5, -9, h, -2)
+        SVPickerKnob.Position = UDim2.new(s, -6, 1 - v, -6)
+        HueKnob.Position = UDim2.new(0.5, -10, h, -2)
         Canvas.BackgroundColor3 = color3FromHSV(h, 1, 1)
 
         PreviewFrame.BackgroundColor3 = col
@@ -1533,7 +1568,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local open = false
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
-        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 176 or 36)}):Play()
+        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 188 or 36)}):Play()
         if not open then saveConfig() end -- 💾 Autoguardado explícito al cerrar el menú del color picker
     end)
     
@@ -1580,10 +1615,10 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     local ColorBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 18), Position = UDim2.new(1, -42, 0.5, -9), BackgroundColor3 = savedColor, Text = ""}, Trigger)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
-    -- Canvas S-V de Gradient (elemento principal, agrandado para mayor precisión táctil)
+    -- Canvas S-V de Gradient (agrandado para mayor precisión y comodidad visual)
     local Canvas = create("ImageLabel", {
-        Position = UDim2.new(0, 12, 0, 40),
-        Size = UDim2.new(0, 112, 0, 112),
+        Position = UDim2.new(0, 12, 0, 44),
+        Size = UDim2.new(0, 128, 0, 128),
         Image = "rbxassetid://4155801252",
         BackgroundColor3 = color3FromHSV(color3ToHSV(savedColor)),
         BorderSizePixel = 0,
@@ -1593,17 +1628,17 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, Canvas)
 
     local SVPickerKnob = create("Frame", {
-        Size = UDim2.new(0, 10, 0, 10),
+        Size = UDim2.new(0, 12, 0, 12),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         BorderSizePixel = 0
     }, Canvas)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVPickerKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, SVPickerKnob)
 
-    -- Barra Fina Arcoíris (Tono / Hue), estirada a la nueva altura del Canvas
+    -- Barra Arcoíris (Tono / Hue), más grande y más separada del canvas
     local HueSlider = create("Frame", {
-        Position = UDim2.new(0, 134, 0, 40),
-        Size = UDim2.new(0, 16, 0, 112),
+        Position = UDim2.new(0, 156, 0, 44),
+        Size = UDim2.new(0, 20, 0, 128),
         BorderSizePixel = 0,
         Active = true
     }, MasterFrame)
@@ -1632,18 +1667,19 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 2)}, HueKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, HueKnob)
 
-    -- Previsualización minimalista (chica) + entrada Hex editable en columna derecha
+    -- Previsualización como cuadro pequeño (ya no ocupa todo el ancho horizontal)
+    -- + entrada Hex editable debajo, conservando la opción de escribir el color en números/letras
     local PreviewFrame = create("Frame", {
-        Position = UDim2.new(0, 162, 0, 40),
-        Size = UDim2.new(1, -174, 0, 32),
+        Position = UDim2.new(0, 192, 0, 44),
+        Size = UDim2.new(0, 44, 0, 44),
         BackgroundColor3 = savedColor
     }, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, PreviewFrame)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, PreviewFrame)
 
     local HexBox = create("TextBox", {
-        Position = UDim2.new(0, 162, 0, 80),
-        Size = UDim2.new(1, -174, 0, 28),
+        Position = UDim2.new(0, 192, 0, 98),
+        Size = UDim2.new(1, -204, 0, 30),
         BackgroundColor3 = Color3.fromRGB(25, 25, 30),
         Text = "",
         PlaceholderText = "FFFFFF",
@@ -1676,8 +1712,8 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
         Config[flagColor] = {col.R, col.G, col.B}
         updateGlobalFlags(flagColor, col)
 
-        SVPickerKnob.Position = UDim2.new(s, -5, 1 - v, -5)
-        HueKnob.Position = UDim2.new(0.5, -9, h, -2)
+        SVPickerKnob.Position = UDim2.new(s, -6, 1 - v, -6)
+        HueKnob.Position = UDim2.new(0.5, -10, h, -2)
         Canvas.BackgroundColor3 = color3FromHSV(h, 1, 1)
 
         PreviewFrame.BackgroundColor3 = col
@@ -1796,7 +1832,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     local open = false
     connect(ColorBtn.MouseButton1Click, function() 
         open = not open playUISound() 
-        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 176 or 36)}):Play()
+        TweenService:Create(MasterFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, open and 188 or 36)}):Play()
         if not open then saveConfig() end -- 💾 Autoguardado explícito al cerrar el menú del color picker
     end)
     
