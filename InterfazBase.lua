@@ -1812,8 +1812,19 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
         pcall(callback, processedText) 
     end)
 
+    -- 🔧 BANDERA DE FOCUS: reemplaza HasFocus() que no existe en Roblox
+    local boxHasFocus = false
+    
+    connect(Box.Focused, function()
+        boxHasFocus = true
+    end)
+    
+    connect(Box.FocusLost, function()
+        boxHasFocus = false
+    end)
+
     connect(UserInputService.InputBegan, function(input)
-        if Box:HasFocus() then
+        if boxHasFocus then
             if input.KeyCode == Enum.KeyCode.Up then
                 if historyIndex < #history then
                     historyIndex = historyIndex + 1
