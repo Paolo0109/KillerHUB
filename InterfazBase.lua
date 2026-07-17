@@ -2482,17 +2482,35 @@ function ModalRefresh()
     if not (ConfigModal and currentModalSc) then return end
     local cfg = currentModalSc.cfg
     ModalTitle.Text = "Shortcut · " .. currentModalSc.data.name
-    -- Formas: resaltar seleccionada
+    -- Formas: resaltar seleccionada (accent translúcido, sin texto negro)
     for shapeName, btn in pairs(ModalShapeBtns) do
         local active = (cfg.shape == shapeName)
-        btn.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(24, 24, 28)
-        btn.TextColor3 = active and CurrentTheme.BG_MAIN or CurrentTheme.TEXT_WHITE
+        if active then
+            btn.BackgroundColor3 = CurrentTheme.ACCENT
+            btn.BackgroundTransparency = 0.78
+            btn.TextColor3 = CurrentTheme.TEXT_WHITE
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+            btn.BackgroundTransparency = 0
+            btn.TextColor3 = CurrentTheme.TEXT_MUTED
+        end
+        local st = btn:FindFirstChildOfClass("UIStroke")
+        if st then
+            st.Color = active and CurrentTheme.ACCENT or CurrentTheme.BORDER
+            st.Transparency = active and 0.15 or 0.35
+        end
     end
     -- Sliders
     ModalSizeSlider.set(cfg.size, false)
     ModalOpacitySlider.set(cfg.opacity, false)
     -- Lock
-    ModalLockTrack.BackgroundColor3 = cfg.lock and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
+    if cfg.lock then
+        ModalLockTrack.BackgroundColor3 = CurrentTheme.ACCENT
+        ModalLockTrack.BackgroundTransparency = 0.55
+    else
+        ModalLockTrack.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        ModalLockTrack.BackgroundTransparency = 0
+    end
     ModalLockKnob.Position = cfg.lock and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
     ModalLockLabel.TextColor3 = cfg.lock and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
     -- Preview
@@ -2509,13 +2527,21 @@ function ModalRefresh()
         if cfg.active then
             ModalActionBtn.Text = "Quitar shortcut"
             ModalActionBtn.BackgroundColor3 = Color3.fromRGB(48, 20, 24)
+            ModalActionBtn.BackgroundTransparency = 0.15
             ModalActionBtn.TextColor3 = Color3.fromRGB(255, 180, 180)
-            if ModalActionStroke then ModalActionStroke.Color = Color3.fromRGB(120, 40, 45) end
+            if ModalActionStroke then
+                ModalActionStroke.Color = Color3.fromRGB(180, 60, 70)
+                ModalActionStroke.Transparency = 0.2
+            end
         else
             ModalActionBtn.Text = "Agregar shortcut"
             ModalActionBtn.BackgroundColor3 = CurrentTheme.ACCENT
-            ModalActionBtn.TextColor3 = CurrentTheme.BG_MAIN
-            if ModalActionStroke then ModalActionStroke.Color = CurrentTheme.BORDER end
+            ModalActionBtn.BackgroundTransparency = 0.72
+            ModalActionBtn.TextColor3 = CurrentTheme.TEXT_WHITE
+            if ModalActionStroke then
+                ModalActionStroke.Color = CurrentTheme.ACCENT
+                ModalActionStroke.Transparency = 0.15
+            end
         end
     end
 end
