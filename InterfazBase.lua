@@ -108,13 +108,14 @@ local CurrentTheme = Themes["Obsidian"]
 -- que también autoguarde (incluso si ese script usa un nombre genérico tipo
 -- "config.json" en la raíz). Al vivir en su propia carpeta, dos autoguardados
 -- corriendo al mismo tiempo (este + el de tu otro archivo) nunca se pisan.
+-- 🌐 MULTI-JUEGO AUTOMÁTICO: cada experiencia de Roblox (game.PlaceId) obtiene su
+-- propio archivo dentro de la misma carpeta dedicada. Así, cambiar de juego nunca
+-- pisa ni corrompe la configuración guardada en otro; todo es transparente para
+-- quien usa la librería, sin gestionar perfiles a mano.
 local CONFIG_FOLDER = "KillerHub_Config"
--- 🌐 MULTI-JUEGO: cada experiencia de Roblox obtiene su propio archivo de configuración
--- de forma automática y transparente, segmentado por game.PlaceId. Esto evita que la
--- configuración de un juego sobreescriba o corrompa la de otro, sin que el usuario
--- tenga que gestionar perfiles manualmente.
-local CurrentPlaceId = tostring(game.PlaceId)
-local CONFIG_FILE = CONFIG_FOLDER .. "/Core_" .. CurrentPlaceId .. ".json"
+local CURRENT_PLACE_ID = tostring(game.PlaceId)
+local CONFIG_FILE = CONFIG_FOLDER .. "/Core_" .. CURRENT_PLACE_ID .. ".json"
+local LEGACY_CONFIG_FILE = CONFIG_FOLDER .. "/Core_Config.json" -- config previo a la v4.3 (sin segmentar)
 
 pcall(function()
     if isfolder and makefolder and not isfolder(CONFIG_FOLDER) then
@@ -175,6 +176,17 @@ end
 pcall(function()
     if isfile and readfile and isfile(CONFIG_FILE) then
         local readOk, raw = pcall(readfile, CONFIG_FILE)
+        if readOk and raw and #raw > 0 then
+            local decodeOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
+            if decodeOk and type(data) == "table" then
+                for k, v in pairs(data) do Config[k] = v end
+            end
+        end
+    elseif isfile and readfile and isfile(LEGACY_CONFIG_FILE) then
+        -- 🩹 MIGRACIÓN: primera vez que este juego corre con la versión segmentada;
+        -- si existe un config viejo (sin PlaceId), se usa como punto de partida una
+        -- sola vez para no perder los ajustes previos del usuario.
+        local readOk, raw = pcall(readfile, LEGACY_CONFIG_FILE)
         if readOk and raw and #raw > 0 then
             local decodeOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
             if decodeOk and type(data) == "table" then
@@ -591,6 +603,333 @@ local function updateGlobalFlags(flagName, value)
     end
 end
 
+-- ============================================================================
+-- 📌 SISTEMA DE ACCESOS DIRECTOS FLOTANTES (SHORTCUTS) + PANEL CENTRALIZADO
+-- Convierte cualquier Toggle o Button en un botón flotante independiente sobre
+-- el juego. Se guarda por flag en Config.Shortcuts[flagName] y se reconstruye
+-- solo al activarlo/cambiar forma (rebuild), nunca en RenderStepped.
+-- ============================================================================
+if type(Config.Shortcuts) ~= "table" then Config.Shortcuts = {} end
+
+local ShortcutsLayer = create("Frame", {Name = "ShortcutsLayer", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Active = false, ZIndex = 50}, ScreenGui)
+local ShortcutRegistry = {} -- [flagName] = {Kind, DisplayText, GetState, SetState, Fire, Instance}
+local SHORTCUT_SHAPES = {"Círculo", "Rectángulo", "Squircle"}
+
+local function defaultShortcutData()
+    return {Enabled = false, Shape = "Squircle", Locked = false, Scale = 1, Transparency = 0.25, X = 40, Y = 220}
+end
+
+local function getShortcutData(flagName)
+    local d = Config.Shortcuts[flagName]
+    if type(d) ~= "table" then d = {} Config.Shortcuts[flagName] = d end
+    local def = defaultShortcutData()
+    for k, v in pairs(def) do if d[k] == nil then d[k] = v end end
+    return d
+end
+
+-- 🖱 Arrastre aislado del botón flotante: si está bloqueado ni siquiera conecta
+-- el drag, así el click normal (abrir/toggle) nunca compite con el movimiento.
+local function makeShortcutDraggable(obj, data)
+    local dragging, dragStart, startPos, activeInput
+    connect(obj.InputBegan, function(input)
+        if data.Locked then return end
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
+            dragging = true activeInput = input dragStart = input.Position startPos = obj.Position
+            local moveConn, endConn
+            moveConn = connect(UserInputService.InputChanged, function(changedInput)
+                if dragging and changedInput == activeInput then
+                    task.defer(function()
+                        if not dragging then return end
+                        local delta = changedInput.Position - dragStart
+                        local screenSize = Camera.ViewportSize
+                        local size = obj.AbsoluteSize
+                        local newX = mathClamp(startPos.X.Offset + delta.X, 0, math.max(0, screenSize.X - size.X))
+                        local newY = mathClamp(startPos.Y.Offset + delta.Y, 0, math.max(0, screenSize.Y - size.Y))
+                        obj.Position = UDim2.new(0, newX, 0, newY)
+                    end)
+                end
+            end)
+            endConn = connect(UserInputService.InputEnded, function(endedInput)
+                if endedInput == activeInput then
+                    dragging = false activeInput = nil
+                    if moveConn then moveConn:Disconnect() end
+                    if endConn then endConn:Disconnect() end
+                    data.X = obj.Position.X.Offset data.Y = obj.Position.Y.Offset
+                    saveConfig()
+                end
+            end)
+        end
+    end)
+end
+
+local function computeShortcutSize(shape, scale)
+    scale = mathClamp(scale or 1, 0.7, 1.6)
+    if shape == "Círculo" then
+        local d = 58 * scale
+        return d, d, UDim.new(1, 0)
+    elseif shape == "Rectángulo" then
+        return 150 * scale, 38 * scale, UDim.new(0, 9)
+    else -- Squircle
+        return 104 * scale, 50 * scale, UDim.new(0, 15)
+    end
+end
+
+local function destroyShortcutInstance(flagName)
+    local reg = ShortcutRegistry[flagName]
+    if reg and reg.Instance then pcall(function() reg.Instance:Destroy() end) reg.Instance = nil end
+end
+
+local function buildShortcutInstance(flagName)
+    local reg = ShortcutRegistry[flagName]
+    if not reg then return end
+    destroyShortcutInstance(flagName)
+    local data = getShortcutData(flagName)
+    if not data.Enabled then return end
+
+    local w, h, corner = computeShortcutSize(data.Shape, data.Scale)
+    local screenSize = Camera.ViewportSize
+    local safeX = mathClamp(data.X, 0, math.max(0, screenSize.X - w))
+    local safeY = mathClamp(data.Y, 0, math.max(0, screenSize.Y - h))
+
+    -- 🖤 Estética "Void": bordes negros sólidos, fondo negro semitransparente
+    -- (o totalmente transparente con la Config.Transparency del usuario)
+    local Container = create("TextButton", {
+        Name = "Shortcut_" .. flagName, Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, safeX, 0, safeY),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = data.Transparency, Text = "", AutoButtonColor = false, Active = true
+    }, ShortcutsLayer)
+    create("UICorner", {CornerRadius = corner}, Container)
+    local Stroke = create("UIStroke", {Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0), Transparency = 0.1}, Container)
+    local AccentLine = create("Frame", {Size = UDim2.new(0, 3, 1, -10), Position = UDim2.new(0, 4, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Container)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, AccentLine)
+
+    local NameLabel = create("TextLabel", {
+        Size = reg.Kind == "toggle" and UDim2.new(1, -16, 0.55, 0) or UDim2.new(1, -16, 1, 0),
+        Position = reg.Kind == "toggle" and UDim2.new(0, 12, 0, 2) or UDim2.new(0, 12, 0, 0),
+        BackgroundTransparency = 1, Text = reg.DisplayText, TextColor3 = Color3.fromRGB(240, 240, 245),
+        Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd
+    }, Container)
+
+    local StateLabel
+    if reg.Kind == "toggle" then
+        local active = reg.GetState()
+        StateLabel = create("TextLabel", {
+            Size = UDim2.new(1, -16, 0.4, 0), Position = UDim2.new(0, 12, 0.55, 0), BackgroundTransparency = 1,
+            Text = active and "ON" or "OFF", TextColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(150, 150, 155),
+            Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left
+        }, Container)
+    end
+
+    reg.Instance = Container
+    reg.SyncVisual = function()
+        if not Container or not Container.Parent then return end
+        if reg.Kind == "toggle" and StateLabel then
+            local active = reg.GetState()
+            StateLabel.Text = active and "ON" or "OFF"
+            StateLabel.TextColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(150, 150, 155)
+        end
+    end
+    reg.ApplyTheme = function()
+        if Container and Container.Parent then AccentLine.BackgroundColor3 = CurrentTheme.ACCENT end
+    end
+
+    connect(Container.MouseButton1Click, function()
+        playUISound()
+        if reg.Kind == "toggle" then reg.SetState(not reg.GetState())
+        else pcall(reg.Fire) end
+    end)
+
+    makeShortcutDraggable(Container, data)
+end
+
+-- ⚡ Debounce: el rebuild real solo corre 1 vez por resumption cycle aunque el
+-- usuario mueva el slider de tamaño/transparencia varias veces en el mismo frame.
+local pendingShortcutRebuild = {}
+local function refreshShortcutVisual(flagName)
+    local data = getShortcutData(flagName)
+    if not data.Enabled then destroyShortcutInstance(flagName) return end
+    if pendingShortcutRebuild[flagName] then return end
+    pendingShortcutRebuild[flagName] = true
+    task.defer(function()
+        pendingShortcutRebuild[flagName] = false
+        buildShortcutInstance(flagName)
+    end)
+end
+
+local function registerShortcutTarget(flagName, kind, displayText, getState, setState, fire)
+    ShortcutRegistry[flagName] = {Kind = kind, DisplayText = displayText, GetState = getState, SetState = setState, Fire = fire, Instance = nil}
+    table.insert(KillerHub.TargetThemeElements, function()
+        local reg = ShortcutRegistry[flagName]
+        if reg and reg.ApplyTheme then reg.ApplyTheme() end
+    end)
+    -- Si venía activado desde un config guardado previamente, se reconstruye al vuelo
+    if getShortcutData(flagName).Enabled then task.defer(function() buildShortcutInstance(flagName) end) end
+end
+
+local function syncShortcutState(flagName)
+    local reg = ShortcutRegistry[flagName]
+    if reg and reg.SyncVisual then reg.SyncVisual() end
+end
+
+-- ----------------------------------------------------------------------------
+-- 🪟 PANEL DE CONFIGURACIÓN DE SHORTCUTS (ventana centrada, mismo diseño del hub)
+-- ----------------------------------------------------------------------------
+local ShortcutPanelOpen = false
+local function openShortcutConfigPanel(flagName)
+    if ShortcutPanelOpen then return end
+    local reg = ShortcutRegistry[flagName]
+    if not reg then return end
+    local data = getShortcutData(flagName)
+    ShortcutPanelOpen = true
+    playUISound()
+
+    local Backdrop = create("TextButton", {Name = "ShortcutBackdrop", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.45, Text = "", AutoButtonColor = false, ZIndex = 60}, ScreenGui)
+
+    local Panel = create("Frame", {
+        Name = "ShortcutPanel", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, 300, 0, 372), BackgroundColor3 = CurrentTheme.BG_MAIN, ZIndex = 61, Active = true
+    }, Backdrop)
+    create("UICorner", {CornerRadius = UDim.new(0, 12)}, Panel)
+    create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER}, Panel)
+
+    local PTopbar = create("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Color3.fromRGB(4, 4, 5), ZIndex = 61, Active = true}, Panel)
+    create("UICorner", {CornerRadius = UDim.new(0, 12)}, PTopbar)
+    create("TextLabel", {Size = UDim2.new(1, -46, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1, Text = "⚙ Acceso Directo: " .. reg.DisplayText, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 61}, PTopbar)
+    local CloseBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -35, 0.5, -15), BackgroundColor3 = Color3.fromRGB(30, 30, 35), Text = "✕", TextColor3 = Color3.fromRGB(230, 230, 230), Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 61}, PTopbar)
+    create("UICorner", {CornerRadius = UDim.new(0, 8)}, CloseBtn)
+
+    local Content = create("ScrollingFrame", {Size = UDim2.new(1, -20, 1, -52), Position = UDim2.new(0, 10, 0, 46), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 61}, Panel)
+    local Layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 10)}, Content)
+    connect(Layout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        Content.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 8)
+    end)
+
+    -- Fila mini-toggle reutilizable dentro del panel
+    local function miniToggle(labelText, initialValue, onChange)
+        local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, ZIndex = 61}, Content)
+        create("UICorner", {CornerRadius = UDim.new(0, 6)}, Row)
+        create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Row)
+        create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = labelText, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 61}, Row)
+        local Btn = create("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", ZIndex = 61}, Row)
+        local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = initialValue and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45), ZIndex = 61}, Row)
+        create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
+        local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = initialValue and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 61}, Track)
+        create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
+        local state = initialValue
+        connect(Btn.MouseButton1Click, function()
+            playUISound() state = not state
+            TweenService:Create(Track, TweenInfo.new(0.12), {BackgroundColor3 = state and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}):Play()
+            TweenService:Create(Knob, TweenInfo.new(0.12), {Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
+            onChange(state)
+        end)
+        return Row
+    end
+
+    -- Fila mini-slider reutilizable dentro del panel (para tamaño/transparencia)
+    local function miniSlider(labelText, min, max, initialValue, formatFn, onChange)
+        local Row = create("Frame", {Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, ZIndex = 61})
+        Row.Parent = Content
+        create("TextLabel", {Size = UDim2.new(1, -50, 0, 16), Position = UDim2.new(0, 2, 0, 0), BackgroundTransparency = 1, Text = labelText, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 61}, Row)
+        local ValueLbl = create("TextLabel", {Size = UDim2.new(0, 48, 0, 16), Position = UDim2.new(1, -48, 0, 0), BackgroundTransparency = 1, Text = formatFn(initialValue), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 61}, Row)
+        local Track = create("Frame", {Size = UDim2.new(1, -4, 0, 8), Position = UDim2.new(0, 2, 0, 26), BackgroundColor3 = Color3.fromRGB(35, 35, 40), ZIndex = 61}, Row)
+        create("UICorner", {CornerRadius = UDim.new(0, 4)}, Track)
+        local pct0 = (max == min) and 0 or (initialValue - min) / (max - min)
+        local Fill = create("Frame", {Size = UDim2.new(pct0, 0, 1, 0), BackgroundColor3 = CurrentTheme.ACCENT, ZIndex = 61}, Track)
+        create("UICorner", {CornerRadius = UDim.new(0, 4)}, Fill)
+        local Knob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(pct0, -7, 0.5, -7), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Text = "", AutoButtonColor = false, ZIndex = 62}, Track)
+        create("UICorner", {CornerRadius = UDim.new(0, 4)}, Knob)
+
+        local function snap(input)
+            local pct = mathClamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
+            local v = min + pct * (max - min)
+            Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -7, 0.5, -7)
+            ValueLbl.Text = formatFn(v)
+            onChange(v)
+        end
+        local sliding = false
+        local dragConn, endConn
+        connect(Knob.InputBegan, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                sliding = true snap(input)
+                dragConn = connect(UserInputService.InputChanged, function(ci)
+                    if sliding and (ci.UserInputType == Enum.UserInputType.MouseMovement or ci.UserInputType == Enum.UserInputType.Touch) then snap(ci) end
+                end)
+                endConn = connect(UserInputService.InputEnded, function(ei)
+                    if ei.UserInputType == Enum.UserInputType.MouseButton1 or ei.UserInputType == Enum.UserInputType.Touch then
+                        sliding = false if dragConn then dragConn:Disconnect() end if endConn then endConn:Disconnect() end
+                        saveConfig()
+                    end
+                end)
+            end
+        end)
+        return Row
+    end
+
+    miniToggle("Mostrar en pantalla", data.Enabled, function(v)
+        data.Enabled = v saveConfig() refreshShortcutVisual(flagName)
+    end)
+
+    -- Selector geométrico: 3 botones limpios (Círculo / Rectángulo / Squircle)
+    local ShapeRow = create("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, ZIndex = 61}, Content)
+    local ShapeLayout = create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, ShapeRow)
+    local shapeButtons = {}
+    for _, shapeName in ipairs(SHORTCUT_SHAPES) do
+        local isSel = data.Shape == shapeName
+        local SBtn = create("TextButton", {Size = UDim2.new(0, 92, 1, 0), BackgroundColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY, BackgroundTransparency = isSel and 0.1 or 0.4, Text = shapeName, TextColor3 = isSel and Color3.fromRGB(10, 10, 12) or CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 61}, ShapeRow)
+        create("UICorner", {CornerRadius = UDim.new(0, 6)}, SBtn)
+        create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, SBtn)
+        shapeButtons[shapeName] = SBtn
+        connect(SBtn.MouseButton1Click, function()
+            playUISound() data.Shape = shapeName saveConfig()
+            for sName, b in pairs(shapeButtons) do
+                local sel = sName == shapeName
+                b.BackgroundColor3 = sel and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY
+                b.BackgroundTransparency = sel and 0.1 or 0.4
+                b.TextColor3 = sel and Color3.fromRGB(10, 10, 12) or CurrentTheme.TEXT_MUTED
+            end
+            refreshShortcutVisual(flagName)
+        end)
+    end
+
+    miniToggle("Bloquear posición", data.Locked, function(v) data.Locked = v saveConfig() end)
+
+    miniSlider("Tamaño", 0.7, 1.6, data.Scale, function(v) return string.format("%.2f", v) end, function(v)
+        data.Scale = v refreshShortcutVisual(flagName)
+    end)
+
+    miniSlider("Transparencia", 0, 1, data.Transparency, function(v) return string.format("%.2f", v) end, function(v)
+        data.Transparency = v refreshShortcutVisual(flagName)
+    end)
+
+    local function closePanel()
+        ShortcutPanelOpen = false
+        saveConfig()
+        pcall(function() Backdrop:Destroy() end)
+    end
+    connect(CloseBtn.MouseButton1Click, function() playUISound() closePanel() end)
+    connect(Backdrop.MouseButton1Click, function() closePanel() end) -- clic fuera del panel = cerrar (Panel.Active=true evita que esto dispare al clicar adentro)
+end
+
+-- Ícono grande (⚙), en el extremo izquierdo, bien alejado del control principal para
+-- evitar clics accidentales. Se antepone a Toggle/Button vía AttachShortcutGear.
+local function attachShortcutGear(container, flagName)
+    local GearBtn = create("TextButton", {
+        Name = "ShortcutGear", Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0, 5, 0.5, -13),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 30), BackgroundTransparency = 0.2, Text = "⚙",
+        TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 15, AutoButtonColor = false
+    }, container)
+    create("UICorner", {CornerRadius = UDim.new(0, 7)}, GearBtn)
+    create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, GearBtn)
+    connect(GearBtn.MouseButton1Click, function()
+        openShortcutConfigPanel(flagName)
+    end)
+    addInteractiveFeedback(GearBtn)
+    table.insert(KillerHub.TargetThemeElements, function()
+        GearBtn.TextColor3 = CurrentTheme.TEXT_MUTED
+    end)
+    return GearBtn
+end
+
 function KillerHub:SetPremiumIds(idTable) end
 
 function KillerHub:SetFont(fontName)
@@ -598,7 +937,7 @@ function KillerHub:SetFont(fontName)
     saveConfig()
     local fontEnum = Enum.Font[fontName] or Enum.Font.GothamMedium
     for _, v in ipairs(ScreenGui:GetDescendants()) do
-        if (v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton")) and not v:GetAttribute("FixedFont") then
+        if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then
             v.Font = fontEnum
         end
     end
@@ -688,13 +1027,13 @@ end
 -- y así ambos widgets comparten exactamente el mismo comportamiento y optimizaciones.
 -- ============================================================================
 local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColor, contentTop, fireCallback)
-    -- 🎨 Previsualización ampliada: el canvas SV crece en extensión horizontal (128 -> 150px)
-    -- para mayor precisión y comodidad al seleccionar tonos manualmente. El Hue slider y la
-    -- columna de info se recalculan a partir del ancho real del canvas para no solaparse.
-    local CANVAS_W = 150
+    -- 🎨 AJUSTE SOLICITADO: se amplía la extensión horizontal del canvas SV (antes 128px
+    -- cuadrado) para mejorar la precisión cromática y la comodidad visual al elegir tonos.
+    -- CANVAS_W centraliza el ancho para que Hue/InfoColumn/Rainbow se recalculen solos.
+    local CANVAS_W, CANVAS_H = 168, 128
     local Canvas = create("ImageLabel", {
         Position = UDim2.new(0, 12, 0, contentTop),
-        Size = UDim2.new(0, CANVAS_W, 0, 128),
+        Size = UDim2.new(0, CANVAS_W, 0, CANVAS_H),
         Image = "rbxassetid://4155801252",
         BackgroundColor3 = color3FromHSV(color3ToHSV(savedColor)),
         BorderSizePixel = 0,
@@ -707,7 +1046,8 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SVPickerKnob)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, SVPickerKnob)
 
-    local HueSlider = create("Frame", {Position = UDim2.new(0, 12 + CANVAS_W + 16, 0, contentTop), Size = UDim2.new(0, 20, 0, 128), BorderSizePixel = 0, Active = true}, MasterFrame)
+    local HueSliderX = 12 + CANVAS_W + 16
+    local HueSlider = create("Frame", {Position = UDim2.new(0, HueSliderX, 0, contentTop), Size = UDim2.new(0, 20, 0, 128), BorderSizePixel = 0, Active = true}, MasterFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, HueSlider)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50)}, HueSlider)
     create("UIGradient", {
@@ -728,7 +1068,8 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
 
     -- Columna derecha auto-centrada: la previsualización y el hex ya no van pegados a un
     -- lado, se centran en el espacio libre junto al Hue sin importar el ancho de la ventana
-    local InfoColumn = create("Frame", {Position = UDim2.new(0, 12 + CANVAS_W + 16 + 20 + 12, 0, contentTop), Size = UDim2.new(1, -(12 + CANVAS_W + 16 + 20 + 12 + 12), 0, 128), BackgroundTransparency = 1}, MasterFrame)
+    local InfoColumnX = HueSliderX + 20 + 12
+    local InfoColumn = create("Frame", {Position = UDim2.new(0, InfoColumnX, 0, contentTop), Size = UDim2.new(1, -(InfoColumnX + 12), 0, 128), BackgroundTransparency = 1}, MasterFrame)
 
     local PreviewFrame = create("Frame", {
         AnchorPoint = Vector2.new(0.5, 0),
@@ -963,369 +1304,6 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
     }
 end
 
--- ============================================================================
--- 📌 SISTEMA DE BOTONES FLOTANTES NATIVOS (SHORTCUTS) CON PANEL CENTRALIZADO
--- Convierte cualquier Toggle o Button en un acceso directo flotante e independiente.
--- Config.Shortcuts[flagName] = {Enabled, Shape, Locked, Scale, Transparency, X, Y}
--- se guarda dentro del mismo JSON de configuración (ya segmentado por game.PlaceId),
--- así que cada juego conserva sus propios accesos directos.
--- ============================================================================
-Config.Shortcuts = Config.Shortcuts or {}
-
-local ShortcutFloaters = {}   -- [flagName] = instancia del botón flotante
-local ShortcutSources = {}    -- [flagName] = {Text, Fire, GetState}
-
-local function defaultShortcutData()
-    return {Enabled = false, Shape = "Circle", Locked = false, Scale = 1, Transparency = 0.15, X = 40, Y = 200}
-end
-
-local function shapeToCorner(shape, hPx)
-    if shape == "Rect" then return UDim.new(0, math.floor(hPx / 2))
-    elseif shape == "Squircle" then return UDim.new(0, 14)
-    else return UDim.new(1, 0) end -- Circle
-end
-
-local function shortcutSize(shape, scale)
-    scale = scale or 1
-    if shape == "Rect" then
-        return UDim2.new(0, math.floor(76 * scale), 0, math.floor(32 * scale))
-    else
-        return UDim2.new(0, math.floor(46 * scale), 0, math.floor(46 * scale))
-    end
-end
-
-local function updateShortcutVisual(btn, state)
-    local stroke = btn:FindFirstChild("VoidStroke")
-    if stroke then stroke.Color = (state == true) and CurrentTheme.ACCENT or Color3.fromRGB(0, 0, 0) end
-end
-
--- 🛡️ Arrastre independiente para los botones flotantes: respeta el "Bloqueo de posición"
--- y persiste X/Y dentro de Config.Shortcuts[flagName], sin tocar makeDraggable() (usado
--- por el MainFrame y el botón principal) para no arriesgar esa lógica ya probada.
-local function makeShortcutDraggable(btn, flagName)
-    local dragging, dragStart, startPos, activeInput
-    local moveConn, endConn
-    connect(btn.InputBegan, function(input)
-        local data = Config.Shortcuts[flagName]
-        if not data or data.Locked then return end
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not dragging then
-            dragging = true activeInput = input dragStart = input.Position startPos = btn.Position
-
-            moveConn = connect(UserInputService.InputChanged, function(changedInput)
-                if dragging and (changedInput == activeInput) then
-                    task.defer(function()
-                        if not dragging then return end
-                        local delta = changedInput.Position - dragStart
-                        local screenSize = Camera.ViewportSize
-                        local btnSize = btn.AbsoluteSize
-                        local newX = mathClamp(startPos.X.Offset + delta.X, 0, screenSize.X - btnSize.X)
-                        local newY = mathClamp(startPos.Y.Offset + delta.Y, 0, screenSize.Y - btnSize.Y)
-                        btn.Position = UDim2.new(0, newX, 0, newY)
-                    end)
-                end
-            end)
-
-            endConn = connect(UserInputService.InputEnded, function(endedInput)
-                if endedInput == activeInput then
-                    dragging = false activeInput = nil
-                    if moveConn then moveConn:Disconnect() moveConn = nil end
-                    if endConn then endConn:Disconnect() end
-                    local d = Config.Shortcuts[flagName]
-                    if d then d.X = btn.Position.X.Offset d.Y = btn.Position.Y.Offset saveConfig() end
-                end
-            end)
-        end
-    end)
-end
-
-local function destroyShortcut(flagName)
-    local inst = ShortcutFloaters[flagName]
-    if inst then pcall(function() inst:Destroy() end) ShortcutFloaters[flagName] = nil end
-end
-
--- Crea (o actualiza en vivo) el botón flotante para un flag dado, según su config actual.
-local function createOrUpdateShortcut(flagName, displayText, fireFn, getStateFn)
-    local data = Config.Shortcuts[flagName]
-    if not data or not data.Enabled then destroyShortcut(flagName) return end
-
-    local size = shortcutSize(data.Shape, data.Scale)
-    local btn = ShortcutFloaters[flagName]
-
-    if not btn then
-        btn = create("TextButton", {
-            Name = "Shortcut_" .. flagName,
-            AutoButtonColor = false,
-            Text = "",
-            BackgroundColor3 = Color3.fromRGB(6, 6, 8), -- estética "Void": negro sólido
-            Active = true,
-            ZIndex = 50
-        }, ScreenGui)
-        create("UICorner", {Name = "Corner"}, btn)
-        create("UIStroke", {Name = "VoidStroke", Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0)}, btn)
-        create("TextLabel", {
-            Name = "Lbl", Size = UDim2.new(1, -6, 1, 0), Position = UDim2.new(0, 3, 0, 0),
-            BackgroundTransparency = 1, Text = string.upper(string.sub(displayText, 1, 1)),
-            TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 16,
-            TextScaled = true, TextXAlignment = Enum.TextXAlignment.Center
-        }, btn)
-        ShortcutFloaters[flagName] = btn
-        makeShortcutDraggable(btn, flagName)
-        connect(btn.MouseButton1Click, function()
-            playUISound()
-            pcall(fireFn)
-            local ok, state = pcall(getStateFn or function() return nil end)
-            updateShortcutVisual(btn, ok and state or nil)
-        end)
-    end
-
-    btn.Size = size
-    btn.Position = UDim2.new(0, data.X or 40, 0, data.Y or 200)
-    btn.BackgroundTransparency = data.Transparency or 0.15
-    local corner = btn:FindFirstChild("Corner")
-    if corner then corner.CornerRadius = shapeToCorner(data.Shape, size.Y.Offset) end
-
-    local ok, state = pcall(getStateFn or function() return nil end)
-    updateShortcutVisual(btn, ok and state or nil)
-end
-
--- 🖥 Panel de configuración centralizado (una sola instancia reutilizada para cualquier
--- Toggle/Button convertido en shortcut) — ventana mediana centrada, nunca se corta por
--- los bordes de la pantalla en PC ni en móvil.
-local ShortcutPanelTargetFlag = nil
-
-local ShortcutOverlay = create("TextButton", {Name = "ShortcutOverlay", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0.45, Text = "", AutoButtonColor = false, Visible = false, ZIndex = 90}, ScreenGui)
-
-local ShortcutPanel = create("Frame", {Name = "ShortcutPanel", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 292, 0, 336), BackgroundColor3 = Color3.fromRGB(6, 6, 8), BorderSizePixel = 0, Visible = false, ZIndex = 91}, ScreenGui)
-create("UICorner", {CornerRadius = UDim.new(0, 14)}, ShortcutPanel)
-create("UIStroke", {Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0)}, ShortcutPanel)
-
-local ShortcutTitle = create("TextLabel", {Name = "Title", Size = UDim2.new(1, -56, 0, 30), Position = UDim2.new(0, 16, 0, 12), BackgroundTransparency = 1, Text = "Acceso Directo", TextColor3 = Color3.fromRGB(235, 235, 240), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd}, ShortcutPanel)
-local ShortcutCloseBtn = create("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -40, 0, 10), BackgroundColor3 = Color3.fromRGB(20, 20, 22), Text = "✕", TextColor3 = Color3.fromRGB(230, 230, 230), Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false}, ShortcutPanel)
-ShortcutCloseBtn:SetAttribute("FixedFont", true)
-create("UICorner", {CornerRadius = UDim.new(0, 8)}, ShortcutCloseBtn)
-
-local function makeShortcutToggleRow(yPos, labelText)
-    local row = create("Frame", {Size = UDim2.new(1, -32, 0, 34), Position = UDim2.new(0, 16, 0, yPos), BackgroundColor3 = Color3.fromRGB(14, 14, 16), BackgroundTransparency = 0.15}, ShortcutPanel)
-    create("UICorner", {CornerRadius = UDim.new(0, 8)}, row)
-    create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0)}, row)
-    create("TextLabel", {Size = UDim2.new(1, -56, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = labelText, TextColor3 = Color3.fromRGB(215, 215, 220), Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, row)
-    local hitBtn = create("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, row)
-    local track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -44, 0.5, -9), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, row)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, track)
-    local knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = Color3.fromRGB(230, 230, 235)}, track)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
-    return hitBtn, track, knob
-end
-
-local ShortcutEnabledHit, ShortcutEnabledTrack, ShortcutEnabledKnob = makeShortcutToggleRow(52, "Crear botón flotante")
-local ShortcutLockHit, ShortcutLockTrack, ShortcutLockKnob = makeShortcutToggleRow(92, "Bloquear posición")
-
-create("TextLabel", {Size = UDim2.new(1, -32, 0, 16), Position = UDim2.new(0, 16, 0, 136), BackgroundTransparency = 1, Text = "Forma del botón", TextColor3 = Color3.fromRGB(150, 150, 158), Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left}, ShortcutPanel)
-local ShapeRow = create("Frame", {Size = UDim2.new(1, -32, 0, 40), Position = UDim2.new(0, 16, 0, 154), BackgroundTransparency = 1}, ShortcutPanel)
-create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder}, ShapeRow)
-
-local ShapeLabels = {Circle = "● Círculo", Rect = "▬ Rect.", Squircle = "▢ Suave"}
-local ShapeButtons = {}
-for _, shapeName in ipairs({"Circle", "Rect", "Squircle"}) do
-    local b = create("TextButton", {Size = UDim2.new(0, 80, 1, 0), BackgroundColor3 = Color3.fromRGB(16, 16, 18), Text = ShapeLabels[shapeName], TextColor3 = Color3.fromRGB(200, 200, 205), Font = Enum.Font.GothamMedium, TextSize = 11, AutoButtonColor = false}, ShapeRow)
-    b:SetAttribute("FixedFont", true)
-    create("UICorner", {CornerRadius = UDim.new(0, 8)}, b)
-    create("UIStroke", {Name = "Sel", Thickness = 1.5, Color = Color3.fromRGB(0, 0, 0)}, b)
-    ShapeButtons[shapeName] = b
-end
-
-local function refreshShapeButtons(shape)
-    for name, b in pairs(ShapeButtons) do
-        local sel = b:FindFirstChild("Sel")
-        if name == shape then
-            b.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-            if sel then sel.Color = CurrentTheme.ACCENT end
-        else
-            b.BackgroundColor3 = Color3.fromRGB(16, 16, 18)
-            if sel then sel.Color = Color3.fromRGB(0, 0, 0) end
-        end
-    end
-end
-
-local function makeMiniSlider(yPos, labelText)
-    local frame = create("Frame", {Size = UDim2.new(1, -32, 0, 40), Position = UDim2.new(0, 16, 0, yPos), BackgroundTransparency = 1}, ShortcutPanel)
-    create("TextLabel", {Size = UDim2.new(1, -50, 0, 16), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = labelText, TextColor3 = Color3.fromRGB(190, 190, 195), Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left}, frame)
-    local valLbl = create("TextLabel", {Size = UDim2.new(0, 46, 0, 16), Position = UDim2.new(1, -46, 0, 0), BackgroundTransparency = 1, Text = "", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right}, frame)
-    local track = create("Frame", {Size = UDim2.new(1, 0, 0, 6), Position = UDim2.new(0, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(30, 30, 34)}, frame)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, track)
-    local fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, track)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, fill)
-    local knob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, -7, 0.5, -7), BackgroundColor3 = Color3.fromRGB(230, 230, 235), Text = "", AutoButtonColor = false}, track)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, knob)
-    return track, fill, knob, valLbl
-end
-
-local SizeTrack, SizeFill, SizeKnob, SizeVal = makeMiniSlider(206)
-local TransTrack, TransFill, TransKnob, TransVal = makeMiniSlider(254)
-
-create("TextLabel", {Size = UDim2.new(1, -32, 0, 30), Position = UDim2.new(0, 16, 1, -38), BackgroundTransparency = 1, Text = "Arrastra el botón flotante en pantalla para moverlo.", TextColor3 = Color3.fromRGB(115, 115, 122), Font = Enum.Font.Gotham, TextSize = 10, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left}, ShortcutPanel)
-
-local function setMiniSlider(track, fill, knob, valLbl, v, min, max, decimals)
-    local pct = (max == min) and 0 or (v - min) / (max - min)
-    fill.Size = UDim2.new(pct, 0, 1, 0)
-    knob.Position = UDim2.new(pct, -7, 0.5, -7)
-    valLbl.Text = stringFormat("%." .. decimals .. "f", v)
-end
-
-local function refreshShortcutPanel()
-    local flag = ShortcutPanelTargetFlag
-    if not flag then return end
-    local d = Config.Shortcuts[flag]
-    if not d then return end
-    ShortcutEnabledTrack.BackgroundColor3 = d.Enabled and CurrentTheme.ACCENT or Color3.fromRGB(35, 35, 40)
-    ShortcutEnabledKnob.Position = d.Enabled and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-    ShortcutLockTrack.BackgroundColor3 = d.Locked and CurrentTheme.ACCENT or Color3.fromRGB(35, 35, 40)
-    ShortcutLockKnob.Position = d.Locked and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-    refreshShapeButtons(d.Shape)
-    setMiniSlider(SizeTrack, SizeFill, SizeKnob, SizeVal, d.Scale, 0.6, 1.8, 2)
-    setMiniSlider(TransTrack, TransFill, TransKnob, TransVal, d.Transparency, 0, 0.85, 2)
-end
-
-local function applyLiveShortcut(flag)
-    local src = ShortcutSources[flag]
-    if src then createOrUpdateShortcut(flag, src.Text, src.Fire, src.GetState) end
-end
-
-local function closeShortcutPanel()
-    ShortcutOverlay.Visible = false
-    ShortcutPanel.Visible = false
-    ShortcutPanelTargetFlag = nil
-end
-
-local function openShortcutPanel(flagName, displayText)
-    if not Config.Shortcuts[flagName] then Config.Shortcuts[flagName] = defaultShortcutData() end
-    ShortcutPanelTargetFlag = flagName
-    ShortcutTitle.Text = "Shortcut: " .. displayText
-    refreshShortcutPanel()
-    ShortcutOverlay.Visible = true
-    ShortcutPanel.Visible = true
-end
-
-connect(ShortcutCloseBtn.MouseButton1Click, function() playUISound() closeShortcutPanel() end)
-connect(ShortcutOverlay.MouseButton1Click, function() closeShortcutPanel() end)
-
-connect(ShortcutEnabledHit.MouseButton1Click, function()
-    local flag = ShortcutPanelTargetFlag if not flag then return end
-    playUISound()
-    local d = Config.Shortcuts[flag]
-    d.Enabled = not d.Enabled
-    refreshShortcutPanel() saveConfig() applyLiveShortcut(flag)
-end)
-
-connect(ShortcutLockHit.MouseButton1Click, function()
-    local flag = ShortcutPanelTargetFlag if not flag then return end
-    playUISound()
-    local d = Config.Shortcuts[flag]
-    d.Locked = not d.Locked
-    refreshShortcutPanel() saveConfig()
-end)
-
-for shapeName, b in pairs(ShapeButtons) do
-    connect(b.MouseButton1Click, function()
-        local flag = ShortcutPanelTargetFlag if not flag then return end
-        playUISound()
-        Config.Shortcuts[flag].Shape = shapeName
-        refreshShapeButtons(shapeName) saveConfig() applyLiveShortcut(flag)
-    end)
-end
-
-local function wireMiniSlider(track, knob, fill, valLbl, min, max, decimals, onChange)
-    local dragging = false
-    local function snap(input)
-        local pct = mathClamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-        local v = min + pct * (max - min)
-        setMiniSlider(track, fill, knob, valLbl, v, min, max, decimals)
-        onChange(v)
-    end
-    local dragConn, endConn
-    connect(knob.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true snap(input)
-            dragConn = connect(UserInputService.InputChanged, function(ci)
-                if dragging and (ci.UserInputType == Enum.UserInputType.MouseMovement or ci.UserInputType == Enum.UserInputType.Touch) then snap(ci) end
-            end)
-            endConn = connect(UserInputService.InputEnded, function(ei)
-                if ei.UserInputType == Enum.UserInputType.MouseButton1 or ei.UserInputType == Enum.UserInputType.Touch then
-                    dragging = false
-                    if dragConn then dragConn:Disconnect() dragConn = nil end
-                    if endConn then endConn:Disconnect() endConn = nil end
-                    saveConfig()
-                end
-            end)
-        end
-    end)
-end
-
-wireMiniSlider(SizeTrack, SizeKnob, SizeFill, SizeVal, 0.6, 1.8, 2, function(v)
-    local flag = ShortcutPanelTargetFlag if not flag then return end
-    Config.Shortcuts[flag].Scale = v
-    applyLiveShortcut(flag)
-end)
-
-wireMiniSlider(TransTrack, TransKnob, TransFill, TransVal, 0, 0.85, 2, function(v)
-    local flag = ShortcutPanelTargetFlag if not flag then return end
-    Config.Shortcuts[flag].Transparency = v
-    local btn = ShortcutFloaters[flag]
-    if btn then btn.BackgroundTransparency = v end
-end)
-
-table.insert(KillerHub.TargetThemeElements, function()
-    ShortcutTitle.TextColor3 = Color3.fromRGB(235, 235, 240)
-    SizeFill.BackgroundColor3 = CurrentTheme.ACCENT
-    TransFill.BackgroundColor3 = CurrentTheme.ACCENT
-    if ShortcutPanelTargetFlag then refreshShortcutPanel() end
-    for flag, btn in pairs(ShortcutFloaters) do
-        local src = ShortcutSources[flag]
-        if src then
-            local ok, state = pcall(src.GetState or function() return nil end)
-            updateShortcutVisual(btn, ok and state or nil)
-        end
-    end
-end)
-
--- 🔧 Icono activador (⚙): grande, en el extremo izquierdo de la fila, lejos del
--- interruptor principal para evitar toques accidentales en pantallas táctiles.
-local function addShortcutGear(row, flagName, displayText, rowHeight)
-    local gearSize = math.min(28, rowHeight - 6)
-    local gear = create("TextButton", {
-        Name = "ShortcutGear",
-        Size = UDim2.new(0, gearSize, 0, gearSize),
-        Position = UDim2.new(0, 6, 0.5, -gearSize / 2),
-        BackgroundColor3 = Color3.fromRGB(22, 22, 26),
-        BackgroundTransparency = 0.2,
-        Text = "⚙",
-        TextColor3 = CurrentTheme.TEXT_MUTED,
-        Font = Enum.Font.GothamBold,
-        TextSize = 15,
-        AutoButtonColor = false,
-        ZIndex = 5
-    }, row)
-    -- 🩹 El ícono debe usar SIEMPRE GothamBold (nunca quedar en blanco): se marca con un
-    -- atributo para que quede excluido de los dos lugares que reasignan Font globalmente
-    -- (RegisterElement y KillerHub:SetFont), sin importar qué fuente elija el usuario.
-    gear:SetAttribute("FixedFont", true)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, gear)
-    connect(gear.MouseEnter, function() TweenService:Create(gear, TweenInfo.new(0.12), {TextColor3 = CurrentTheme.ACCENT}):Play() end)
-    connect(gear.MouseLeave, function() TweenService:Create(gear, TweenInfo.new(0.12), {TextColor3 = CurrentTheme.TEXT_MUTED}):Play() end)
-    connect(gear.MouseButton1Click, function() playUISound() openShortcutPanel(flagName, displayText) end)
-    table.insert(KillerHub.TargetThemeElements, function() if gear and gear.Parent then gear.TextColor3 = CurrentTheme.TEXT_MUTED end end)
-    return gear
-end
-
--- Registra una fuente de shortcut y, si ya estaba habilitado en una sesión anterior
--- (persistido en Config.Shortcuts), recrea su botón flotante de inmediato.
-local function registerShortcutSource(flagName, displayText, fireFn, getStateFn)
-    ShortcutSources[flagName] = {Text = displayText, Fire = fireFn, GetState = getStateFn}
-    if Config.Shortcuts[flagName] and Config.Shortcuts[flagName].Enabled then
-        task.defer(function() createOrUpdateShortcut(flagName, displayText, fireFn, getStateFn) end)
-    end
-end
-
 local TabMethods = {}
 TabMethods.__index = TabMethods
 
@@ -1340,11 +1318,11 @@ function TabMethods:RegisterElement(inst, textLabel, tabName)
     local fontEnum = Enum.Font[Config.SelectedFont] or Enum.Font.GothamMedium
     task.defer(function()
         if not inst or not inst.Parent then return end
-        if (inst:IsA("TextLabel") or inst:IsA("TextBox") or inst:IsA("TextButton")) and not inst:GetAttribute("FixedFont") then
+        if inst:IsA("TextLabel") or inst:IsA("TextBox") or inst:IsA("TextButton") then
             inst.Font = fontEnum
         end
         for _, v in ipairs(inst:GetDescendants()) do
-            if (v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton")) and not v:GetAttribute("FixedFont") then
+            if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then
                 v.Font = fontEnum
             end
         end
@@ -1419,9 +1397,10 @@ function TabMethods:CreateToggle(flagName, text, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
-    -- Icono ⚙ de acceso directo a la izquierda: deja hueco propio y aleja el texto/switch
-    addShortcutGear(ToggleButton, flagName, text, 36)
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -98, 1, 0), Position = UDim2.new(0, 40, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    -- ⚙ Gear de shortcut al extremo izquierdo: grande (26px), separado del interruptor
+    -- (que vive al extremo derecho) para evitar clics accidentales entre ambos.
+    attachShortcutGear(ToggleButton, flagName)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -108, 1, 0), Position = UDim2.new(0, 40, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd}, ToggleButton)
     local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
@@ -1442,6 +1421,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
         updateGlobalFlags(flagName, bool) Config[flagName] = bool saveConfig()
         task.spawn(stateUpdate)
         task.spawn(callback, bool)
+        syncShortcutState(flagName)
     end
 
     connect(ToggleButton.MouseButton1Click, function()
@@ -1452,10 +1432,9 @@ function TabMethods:CreateToggle(flagName, text, callback)
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
     task.spawn(function() stateUpdate() pcall(callback, Flags[flagName].CurrentValue) end)
 
-    registerShortcutSource(flagName, text, function() executeSet(not Flags[flagName].CurrentValue) end, function() return Flags[flagName].CurrentValue end)
-
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
+    registerShortcutTarget(flagName, "toggle", text, function() return Flags[flagName].CurrentValue end, executeSet, nil)
     
     local toggleObj = {
         Set = function(_, bool) executeSet(bool) end,
@@ -2217,18 +2196,21 @@ function TabMethods:CreateButton(text, callback)
         ["callback"] = {value = callback, types = {"function"}}
     }) then return end
 
-    local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, self.Frame)
+    local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = "", AutoButtonColor = false}, self.Frame)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
-    create("UIPadding", {PaddingLeft = UDim.new(0, 40), PaddingRight = UDim.new(0, 10)}, Button)
-    addShortcutGear(Button, text, text, 32)
-    
+
+    -- ⚙ Gear de shortcut al extremo izquierdo; el texto se recentra en el espacio
+    -- restante (desde 40px) para que nunca quede tapado por el icono.
+    attachShortcutGear(Button, text)
+    local ButtonLabel = create("TextLabel", {Size = UDim2.new(1, -46, 1, 0), Position = UDim2.new(0, 40, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd}, Button)
+    table.insert(KillerHub.TargetThemeElements, function() ButtonLabel.TextColor3 = CurrentTheme.TEXT_WHITE end)
+
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
     addInteractiveFeedback(Button)
-    self:RegisterElement(Button, Button, self.Frame.Name)
-
-    registerShortcutSource(text, text, function() pcall(callback) end, nil)
+    self:RegisterElement(Button, ButtonLabel, self.Frame.Name)
+    registerShortcutTarget(text, "button", text, nil, nil, function() pcall(callback) end)
     
     local btnObj = {
         Fire = function() pcall(callback) end
@@ -2383,6 +2365,9 @@ local TopFonts = {
 SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, function(selected) KillerHub:SetFont(selected) end)
 SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
 
+SettingsTab:CreateSection("Información")
+SettingsTab:CreateParagraph("🌐 Game ID: " .. CURRENT_PLACE_ID, "Tu configuración se guarda automáticamente separada por juego. No necesitas gestionar perfiles: cada experiencia de Roblox usa su propio archivo.")
+
 SettingsTab:CreateSection("Controles del Menú")
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
     print("Se presionó la tecla: " .. tostring(key))
@@ -2391,9 +2376,6 @@ SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, 
 SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
 SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
-
-SettingsTab:CreateSection("Configuración Multi-Juego")
-SettingsTab:CreateParagraph("🌐 Game ID: " .. CurrentPlaceId, "Tu configuración se guarda automáticamente bajo este identificador, sin gestión manual de perfiles ni riesgo de mezclar ajustes entre distintas experiencias de Roblox.")
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
