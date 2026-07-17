@@ -109,10 +109,27 @@ local CurrentTheme = Themes["Obsidian"]
 -- "config.json" en la raíz). Al vivir en su propia carpeta, dos autoguardados
 -- corriendo al mismo tiempo (este + el de tu otro archivo) nunca se pisan.
 local CONFIG_FOLDER = "KillerHub_Config"
--- 🆕 Segmentación automática por PlaceId: cada experiencia de Roblox recibe
---     su propio JSON, evitando corrupción al saltar entre juegos.
+-- 🆕 Persistencia inteligente en DOS capas:
+--   • GLOBAL_FILE  → variables estéticas y estructurales (tema, tamaño de la
+--                    ventana, opacidad, tecla de toggle, tamaño del botón,
+--                    fuente, volumen y las posiciones del menú/botón).
+--                    Nombre FIJO, sobrevive entre juegos.
+--   • LOCAL_FILE   → interruptores, sliders, keybinds y shortcuts específicos
+--                    del juego actual (segmentado por PlaceId).
+-- Al iniciar, primero se lee el global para reconstruir la interfaz con tus
+-- gustos exactos y luego se superpone el local con los flags del juego.
 local CURRENT_PLACE_ID = tostring(game.PlaceId or 0)
-local CONFIG_FILE = CONFIG_FOLDER .. "/Core_" .. CURRENT_PLACE_ID .. ".json"
+local GLOBAL_FILE = CONFIG_FOLDER .. "/Global.json"
+local LOCAL_FILE  = CONFIG_FOLDER .. "/Game_" .. CURRENT_PLACE_ID .. ".json"
+-- Compatibilidad hacia atrás con instalaciones que ya tenían Core_<id>.json
+local LEGACY_FILE = CONFIG_FOLDER .. "/Core_" .. CURRENT_PLACE_ID .. ".json"
+
+-- Claves que viven en el JSON GLOBAL. El resto va al JSON local del juego.
+local GLOBAL_KEYS = {
+    Volume = true, ToggleKey = true, SelectedTheme = true, SelectedFont = true,
+    GuiWidth = true, GuiHeight = true, UiOpacity = true, ToggleBtnSize = true,
+    MainFrameX = true, MainFrameY = true, BtnX = true, BtnY = true,
+}
 
 pcall(function()
     if isfolder and makefolder and not isfolder(CONFIG_FOLDER) then
@@ -125,7 +142,7 @@ local DefaultConfig = {
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100
 }
-local Config = {} 
+local Config = {}
 local Flags = {}
 local Connections = {}
 
@@ -159,10 +176,15 @@ local function saveConfig()
     task.defer(function()
         pendingConfigSave = false
         if not writefile then return end
-        local encodeOk, encoded = pcall(function() return HttpService:JSONEncode(Config) end)
-        if encodeOk and encoded then
-            pcall(function() writefile(CONFIG_FILE, encoded) end)
+        -- Partir Config en dos subtablas segun GLOBAL_KEYS
+        local globalPart, localPart = {}, {}
+        for k, v in pairs(Config) do
+            if GLOBAL_KEYS[k] then globalPart[k] = v else localPart[k] = v end
         end
+        local okG, encG = pcall(function() return HttpService:JSONEncode(globalPart) end)
+        if okG and encG then pcall(function() writefile(GLOBAL_FILE, encG) end) end
+        local okL, encL = pcall(function() return HttpService:JSONEncode(localPart) end)
+        if okL and encL then pcall(function() writefile(LOCAL_FILE, encL) end) end
     end)
 end
 
@@ -170,16 +192,25 @@ end
 -- una tabla válida (por ejemplo porque otro script escribió algo raro ahí, o
 -- el archivo quedó truncado a medias), simplemente se ignora y se usan los
 -- valores por defecto en vez de romper el :Init() de todo el hub.
-pcall(function()
-    if isfile and readfile and isfile(CONFIG_FILE) then
-        local readOk, raw = pcall(readfile, CONFIG_FILE)
-        if readOk and raw and #raw > 0 then
-            local decodeOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
-            if decodeOk and type(data) == "table" then
-                for k, v in pairs(data) do Config[k] = v end
-            end
-        end
+-- Carga en dos pasos: 1) global (estetica), 2) local (flags del juego).
+-- Si existe el archivo legado Core_<id>.json (formato anterior), se importa
+-- una unica vez y se reparte automaticamente entre global y local.
+local function _loadJsonInto(pathFile)
+    if not (isfile and readfile and isfile(pathFile)) then return end
+    local ok, raw = pcall(readfile, pathFile)
+    if not (ok and raw and #raw > 0) then return end
+    local decOk, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if decOk and type(data) == "table" then
+        for k, v in pairs(data) do Config[k] = v end
     end
+end
+pcall(function()
+    -- Migracion silenciosa del formato antiguo
+    if isfile and isfile(LEGACY_FILE) and not (isfile(GLOBAL_FILE) or isfile(LOCAL_FILE)) then
+        _loadJsonInto(LEGACY_FILE)
+    end
+    _loadJsonInto(GLOBAL_FILE)
+    _loadJsonInto(LOCAL_FILE)
 end)
 
 if Themes[Config.SelectedTheme] then CurrentTheme = Themes[Config.SelectedTheme] end
@@ -187,6 +218,13 @@ if Themes[Config.SelectedTheme] then CurrentTheme = Themes[Config.SelectedTheme]
 local function create(instanceType, properties, parent)
     local obj = Instance.new(instanceType)
     for prop, val in pairs(properties) do obj[prop] = val end
+    -- 🧼 Higiene visual: fuerza TextStrokeTransparency = 1 en cualquier texto
+    -- salvo que el llamador lo haya definido explicitamente. Elimina el "doble
+    -- borde de color" que aparece con ciertas fuentes / DPIs altos.
+    if (instanceType == "TextLabel" or instanceType == "TextButton" or instanceType == "TextBox")
+       and properties.TextStrokeTransparency == nil then
+        pcall(function() obj.TextStrokeTransparency = 1 end)
+    end
     if parent then obj.Parent = parent end
     return obj
 end
@@ -228,7 +266,7 @@ local function playUISound()
     end)
 end
 
-local MainFrame = create("CanvasGroup", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
+local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, ClipsDescendants = true, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
 local MainStroke = create("UIStroke", {Thickness = 1.5, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
 
@@ -240,10 +278,13 @@ local BordeGradient = create("UIGradient", {
     }), Rotation = 45
 }, MainStroke)
 
+-- 🌀 Rotacion del gradiente del borde: solo gasta GPU si el menu esta abierto
+-- Y visible. Al cerrarlo, el RenderStepped simplemente hace early-return, sin
+-- tocar propiedades ni disparar re-layouts.
+local menuFocused = true
 local gradientRotationConn = RunService.RenderStepped:Connect(function(dt)
-    if BordeGradient and MainFrame.Visible then
-        BordeGradient.Rotation = (BordeGradient.Rotation + (15 * dt)) % 360
-    end
+    if not (BordeGradient and MainFrame.Visible and menuFocused) then return end
+    BordeGradient.Rotation = (BordeGradient.Rotation + (15 * dt)) % 360
 end)
 table.insert(Connections, gradientRotationConn)
 
@@ -387,24 +428,91 @@ MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280
 updateUiOpacity()
 updateButtonSize()
 
+-- 🎬 FADE ESCALONADO SIN CANVASGROUP
+-- Antes: MainFrame era un CanvasGroup y toda la interfaz se desvanecia usando
+-- GroupTransparency. Ese contenedor tiene el defecto conocido de rasterizar el
+-- texto a baja resolucion en ciertos dispositivos, viendose borroso. Ahora
+-- MainFrame es un Frame normal (nitidez absoluta en fuentes) y el fade se
+-- construye animando los subelementos por separado, con un ligero delay
+-- escalonado que produce una sensacion mas premium sin costo de GPU.
+local BLUR_MAX = 14
+local menuBlur -- BlurEffect que solo existe mientras el menu esta abierto
+local function _ensureBlur()
+    if menuBlur and menuBlur.Parent then return menuBlur end
+    local ok, lighting = pcall(function() return game:GetService("Lighting") end)
+    if not ok or not lighting then return nil end
+    menuBlur = Instance.new("BlurEffect")
+    menuBlur.Name = "KillerHub_MenuBlur"
+    menuBlur.Size = 0
+    menuBlur.Parent = lighting
+    return menuBlur
+end
+
+-- Snapshots de opacidad "en reposo" de cada capa del menu, calculadas al abrir
+local function _computeLayerOpacities()
+    local o = Config.UiOpacity or 0.75
+    return {
+        main    = 1 - o,
+        topbar  = math.clamp((1 - o) + 0.1, 0, 0.95),
+        sidebar = math.clamp((1 - o) + 0.05, 0, 0.95),
+    }
+end
+
+local function _tween(inst, props, t, style, dir)
+    return TweenService:Create(inst, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props)
+end
+
 local menuVisible = true
 local function setMenuVisibility(visible)
     menuVisible = visible
+    menuFocused = visible -- pausa la rotacion del gradiente cuando el menu no esta en foco
     BtnIcon.ImageColor3 = visible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
-    
+
+    local target = _computeLayerOpacities()
+
     if visible then
         MainFrame.Visible = true
-        TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            GroupTransparency = 0
-        }):Play()
+        -- Estado inicial totalmente transparente para el fade-in
+        MainFrame.BackgroundTransparency = 1
+        Topbar.BackgroundTransparency = 1
+        Sidebar.BackgroundTransparency = 1
+        ContentContainer.Visible = true
+
+        -- Escalonado: fondo principal → topbar → sidebar → contenido
+        _tween(MainFrame, {BackgroundTransparency = target.main}, 0.22):Play()
+        task.delay(0.04, function()
+            if menuVisible then _tween(Topbar, {BackgroundTransparency = target.topbar}, 0.20):Play() end
+        end)
+        task.delay(0.08, function()
+            if menuVisible then _tween(Sidebar, {BackgroundTransparency = target.sidebar}, 0.20):Play() end
+        end)
+
+        -- 🎨 Desenfoque de fondo controlado: solo mientras el menu esta abierto
+        local blur = _ensureBlur()
+        if blur then
+            blur.Size = 0
+            _tween(blur, {Size = BLUR_MAX}, 0.22):Play()
+        end
     else
-        local closeTween = TweenService:Create(MainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            GroupTransparency = 1
-        })
+        -- Fade-out inverso, tambien escalonado pero mas breve
+        _tween(Sidebar, {BackgroundTransparency = 1}, 0.14):Play()
+        _tween(Topbar, {BackgroundTransparency = 1}, 0.14):Play()
+        local closeTween = _tween(MainFrame, {BackgroundTransparency = 1}, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
         closeTween.Completed:Connect(function()
             if not menuVisible then MainFrame.Visible = false end
         end)
         closeTween:Play()
+
+        if menuBlur and menuBlur.Parent then
+            local bTween = _tween(menuBlur, {Size = 0}, 0.16)
+            bTween.Completed:Connect(function()
+                if not menuVisible and menuBlur then
+                    pcall(function() menuBlur:Destroy() end)
+                    menuBlur = nil
+                end
+            end)
+            bTween:Play()
+        end
     end
 end
 
@@ -2655,6 +2763,87 @@ table.insert(KillerHub.TargetThemeElements, function()
 end)
 
 -- ============================================================================
+-- ============================================================================
+-- ♻️ VIRTUALIZACIÓN DE LISTAS MASIVAS (opt-in, no rompe la API existente)
+--    Uso: local list = KillerHub:CreateVirtualizedList(parent, {
+--          itemHeight = 32, getCount = fn, renderItem = fn(row, index, data),
+--          getData = fn(index) })
+--    Solo instancia los ~N botones visibles y los reutiliza al hacer scroll,
+--    ideal para selectores de jugadores en servidores llenos o listas de
+--    inventario. El resto del hub sigue usando ScrollingFrame normal.
+-- ============================================================================
+function KillerHub:CreateVirtualizedList(parent, opts)
+    opts = opts or {}
+    local itemHeight = opts.itemHeight or 30
+    local getCount = opts.getCount or function() return 0 end
+    local renderItem = opts.renderItem or function() end
+    local getData = opts.getData or function(i) return i end
+
+    local scroll = create("ScrollingFrame", {
+        Size = opts.size or UDim2.new(1, 0, 1, 0),
+        Position = opts.position or UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y
+    }, parent)
+
+    local pool, activeByIndex = {}, {}
+
+    local function acquire()
+        local row = table.remove(pool)
+        if row then row.Visible = true return row end
+        row = create("Frame", {
+            Size = UDim2.new(1, -6, 0, itemHeight),
+            BackgroundColor3 = CurrentTheme.BG_SECONDARY,
+            BackgroundTransparency = 0.35,
+            BorderSizePixel = 0,
+        }, scroll)
+        create("UICorner", {CornerRadius = UDim.new(0, 6)}, row)
+        return row
+    end
+
+    local function release(row)
+        row.Visible = false
+        table.insert(pool, row)
+    end
+
+    local function refresh()
+        local count = getCount()
+        scroll.CanvasSize = UDim2.new(0, 0, 0, count * itemHeight + 4)
+        local viewport = scroll.AbsoluteSize.Y
+        local scrollY = scroll.CanvasPosition.Y
+        local firstIdx = math.max(1, math.floor(scrollY / itemHeight) + 1)
+        local lastIdx  = math.min(count, math.ceil((scrollY + viewport) / itemHeight) + 1)
+
+        -- Libera filas fuera de rango
+        for idx, row in pairs(activeByIndex) do
+            if idx < firstIdx or idx > lastIdx then
+                activeByIndex[idx] = nil
+                release(row)
+            end
+        end
+        -- Asigna filas visibles
+        for idx = firstIdx, lastIdx do
+            local row = activeByIndex[idx]
+            if not row then
+                row = acquire()
+                activeByIndex[idx] = row
+            end
+            row.Position = UDim2.new(0, 3, 0, (idx - 1) * itemHeight)
+            local ok, data = pcall(getData, idx)
+            if ok then pcall(renderItem, row, idx, data) end
+        end
+    end
+
+    connect(scroll:GetPropertyChangedSignal("CanvasPosition"), refresh)
+    connect(scroll:GetPropertyChangedSignal("AbsoluteSize"), refresh)
+    task.defer(refresh)
+
+    return { Frame = scroll, Refresh = refresh }
+end
+
 -- 🔓 CONFIGURACIÓN BASE OBLIGATORIA (SETTINGS)
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "rbxassetid://10747372517")
@@ -2678,7 +2867,7 @@ SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) 
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
 
 SettingsTab:CreateSection("Configuración por Juego")
-SettingsTab:CreateParagraph("🎮 Game ID actual", "Tu configuración se guarda automáticamente por PlaceId. ID actual: " .. CURRENT_PLACE_ID .. "  |  Archivo: Core_" .. CURRENT_PLACE_ID .. ".json")
+SettingsTab:CreateParagraph("🎮 Persistencia inteligente", "Estilos, tamaño, opacidad, tema y tecla se guardan en Global.json (compartido). Los flags/toggles de este juego se guardan en Game_" .. CURRENT_PLACE_ID .. ".json")
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
