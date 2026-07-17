@@ -126,7 +126,7 @@ local LEGACY_FILE = CONFIG_FOLDER .. "/Core_" .. CURRENT_PLACE_ID .. ".json"
 
 -- Claves que viven en el JSON GLOBAL. El resto va al JSON local del juego.
 local GLOBAL_KEYS = {
-    Volume = true, ToggleKey = true, SelectedTheme = true, SelectedFont = true,
+    Volume = true, ToggleKey = true, SelectedTheme = true, SelectedFont = true, MenuAnimEnabled = true, AutoArrangeShortcuts = true,
     GuiWidth = true, GuiHeight = true, UiOpacity = true, ToggleBtnSize = true,
     MainFrameX = true, MainFrameY = true, BtnX = true, BtnY = true,
 }
@@ -138,7 +138,7 @@ pcall(function()
 end)
 
 local DefaultConfig = {
-    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium",
+    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium", MenuAnimEnabled = true, AutoArrangeShortcuts = true,
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100
 }
@@ -390,7 +390,10 @@ local SearchStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(3
 
 local SearchInput = create("TextBox", {Size = UDim2.new(1, -10, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1, PlaceholderText = "Buscar...", PlaceholderColor3 = CurrentTheme.TEXT_MUTED, Text = "", TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, SearchBoxContainer)
 
-local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -85), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
+local TabsHeader = create("Frame", {Size = UDim2.new(1, -12, 0, 18), Position = UDim2.new(0, 6, 0, 38), BackgroundTransparency = 1}, Sidebar)
+local TabsHeaderLabel = create("TextLabel", {Size = UDim2.new(1, -30, 1, 0), BackgroundTransparency = 1, Text = "PESTAÑAS", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, TabsHeader)
+local TabsHeaderCount = create("TextLabel", {Size = UDim2.new(0, 28, 1, 0), Position = UDim2.new(1, -28, 0, 0), BackgroundTransparency = 1, Text = "0", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right}, TabsHeader)
+local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -100), Position = UDim2.new(0, 0, 0, 56), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT, ScrollBarImageTransparency = 0.4, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
 local tabsLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SidebarTabsContainer)
 create("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, SidebarTabsContainer)
 
@@ -463,48 +466,89 @@ local function _tween(inst, props, t, style, dir)
 end
 
 local menuVisible = true
+-- 🎬 Animación premium: fade + scale suave desde el centro con easing Quint.
+-- El toggle Config.MenuAnimEnabled permite desactivarla (aparece/desaparece al instante).
+-- Se conserva el tamaño real del MainFrame en un UIScale (no toca Size), para no
+-- pelearse con updateGuiSize() ni con el layout responsive.
+local _menuScale = MainFrame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+_menuScale.Scale = 1
+_menuScale.Parent = MainFrame
+
+local function _animEnabled()
+    return Config.MenuAnimEnabled ~= false
+end
+
 local function setMenuVisibility(visible)
     menuVisible = visible
-    menuFocused = visible -- pausa la rotacion del gradiente cuando el menu no esta en foco
+    menuFocused = visible
     BtnIcon.ImageColor3 = visible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
 
     local target = _computeLayerOpacities()
+    local anim = _animEnabled()
 
     if visible then
         MainFrame.Visible = true
-        -- Estado inicial totalmente transparente para el fade-in
+        ContentContainer.Visible = true
+
+        if not anim then
+            _menuScale.Scale = 1
+            MainFrame.BackgroundTransparency = target.main
+            Topbar.BackgroundTransparency = target.topbar
+            Sidebar.BackgroundTransparency = target.sidebar
+            local blur = _ensureBlur() if blur then blur.Size = BLUR_MAX end
+            return
+        end
+
         MainFrame.BackgroundTransparency = 1
         Topbar.BackgroundTransparency = 1
         Sidebar.BackgroundTransparency = 1
-        ContentContainer.Visible = true
+        _menuScale.Scale = 0.92
 
-        -- Escalonado: fondo principal → topbar → sidebar → contenido
-        _tween(MainFrame, {BackgroundTransparency = target.main}, 0.22):Play()
-        task.delay(0.04, function()
-            if menuVisible then _tween(Topbar, {BackgroundTransparency = target.topbar}, 0.20):Play() end
+        local IN_TIME = 0.28
+        local EASE = Enum.EasingStyle.Quint
+        _tween(_menuScale, {Scale = 1}, IN_TIME, EASE, Enum.EasingDirection.Out):Play()
+        _tween(MainFrame, {BackgroundTransparency = target.main}, IN_TIME, EASE, Enum.EasingDirection.Out):Play()
+        task.delay(0.05, function()
+            if menuVisible then _tween(Topbar, {BackgroundTransparency = target.topbar}, 0.22, EASE, Enum.EasingDirection.Out):Play() end
         end)
-        task.delay(0.08, function()
-            if menuVisible then _tween(Sidebar, {BackgroundTransparency = target.sidebar}, 0.20):Play() end
+        task.delay(0.09, function()
+            if menuVisible then _tween(Sidebar, {BackgroundTransparency = target.sidebar}, 0.22, EASE, Enum.EasingDirection.Out):Play() end
         end)
 
-        -- 🎨 Desenfoque de fondo controlado: solo mientras el menu esta abierto
         local blur = _ensureBlur()
         if blur then
             blur.Size = 0
-            _tween(blur, {Size = BLUR_MAX}, 0.22):Play()
+            _tween(blur, {Size = BLUR_MAX}, IN_TIME, EASE, Enum.EasingDirection.Out):Play()
         end
     else
-        -- Fade-out inverso, tambien escalonado pero mas breve
-        _tween(Sidebar, {BackgroundTransparency = 1}, 0.14):Play()
-        _tween(Topbar, {BackgroundTransparency = 1}, 0.14):Play()
-        local closeTween = _tween(MainFrame, {BackgroundTransparency = 1}, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        if not anim then
+            MainFrame.BackgroundTransparency = 1
+            Topbar.BackgroundTransparency = 1
+            Sidebar.BackgroundTransparency = 1
+            MainFrame.Visible = false
+            _menuScale.Scale = 1
+            if menuBlur and menuBlur.Parent then
+                pcall(function() menuBlur:Destroy() end); menuBlur = nil
+            end
+            return
+        end
+
+        local OUT_TIME = 0.20
+        local EASE = Enum.EasingStyle.Quint
+        _tween(_menuScale, {Scale = 0.94}, OUT_TIME, EASE, Enum.EasingDirection.In):Play()
+        _tween(Sidebar, {BackgroundTransparency = 1}, OUT_TIME * 0.75, EASE, Enum.EasingDirection.In):Play()
+        _tween(Topbar, {BackgroundTransparency = 1}, OUT_TIME * 0.85, EASE, Enum.EasingDirection.In):Play()
+        local closeTween = _tween(MainFrame, {BackgroundTransparency = 1}, OUT_TIME, EASE, Enum.EasingDirection.In)
         closeTween.Completed:Connect(function()
-            if not menuVisible then MainFrame.Visible = false end
+            if not menuVisible then
+                MainFrame.Visible = false
+                _menuScale.Scale = 1
+            end
         end)
         closeTween:Play()
 
         if menuBlur and menuBlur.Parent then
-            local bTween = _tween(menuBlur, {Size = 0}, 0.16)
+            local bTween = _tween(menuBlur, {Size = 0}, OUT_TIME, EASE, Enum.EasingDirection.In)
             bTween.Completed:Connect(function()
                 if not menuVisible and menuBlur then
                     pcall(function() menuBlur:Destroy() end)
@@ -758,6 +802,9 @@ function KillerHub:SetTheme(themeName)
     DecorLine.BackgroundColor3 = CurrentTheme.ACCENT
     PerformanceLabel.TextColor3 = CurrentTheme.TEXT_MUTED
     SearchBoxContainer.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+    if TabsHeaderLabel then TabsHeaderLabel.TextColor3 = CurrentTheme.TEXT_MUTED end
+    if TabsHeaderCount then TabsHeaderCount.TextColor3 = CurrentTheme.ACCENT end
+    if SidebarTabsContainer then SidebarTabsContainer.ScrollBarImageColor3 = CurrentTheme.ACCENT end
     SearchInput.TextColor3 = CurrentTheme.TEXT_WHITE
     SearchInput.PlaceholderColor3 = CurrentTheme.TEXT_MUTED
     OpenCloseBtn.BackgroundColor3 = CurrentTheme.BG_MAIN
@@ -2064,13 +2111,15 @@ function KillerHub:CreateTab(name, iconId)
     end)
     table.insert(Connections, sizeChangedConn)
 
-    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
-    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left}, btn)
+    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -28 or -10, 1, 0), Position = UDim2.new(0, iconId and 26 or 10, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, btn)
+    pcall(function() btnLabel.TextStrokeTransparency = 1 end)
 
     local iconImg
-    if iconId then iconImg = create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 4, 0.5, -7), BackgroundTransparency = 1, Image = iconId, ImageColor3 = CurrentTheme.TEXT_MUTED}, btn) end
-    local line = create("Frame", {Name = "IndicatorLine", Size = UDim2.new(0, 2.5, 0, 14), Position = UDim2.new(0, -4, 0.5, -7), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, BackgroundTransparency = 1}, btn)
-    create("UICorner", {CornerRadius = UDim.new(0, 1)}, line)
+    if iconId then iconImg = create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 6, 0.5, -7), BackgroundTransparency = 1, Image = iconId, ImageColor3 = CurrentTheme.TEXT_MUTED}, btn) end
+    local line = create("Frame", {Name = "IndicatorLine", Size = UDim2.new(0, 3, 0, 16), Position = UDim2.new(0, -2, 0.5, -8), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, BackgroundTransparency = 1}, btn)
+    create("UICorner", {CornerRadius = UDim.new(0, 2)}, line)
     
     local isFirstTab = true for _, _ in pairs(KillerHub.Frames) do isFirstTab = false break end
     KillerHub.Frames[name] = frame KillerHub.Buttons[name] = btn
@@ -2080,16 +2129,18 @@ function KillerHub:CreateTab(name, iconId)
 
     local function selectTab()
         for tName, reg in pairs(KillerHub.TabRegistry) do
-            if tName == name then
-                reg.Frame.Visible = true
-                reg.Label.TextColor3 = CurrentTheme.ACCENT -- pestaña activa: color del tema elegido, no un blanco genérico
-                reg.Line.BackgroundTransparency = 0
-                if reg.Icon then reg.Icon.ImageColor3 = CurrentTheme.ACCENT end
-            else
-                reg.Frame.Visible = false
-                reg.Label.TextColor3 = CurrentTheme.TEXT_MUTED
-                reg.Line.BackgroundTransparency = 1
-                if reg.Icon then reg.Icon.ImageColor3 = CurrentTheme.TEXT_MUTED end
+            local isSel = (tName == name)
+            reg.Frame.Visible = isSel
+            reg.Label.TextColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+            reg.Line.BackgroundTransparency = isSel and 0 or 1
+            if reg.Icon then reg.Icon.ImageColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED end
+            -- Fondo del botón: color del tema pero MUY transparente → distingue la pestaña
+            -- seleccionada sin verse pesado ni tapar el texto
+            if reg.Btn then
+                reg.Btn.BackgroundColor3 = CurrentTheme.ACCENT
+                TweenService:Create(reg.Btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundTransparency = isSel and 0.82 or 1
+                }):Play()
             end
         end
         KillerHub.CurrentTab = name
@@ -2101,14 +2152,21 @@ function KillerHub:CreateTab(name, iconId)
         frame.BackgroundColor3 = CurrentTheme.BG_MAIN
         stroke.Color = CurrentTheme.BORDER
         line.BackgroundColor3 = CurrentTheme.ACCENT
-        if KillerHub.CurrentTab == name then
-            btnLabel.TextColor3 = CurrentTheme.ACCENT
-            if iconImg then iconImg.ImageColor3 = CurrentTheme.ACCENT end
-        else
-            btnLabel.TextColor3 = CurrentTheme.TEXT_MUTED
-            if iconImg then iconImg.ImageColor3 = CurrentTheme.TEXT_MUTED end
-        end
+        btn.BackgroundColor3 = CurrentTheme.ACCENT
+        local isSel = (KillerHub.CurrentTab == name)
+        btn.BackgroundTransparency = isSel and 0.82 or 1
+        btnLabel.TextColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+        if iconImg then iconImg.ImageColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED end
+        btnLabel.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamBold
     end)
+
+    -- Actualizar contador de pestañas (excluye Settings)
+    if name ~= "Settings" and TabsHeaderCount then
+        local n = 0
+        for tn, _ in pairs(KillerHub.TabRegistry) do if tn ~= "Settings" then n = n + 1 end end
+        TabsHeaderCount.Text = tostring(n)
+        TabsHeaderCount.TextColor3 = CurrentTheme.ACCENT
+    end
 
     local tabObj = setmetatable({ Frame = frame }, TabMethods)
     KillerHub.Tabs[name] = tabObj return tabObj
@@ -2179,7 +2237,32 @@ local function saveShortcuts()
 end
 
 local function defaultCfg()
-    return { shape = "square", size = 48, opacity = 0.85, lock = false, x = 60, y = 260, active = false }
+    -- x/y = -1 → aún sin posición asignada; se calcula automáticamente al activar
+    return { shape = "square", size = 48, opacity = 0.85, lock = false, x = -1, y = -1, active = false, userMoved = false }
+end
+
+-- 🧭 Grid automático: reparte shortcuts arriba de la pantalla en filas, evitando
+-- que se amontonen cuando el usuario activa varios sin arrastrarlos.
+local function nextShortcutSlot(cfg)
+    local vp = Camera and Camera.ViewportSize or Vector2.new(800, 600)
+    local marginTop = 90
+    local marginSide = 14
+    local gap = 8
+    local w = (cfg.shape == "rounded") and math.floor(cfg.size * 2.2) or cfg.size
+    local h = cfg.size
+    local usableW = math.max(w + gap, vp.X - marginSide * 2)
+    local perRow = math.max(1, math.floor(usableW / (w + gap)))
+    local placed = 0
+    for _, other in pairs(Shortcuts) do
+        if other.cfg and other.cfg.active and not other.cfg.userMoved then
+            placed = placed + 1
+        end
+    end
+    local col = placed % perRow
+    local row = math.floor(placed / perRow)
+    local x = marginSide + col * (w + gap)
+    local y = marginTop + row * (h + gap)
+    return x, y
 end
 
 local function ensureCfg(id)
@@ -2220,11 +2303,14 @@ local function refreshShortcutVisual(sc)
     sc.frame.Size = computeSize(sc.cfg)
     sc.frame.BackgroundTransparency = 1 - sc.cfg.opacity
     applyShape(sc.frame, sc.cfg.shape)
-    if sc.stroke then sc.stroke.Color = CurrentTheme.BORDER end
+    -- Borde neutro suave (no del color del tema): más limpio y legible con cualquier fuente
+    if sc.stroke then sc.stroke.Color = Color3.fromRGB(30, 30, 34) sc.stroke.Transparency = 0.35 end
     if sc.label then
         sc.label.Text = buildLabel(sc)
         sc.label.TextColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         sc.label.TextSize = math.clamp(math.floor(sc.cfg.size * 0.28), 9, 16)
+        sc.label.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
+        pcall(function() sc.label.TextStrokeTransparency = 1 end)
     end
     if sc.accentBar then
         sc.accentBar.BackgroundColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.ACCENT or Color3.fromRGB(60, 60, 65)
@@ -2240,6 +2326,12 @@ end
 
 local function createFloating(sc)
     local cfg = sc.cfg
+    -- Si nunca se movió (o no tiene coords válidas), colocar en grid superior
+    if (Config.AutoArrangeShortcuts ~= false) and (not cfg.userMoved) or (cfg.x or -1) < 0 or (cfg.y or -1) < 0 then
+        local nx, ny = nextShortcutSlot(cfg)
+        cfg.x, cfg.y = nx, ny
+    end
+    local fontEnum = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
     local frame = create("TextButton", {
         Name = "Shortcut_" .. sc.data.id,
         Text = "",
@@ -2252,7 +2344,8 @@ local function createFloating(sc)
         ZIndex = 11
     }, ShortcutLayer)
     applyShape(frame, cfg.shape)
-    local stroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER}, frame)
+    -- Borde sutil, no del color del tema (evita el "outline llamativo")
+    local stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(30, 30, 34), Transparency = 0.35}, frame)
     local accentBar = create("Frame", {Size = UDim2.new(1, -14, 0, 2), Position = UDim2.new(0, 7, 1, -6), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
@@ -2261,12 +2354,18 @@ local function createFloating(sc)
         BackgroundTransparency = 1,
         Text = buildLabel(sc),
         TextColor3 = CurrentTheme.TEXT_WHITE,
-        Font = Enum.Font.GothamBold,
+        Font = fontEnum,
         TextSize = 12,
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Center,
         TextYAlignment = Enum.TextYAlignment.Center
     }, frame)
+    -- Micro animación al aparecer
+    if Config.MenuAnimEnabled ~= false then
+        local scaleFx = Instance.new("UIScale"); scaleFx.Scale = 0.85; scaleFx.Parent = frame
+        TweenService:Create(scaleFx, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        task.delay(0.28, function() if scaleFx then scaleFx:Destroy() end end)
+    end
 
     sc.frame, sc.stroke, sc.label, sc.accentBar = frame, stroke, label, accentBar
 
@@ -2305,6 +2404,7 @@ local function createFloating(sc)
             if dragMoved and not sc.cfg.lock then
                 sc.cfg.x = frame.Position.X.Offset
                 sc.cfg.y = frame.Position.Y.Offset
+                sc.cfg.userMoved = true
                 saveShortcuts()
             elseif not dragMoved then
                 -- Click limpio: dispara la acción
@@ -2858,6 +2958,8 @@ SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, functio
 SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
+SettingsTab:CreateToggle("MenuAnimEnabled", "Animación de apertura/cierre", function(v) Config.MenuAnimEnabled = v end)
+SettingsTab:CreateToggle("AutoArrangeShortcuts", "Auto-organizar shortcuts arriba", function(v) Config.AutoArrangeShortcuts = v end)
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
     print("Se presionó la tecla: " .. tostring(key))
 end)
