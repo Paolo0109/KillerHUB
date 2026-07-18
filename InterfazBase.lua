@@ -1906,6 +1906,12 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     table.insert(KillerHub.TargetThemeElements, Panel.ApplyTheme)
 
     Panel.RefreshInit()
+    -- 🩹 FIX: dispara el callback una vez con el color guardado para que el estado
+    -- del juego (cielo, luces, etc.) refleje el valor persistido y no se quede en el default.
+    -- Solo si el modo arcoíris no está activo (ese ya dispara su propio callback).
+    if Config[flagColor .. "_Rainbow"] ~= true then
+        task.spawn(function() safeCall("callback", callback, savedColor) end)
+    end
     addInteractiveFeedback(Trigger) addInteractiveFeedback(ColorBtn)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
 
@@ -2299,14 +2305,23 @@ local function getShortcutAccent()
     return CurrentTheme.ACCENT, CurrentTheme.TEXT_WHITE
 end
 
--- Contenedor global de los botones flotantes; vive fuera del MainFrame para
--- que sigan siendo visibles aunque el menú esté cerrado.
+-- Contenedor global de los botones flotantes; vive en su propio ScreenGui con
+-- DisplayOrder menor que el hub para que queden SIEMPRE debajo del menú y así
+-- no tapen opciones ni se puedan presionar accidentalmente al usar la UI.
+local ShortcutScreen = create("ScreenGui", {
+    Name = "KillerHub_Shortcuts",
+    IgnoreGuiInset = false,
+    ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets,
+    ResetOnSpawn = false,
+    DisplayOrder = 999990, -- menor que el ScreenGui principal (999999)
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, TargetParent)
 local ShortcutLayer = create("Frame", {
     Name = "ShortcutLayer",
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
-    ZIndex = 10
-}, ScreenGui)
+    ZIndex = 1
+}, ShortcutScreen)
 
 local Shortcuts = {}          -- id -> { data, cfg, floating instances }
 local ShortcutActivators = {} -- id -> { btn, stroke, glyph, refresh }
