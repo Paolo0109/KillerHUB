@@ -2472,6 +2472,7 @@ local function createFloating(sc)
     -- ignora todo lo demás → mover cámara / caminar con otro dedo no interfiere
     local dragging, activeInput, startPos, startFramePos
     local dragMoved = false
+    local dragStartTime = 0
     local moveConn, endConn
 
     connect(frame.InputBegan, function(input)
@@ -2482,30 +2483,61 @@ local function createFloating(sc)
         activeInput = input
         startPos = input.Position
         startFramePos = frame.Position
+        dragStartTime = os.clock()
 
         moveConn = connect(UserInputService.InputChanged, function(changedInput)
             if not dragging or changedInput ~= activeInput then return end
-            if sc.cfg.lock then return end
+            -- 🩹 Fix #4: filtra el tipo de input — solo nos interesa el movimiento
+            -- real del mouse/dedo; ignora gamepad, scroll wheel, etc. que también
+            -- disparan InputChanged y no deberían procesarse en cada frame.
+            if changedInput.UserInputType ~= Enum.UserInputType.MouseMovement and changedInput.UserInputType ~= Enum.UserInputType.Touch then return end
+
             local delta = changedInput.Position - startPos
-            if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then dragMoved = true end
+            -- 🩹 Fix #2: umbral de tap subido a 5px (antes 3px) — absorbe el
+            -- micro-jitter táctil que a veces cancelaba clicks legítimos o los
+            -- convertía en drag sin querer.
+            if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then dragMoved = true end
+
+            -- 🩹 Fix #1 (bug principal): antes este `return` ocurría ANTES de
+            -- actualizar dragMoved cuando lock estaba activo -> deslizar el dedo
+            -- sobre un botón bloqueado se registraba como "sin movimiento" y al
+            -- soltar, InputEnded lo interpretaba como tap y disparaba la acción.
+            -- Ahora dragMoved ya quedó actualizado arriba; acá solo evitamos
+            -- reposicionar el frame si está lockeado.
+            if sc.cfg.lock then return end
+
             local vp = Camera.ViewportSize
             local sz = frame.AbsoluteSize
             local newX = math.clamp(startFramePos.X.Offset + delta.X, 0, vp.X - sz.X)
             local newY = math.clamp(startFramePos.Y.Offset + delta.Y, 0, vp.Y - sz.Y)
-            frame.Position = UDim2.new(0, newX, 0, newY)
+            -- 🩹 Fix #3: guardia anti-jitter de render — solo tocar frame.Position
+            -- cuando el valor realmente cambia tras el clamp. Menos churn de
+            -- layout ⇒ menos tironcitos visuales en móvil.
+            local curPos = frame.Position
+            if curPos.X.Offset ~= newX or curPos.Y.Offset ~= newY then
+                frame.Position = UDim2.new(0, newX, 0, newY)
+            end
         end)
         endConn = connect(UserInputService.InputEnded, function(endedInput)
             if endedInput ~= activeInput then return end
             dragging = false
             activeInput = nil
             if moveConn then moveConn:Disconnect() moveConn = nil end
-            if endConn then endConn:Disconnect() end
+            -- 🩹 Fix #6: anular endConn tras desconectar (higiene, evita referencias
+            -- colgantes si en algún flujo se reutiliza la variable).
+            if endConn then endConn:Disconnect() endConn = nil end
+
+            -- 🩹 Fix #5: duración máxima de tap (0.6s). Si mantuviste el dedo quieto
+            -- mucho rato sobre el botón y sueltas, ya no cuenta como click accidental
+            -- — un tap real dura menos de 0.6s.
+            local heldTooLong = (os.clock() - dragStartTime) > 0.6
+
             if dragMoved and not sc.cfg.lock then
                 sc.cfg.x = frame.Position.X.Offset
                 sc.cfg.y = frame.Position.Y.Offset
                 sc.cfg.userMoved = true
                 saveShortcuts()
-            elseif not dragMoved then
+            elseif not dragMoved and not heldTooLong then
                 -- Click limpio: dispara la acción (con sonido UI del hub)
                 playUISound()
                 pcall(sc.data.fire)
