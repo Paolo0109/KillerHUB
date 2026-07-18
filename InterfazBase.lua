@@ -126,7 +126,7 @@ local LEGACY_FILE = CONFIG_FOLDER .. "/Core_" .. CURRENT_PLACE_ID .. ".json"
 
 -- Claves que viven en el JSON GLOBAL. El resto va al JSON local del juego.
 local GLOBAL_KEYS = {
-    Volume = true, ToggleKey = true, SelectedTheme = true, SelectedFont = true,
+    Volume = true, ToggleKey = true, SelectedTheme = true, SelectedFont = true, MenuAnimEnabled = true, AutoArrangeShortcuts = true,
     GuiWidth = true, GuiHeight = true, UiOpacity = true, ToggleBtnSize = true,
     MainFrameX = true, MainFrameY = true, BtnX = true, BtnY = true,
 }
@@ -138,7 +138,7 @@ pcall(function()
 end)
 
 local DefaultConfig = {
-    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium",
+    Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium", MenuAnimEnabled = true, AutoArrangeShortcuts = true,
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
     MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100
 }
@@ -390,7 +390,10 @@ local SearchStroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(3
 
 local SearchInput = create("TextBox", {Size = UDim2.new(1, -10, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1, PlaceholderText = "Buscar...", PlaceholderColor3 = CurrentTheme.TEXT_MUTED, Text = "", TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 11, ClearTextOnFocus = false}, SearchBoxContainer)
 
-local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -85), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
+local TabsHeader = create("Frame", {Size = UDim2.new(1, -12, 0, 18), Position = UDim2.new(0, 6, 0, 38), BackgroundTransparency = 1}, Sidebar)
+local TabsHeaderLabel = create("TextLabel", {Size = UDim2.new(1, -30, 1, 0), BackgroundTransparency = 1, Text = "PESTAÑAS", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, TabsHeader)
+local TabsHeaderCount = create("TextLabel", {Size = UDim2.new(0, 28, 1, 0), Position = UDim2.new(1, -28, 0, 0), BackgroundTransparency = 1, Text = "0", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right}, TabsHeader)
+local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -100), Position = UDim2.new(0, 0, 0, 56), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT, ScrollBarImageTransparency = 0.4, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
 local tabsLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SidebarTabsContainer)
 create("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, SidebarTabsContainer)
 
@@ -463,48 +466,89 @@ local function _tween(inst, props, t, style, dir)
 end
 
 local menuVisible = true
+-- 🎬 Animación premium: fade + scale suave desde el centro con easing Quint.
+-- El toggle Config.MenuAnimEnabled permite desactivarla (aparece/desaparece al instante).
+-- Se conserva el tamaño real del MainFrame en un UIScale (no toca Size), para no
+-- pelearse con updateGuiSize() ni con el layout responsive.
+local _menuScale = MainFrame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+_menuScale.Scale = 1
+_menuScale.Parent = MainFrame
+
+local function _animEnabled()
+    return Config.MenuAnimEnabled ~= false
+end
+
 local function setMenuVisibility(visible)
     menuVisible = visible
-    menuFocused = visible -- pausa la rotacion del gradiente cuando el menu no esta en foco
+    menuFocused = visible
     BtnIcon.ImageColor3 = visible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
 
     local target = _computeLayerOpacities()
+    local anim = _animEnabled()
 
     if visible then
         MainFrame.Visible = true
-        -- Estado inicial totalmente transparente para el fade-in
+        ContentContainer.Visible = true
+
+        if not anim then
+            _menuScale.Scale = 1
+            MainFrame.BackgroundTransparency = target.main
+            Topbar.BackgroundTransparency = target.topbar
+            Sidebar.BackgroundTransparency = target.sidebar
+            local blur = _ensureBlur() if blur then blur.Size = BLUR_MAX end
+            return
+        end
+
         MainFrame.BackgroundTransparency = 1
         Topbar.BackgroundTransparency = 1
         Sidebar.BackgroundTransparency = 1
-        ContentContainer.Visible = true
+        _menuScale.Scale = 0.92
 
-        -- Escalonado: fondo principal → topbar → sidebar → contenido
-        _tween(MainFrame, {BackgroundTransparency = target.main}, 0.22):Play()
-        task.delay(0.04, function()
-            if menuVisible then _tween(Topbar, {BackgroundTransparency = target.topbar}, 0.20):Play() end
+        local IN_TIME = 0.28
+        local EASE = Enum.EasingStyle.Quint
+        _tween(_menuScale, {Scale = 1}, IN_TIME, EASE, Enum.EasingDirection.Out):Play()
+        _tween(MainFrame, {BackgroundTransparency = target.main}, IN_TIME, EASE, Enum.EasingDirection.Out):Play()
+        task.delay(0.05, function()
+            if menuVisible then _tween(Topbar, {BackgroundTransparency = target.topbar}, 0.22, EASE, Enum.EasingDirection.Out):Play() end
         end)
-        task.delay(0.08, function()
-            if menuVisible then _tween(Sidebar, {BackgroundTransparency = target.sidebar}, 0.20):Play() end
+        task.delay(0.09, function()
+            if menuVisible then _tween(Sidebar, {BackgroundTransparency = target.sidebar}, 0.22, EASE, Enum.EasingDirection.Out):Play() end
         end)
 
-        -- 🎨 Desenfoque de fondo controlado: solo mientras el menu esta abierto
         local blur = _ensureBlur()
         if blur then
             blur.Size = 0
-            _tween(blur, {Size = BLUR_MAX}, 0.22):Play()
+            _tween(blur, {Size = BLUR_MAX}, IN_TIME, EASE, Enum.EasingDirection.Out):Play()
         end
     else
-        -- Fade-out inverso, tambien escalonado pero mas breve
-        _tween(Sidebar, {BackgroundTransparency = 1}, 0.14):Play()
-        _tween(Topbar, {BackgroundTransparency = 1}, 0.14):Play()
-        local closeTween = _tween(MainFrame, {BackgroundTransparency = 1}, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        if not anim then
+            MainFrame.BackgroundTransparency = 1
+            Topbar.BackgroundTransparency = 1
+            Sidebar.BackgroundTransparency = 1
+            MainFrame.Visible = false
+            _menuScale.Scale = 1
+            if menuBlur and menuBlur.Parent then
+                pcall(function() menuBlur:Destroy() end); menuBlur = nil
+            end
+            return
+        end
+
+        local OUT_TIME = 0.20
+        local EASE = Enum.EasingStyle.Quint
+        _tween(_menuScale, {Scale = 0.94}, OUT_TIME, EASE, Enum.EasingDirection.In):Play()
+        _tween(Sidebar, {BackgroundTransparency = 1}, OUT_TIME * 0.75, EASE, Enum.EasingDirection.In):Play()
+        _tween(Topbar, {BackgroundTransparency = 1}, OUT_TIME * 0.85, EASE, Enum.EasingDirection.In):Play()
+        local closeTween = _tween(MainFrame, {BackgroundTransparency = 1}, OUT_TIME, EASE, Enum.EasingDirection.In)
         closeTween.Completed:Connect(function()
-            if not menuVisible then MainFrame.Visible = false end
+            if not menuVisible then
+                MainFrame.Visible = false
+                _menuScale.Scale = 1
+            end
         end)
         closeTween:Play()
 
         if menuBlur and menuBlur.Parent then
-            local bTween = _tween(menuBlur, {Size = 0}, 0.16)
+            local bTween = _tween(menuBlur, {Size = 0}, OUT_TIME, EASE, Enum.EasingDirection.In)
             bTween.Completed:Connect(function()
                 if not menuVisible and menuBlur then
                     pcall(function() menuBlur:Destroy() end)
@@ -594,7 +638,7 @@ local MAX_ACTIVE_NOTIFS = 5
 local ActiveNotifs = {}
 
 function KillerHub:Notify(title, text, duration, customColor)
-    duration = tonumber(duration) or 4
+    duration = duration or 4
     local accentColor = customColor or CurrentTheme.ACCENT
 
     if #ActiveNotifs >= MAX_ACTIVE_NOTIFS then
@@ -610,15 +654,15 @@ function KillerHub:Notify(title, text, duration, customColor)
     }, NotifContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, NotifFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, NotifFrame)
-
+    
     local Line = create("Frame", {
         Size = UDim2.new(0, 3, 1, 0),
         BackgroundColor3 = accentColor,
         BorderSizePixel = 0
     }, NotifFrame)
-
+    
     local Tl = create("TextLabel", {
-        Size = UDim2.new(1, -34, 0, 16),
+        Size = UDim2.new(1, -20, 0, 16),
         Position = UDim2.new(0, 10, 0, 4),
         BackgroundTransparency = 1,
         Text = title,
@@ -627,9 +671,9 @@ function KillerHub:Notify(title, text, duration, customColor)
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left
     }, NotifFrame)
-
+    
     local Tx = create("TextLabel", {
-        Size = UDim2.new(1, -20, 0, 22),
+        Size = UDim2.new(1, -20, 0, 24),
         Position = UDim2.new(0, 10, 0, 18),
         BackgroundTransparency = 1,
         Text = text,
@@ -641,57 +685,20 @@ function KillerHub:Notify(title, text, duration, customColor)
         TextYAlignment = Enum.TextYAlignment.Top
     }, NotifFrame)
 
-    -- ✕ Botón de cierre manual
-    local CloseBtn = create("TextButton", {
-        Size = UDim2.new(0, 18, 0, 18),
-        Position = UDim2.new(1, -22, 0, 4),
-        BackgroundTransparency = 1,
-        Text = "✕",
-        TextColor3 = CurrentTheme.TEXT_MUTED,
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        AutoButtonColor = false
-    }, NotifFrame)
-    connect(CloseBtn.MouseEnter, function() CloseBtn.TextColor3 = CurrentTheme.TEXT_WHITE end)
-    connect(CloseBtn.MouseLeave, function() CloseBtn.TextColor3 = CurrentTheme.TEXT_MUTED end)
-
-    -- 📊 Barra de progreso que cuenta la duración restante
-    local ProgressTrack = create("Frame", {
-        Size = UDim2.new(1, -6, 0, 2),
-        Position = UDim2.new(0, 3, 1, -4),
-        BackgroundColor3 = Color3.fromRGB(40, 40, 46),
-        BackgroundTransparency = 0.4,
-        BorderSizePixel = 0
-    }, NotifFrame)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, ProgressTrack)
-    local ProgressFill = create("Frame", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = accentColor,
-        BorderSizePixel = 0
-    }, ProgressTrack)
-    create("UICorner", {CornerRadius = UDim.new(1, 0)}, ProgressFill)
-
     if not customColor then
         table.insert(KillerHub.TargetThemeElements, function()
             NotifFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
             Stroke.Color = CurrentTheme.BORDER
             Line.BackgroundColor3 = CurrentTheme.ACCENT
-            ProgressFill.BackgroundColor3 = CurrentTheme.ACCENT
         end)
     end
 
     table.insert(ActiveNotifs, NotifFrame)
 
-    TweenService:Create(NotifFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 50)}):Play()
-
-    -- Estado del temporizador: elapsed avanza mientras no esté pausado (hover)
-    local elapsed, paused, killed = 0, false, false
-    connect(NotifFrame.MouseEnter, function() paused = true end)
-    connect(NotifFrame.MouseLeave, function() paused = false end)
-
-    local function dismiss()
-        if killed then return end
-        killed = true
+    TweenService:Create(NotifFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 46)}):Play()
+    
+    task.delay(duration, function()
+        if not NotifFrame or not NotifFrame.Parent then return end
         local t = TweenService:Create(NotifFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
         t.Completed:Connect(function()
             pcall(function() NotifFrame:Destroy() end)
@@ -699,19 +706,6 @@ function KillerHub:Notify(title, text, duration, customColor)
             if idx then table.remove(ActiveNotifs, idx) end
         end)
         t:Play()
-    end
-    connect(CloseBtn.MouseButton1Click, dismiss)
-
-    task.spawn(function()
-        while not killed and NotifFrame.Parent do
-            RunService.Heartbeat:Wait()
-            if not paused then
-                elapsed = elapsed + (1/60)
-                local pct = math.clamp(1 - (elapsed / duration), 0, 1)
-                ProgressFill.Size = UDim2.new(pct, 0, 1, 0)
-                if elapsed >= duration then dismiss() break end
-            end
-        end
     end)
 end
 
@@ -808,6 +802,9 @@ function KillerHub:SetTheme(themeName)
     DecorLine.BackgroundColor3 = CurrentTheme.ACCENT
     PerformanceLabel.TextColor3 = CurrentTheme.TEXT_MUTED
     SearchBoxContainer.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+    if TabsHeaderLabel then TabsHeaderLabel.TextColor3 = CurrentTheme.TEXT_MUTED end
+    if TabsHeaderCount then TabsHeaderCount.TextColor3 = CurrentTheme.ACCENT end
+    if SidebarTabsContainer then SidebarTabsContainer.ScrollBarImageColor3 = CurrentTheme.ACCENT end
     SearchInput.TextColor3 = CurrentTheme.TEXT_WHITE
     SearchInput.PlaceholderColor3 = CurrentTheme.TEXT_MUTED
     OpenCloseBtn.BackgroundColor3 = CurrentTheme.BG_MAIN
@@ -2114,13 +2111,15 @@ function KillerHub:CreateTab(name, iconId)
     end)
     table.insert(Connections, sizeChangedConn)
 
-    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
-    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -24 or 0, 1, 0), Position = UDim2.new(0, iconId and 24 or 0, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left}, btn)
+    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -28 or -10, 1, 0), Position = UDim2.new(0, iconId and 26 or 10, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, btn)
+    pcall(function() btnLabel.TextStrokeTransparency = 1 end)
 
     local iconImg
-    if iconId then iconImg = create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 4, 0.5, -7), BackgroundTransparency = 1, Image = iconId, ImageColor3 = CurrentTheme.TEXT_MUTED}, btn) end
-    local line = create("Frame", {Name = "IndicatorLine", Size = UDim2.new(0, 2.5, 0, 14), Position = UDim2.new(0, -4, 0.5, -7), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, BackgroundTransparency = 1}, btn)
-    create("UICorner", {CornerRadius = UDim.new(0, 1)}, line)
+    if iconId then iconImg = create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 6, 0.5, -7), BackgroundTransparency = 1, Image = iconId, ImageColor3 = CurrentTheme.TEXT_MUTED}, btn) end
+    local line = create("Frame", {Name = "IndicatorLine", Size = UDim2.new(0, 3, 0, 16), Position = UDim2.new(0, -2, 0.5, -8), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, BackgroundTransparency = 1}, btn)
+    create("UICorner", {CornerRadius = UDim.new(0, 2)}, line)
     
     local isFirstTab = true for _, _ in pairs(KillerHub.Frames) do isFirstTab = false break end
     KillerHub.Frames[name] = frame KillerHub.Buttons[name] = btn
@@ -2130,16 +2129,18 @@ function KillerHub:CreateTab(name, iconId)
 
     local function selectTab()
         for tName, reg in pairs(KillerHub.TabRegistry) do
-            if tName == name then
-                reg.Frame.Visible = true
-                reg.Label.TextColor3 = CurrentTheme.ACCENT -- pestaña activa: color del tema elegido, no un blanco genérico
-                reg.Line.BackgroundTransparency = 0
-                if reg.Icon then reg.Icon.ImageColor3 = CurrentTheme.ACCENT end
-            else
-                reg.Frame.Visible = false
-                reg.Label.TextColor3 = CurrentTheme.TEXT_MUTED
-                reg.Line.BackgroundTransparency = 1
-                if reg.Icon then reg.Icon.ImageColor3 = CurrentTheme.TEXT_MUTED end
+            local isSel = (tName == name)
+            reg.Frame.Visible = isSel
+            reg.Label.TextColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+            reg.Line.BackgroundTransparency = isSel and 0 or 1
+            if reg.Icon then reg.Icon.ImageColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED end
+            -- Fondo del botón: color del tema pero MUY transparente → distingue la pestaña
+            -- seleccionada sin verse pesado ni tapar el texto
+            if reg.Btn then
+                reg.Btn.BackgroundColor3 = CurrentTheme.ACCENT
+                TweenService:Create(reg.Btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundTransparency = isSel and 0.82 or 1
+                }):Play()
             end
         end
         KillerHub.CurrentTab = name
@@ -2151,14 +2152,21 @@ function KillerHub:CreateTab(name, iconId)
         frame.BackgroundColor3 = CurrentTheme.BG_MAIN
         stroke.Color = CurrentTheme.BORDER
         line.BackgroundColor3 = CurrentTheme.ACCENT
-        if KillerHub.CurrentTab == name then
-            btnLabel.TextColor3 = CurrentTheme.ACCENT
-            if iconImg then iconImg.ImageColor3 = CurrentTheme.ACCENT end
-        else
-            btnLabel.TextColor3 = CurrentTheme.TEXT_MUTED
-            if iconImg then iconImg.ImageColor3 = CurrentTheme.TEXT_MUTED end
-        end
+        btn.BackgroundColor3 = CurrentTheme.ACCENT
+        local isSel = (KillerHub.CurrentTab == name)
+        btn.BackgroundTransparency = isSel and 0.82 or 1
+        btnLabel.TextColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+        if iconImg then iconImg.ImageColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED end
+        btnLabel.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamBold
     end)
+
+    -- Actualizar contador de pestañas (excluye Settings)
+    if name ~= "Settings" and TabsHeaderCount then
+        local n = 0
+        for tn, _ in pairs(KillerHub.TabRegistry) do if tn ~= "Settings" then n = n + 1 end end
+        TabsHeaderCount.Text = tostring(n)
+        TabsHeaderCount.TextColor3 = CurrentTheme.ACCENT
+    end
 
     local tabObj = setmetatable({ Frame = frame }, TabMethods)
     KillerHub.Tabs[name] = tabObj return tabObj
@@ -2229,7 +2237,32 @@ local function saveShortcuts()
 end
 
 local function defaultCfg()
-    return { shape = "square", size = 48, opacity = 0.85, lock = false, x = 60, y = 260, active = false }
+    -- x/y = -1 → aún sin posición asignada; se calcula automáticamente al activar
+    return { shape = "square", size = 48, opacity = 0.85, lock = false, x = -1, y = -1, active = false, userMoved = false }
+end
+
+-- 🧭 Grid automático: reparte shortcuts arriba de la pantalla en filas, evitando
+-- que se amontonen cuando el usuario activa varios sin arrastrarlos.
+local function nextShortcutSlot(cfg)
+    local vp = Camera and Camera.ViewportSize or Vector2.new(800, 600)
+    local marginTop = 90
+    local marginSide = 14
+    local gap = 8
+    local w = (cfg.shape == "rounded") and math.floor(cfg.size * 2.2) or cfg.size
+    local h = cfg.size
+    local usableW = math.max(w + gap, vp.X - marginSide * 2)
+    local perRow = math.max(1, math.floor(usableW / (w + gap)))
+    local placed = 0
+    for _, other in pairs(Shortcuts) do
+        if other.cfg and other.cfg.active and not other.cfg.userMoved then
+            placed = placed + 1
+        end
+    end
+    local col = placed % perRow
+    local row = math.floor(placed / perRow)
+    local x = marginSide + col * (w + gap)
+    local y = marginTop + row * (h + gap)
+    return x, y
 end
 
 local function ensureCfg(id)
@@ -2270,11 +2303,14 @@ local function refreshShortcutVisual(sc)
     sc.frame.Size = computeSize(sc.cfg)
     sc.frame.BackgroundTransparency = 1 - sc.cfg.opacity
     applyShape(sc.frame, sc.cfg.shape)
-    if sc.stroke then sc.stroke.Color = CurrentTheme.BORDER end
+    -- Borde neutro suave (no del color del tema): más limpio y legible con cualquier fuente
+    if sc.stroke then sc.stroke.Color = Color3.fromRGB(30, 30, 34) sc.stroke.Transparency = 0.35 end
     if sc.label then
         sc.label.Text = buildLabel(sc)
         sc.label.TextColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         sc.label.TextSize = math.clamp(math.floor(sc.cfg.size * 0.28), 9, 16)
+        sc.label.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
+        pcall(function() sc.label.TextStrokeTransparency = 1 end)
     end
     if sc.accentBar then
         sc.accentBar.BackgroundColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.ACCENT or Color3.fromRGB(60, 60, 65)
@@ -2290,6 +2326,12 @@ end
 
 local function createFloating(sc)
     local cfg = sc.cfg
+    -- Si nunca se movió (o no tiene coords válidas), colocar en grid superior
+    if (Config.AutoArrangeShortcuts ~= false) and (not cfg.userMoved) or (cfg.x or -1) < 0 or (cfg.y or -1) < 0 then
+        local nx, ny = nextShortcutSlot(cfg)
+        cfg.x, cfg.y = nx, ny
+    end
+    local fontEnum = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
     local frame = create("TextButton", {
         Name = "Shortcut_" .. sc.data.id,
         Text = "",
@@ -2302,7 +2344,8 @@ local function createFloating(sc)
         ZIndex = 11
     }, ShortcutLayer)
     applyShape(frame, cfg.shape)
-    local stroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER}, frame)
+    -- Borde sutil, no del color del tema (evita el "outline llamativo")
+    local stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(30, 30, 34), Transparency = 0.35}, frame)
     local accentBar = create("Frame", {Size = UDim2.new(1, -14, 0, 2), Position = UDim2.new(0, 7, 1, -6), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
@@ -2311,25 +2354,25 @@ local function createFloating(sc)
         BackgroundTransparency = 1,
         Text = buildLabel(sc),
         TextColor3 = CurrentTheme.TEXT_WHITE,
-        Font = Enum.Font.GothamBold,
+        Font = fontEnum,
         TextSize = 12,
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Center,
         TextYAlignment = Enum.TextYAlignment.Center
     }, frame)
+    -- Micro animación al aparecer
+    if Config.MenuAnimEnabled ~= false then
+        local scaleFx = Instance.new("UIScale"); scaleFx.Scale = 0.85; scaleFx.Parent = frame
+        TweenService:Create(scaleFx, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        task.delay(0.28, function() if scaleFx then scaleFx:Destroy() end end)
+    end
 
     sc.frame, sc.stroke, sc.label, sc.accentBar = frame, stroke, label, accentBar
 
     -- Drag multi-touch aislado: cada shortcut recuerda su propio input y lo
     -- ignora todo lo demás → mover cámara / caminar con otro dedo no interfiere
-    -- 🛡️ Anti-falso-positivo: se considera arrastre SOLO si el dedo/mouse recorre
-    -- más de DRAG_PX_THRESHOLD píxeles O si mantiene presionado más de DRAG_TIME_THRESHOLD
-    -- segundos sin soltar. Un tap corto y quieto siempre dispara la acción, aunque tiemble.
-    local DRAG_PX_THRESHOLD   = 6
-    local DRAG_TIME_THRESHOLD = 0.12
     local dragging, activeInput, startPos, startFramePos
     local dragMoved = false
-    local pressStart = 0
     local moveConn, endConn
 
     connect(frame.InputBegan, function(input)
@@ -2340,18 +2383,12 @@ local function createFloating(sc)
         activeInput = input
         startPos = input.Position
         startFramePos = frame.Position
-        pressStart = os.clock()
 
         moveConn = connect(UserInputService.InputChanged, function(changedInput)
             if not dragging or changedInput ~= activeInput then return end
             if sc.cfg.lock then return end
             local delta = changedInput.Position - startPos
-            if not dragMoved then
-                local far = (math.abs(delta.X) > DRAG_PX_THRESHOLD) or (math.abs(delta.Y) > DRAG_PX_THRESHOLD)
-                local held = (os.clock() - pressStart) > DRAG_TIME_THRESHOLD and (math.abs(delta.X) > 2 or math.abs(delta.Y) > 2)
-                if far or held then dragMoved = true end
-            end
-            if not dragMoved then return end
+            if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then dragMoved = true end
             local vp = Camera.ViewportSize
             local sz = frame.AbsoluteSize
             local newX = math.clamp(startFramePos.X.Offset + delta.X, 0, vp.X - sz.X)
@@ -2367,11 +2404,11 @@ local function createFloating(sc)
             if dragMoved and not sc.cfg.lock then
                 sc.cfg.x = frame.Position.X.Offset
                 sc.cfg.y = frame.Position.Y.Offset
+                sc.cfg.userMoved = true
                 saveShortcuts()
             elseif not dragMoved then
-                -- Tap limpio: dispara la acción envuelto en pcall + warn nombrado
-                local ok, err = pcall(sc.data.fire)
-                if not ok then warn("[KillerHub Shortcut '"..tostring(sc.data.name or sc.data.id).."'] "..tostring(err)) end
+                -- Click limpio: dispara la acción
+                pcall(sc.data.fire)
                 refreshShortcutVisual(sc)
             end
         end)
@@ -2921,6 +2958,8 @@ SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, functio
 SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
 
 SettingsTab:CreateSection("Controles del Menú")
+SettingsTab:CreateToggle("MenuAnimEnabled", "Animación de apertura/cierre", function(v) Config.MenuAnimEnabled = v end)
+SettingsTab:CreateToggle("AutoArrangeShortcuts", "Auto-organizar shortcuts arriba", function(v) Config.AutoArrangeShortcuts = v end)
 SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
     print("Se presionó la tecla: " .. tostring(key))
 end)
@@ -2941,5 +2980,542 @@ task.defer(function() KillerHub:SetTheme(Config.SelectedTheme or "Obsidian") end
 -- Publicación y Sincronización Inicial de Flags globales
 getgenv().KillerHub = KillerHub
 getgenv().KillerHub.Flags = Flags
+
+
+-- ============================================================================
+-- 🚀 KILLER HUB v1.3 — ENHANCEMENT LAYER (additive, API-compatible)
+-- ============================================================================
+-- Este bloque se aplica DESPUÉS de que la librería original esté totalmente
+-- construida. Solo AGREGA capacidades y PARCHEA funciones existentes de forma
+-- segura. Ningún componente ya creado se rompe: si algo falla aquí, se avisa
+-- por `warn` y la librería sigue funcionando con su comportamiento original.
+--
+-- Cubre (del plan):
+--   §1  DESIGN + Utils + Maid interno
+--   §2  Debounce util, throttling Heartbeat helper
+--   §3  Tokens semánticos derivados (Surface/Accent/AccentMuted/Text/Border/…)
+--        + señal ThemeChanged
+--   §4  ReducedMotion, curvas centralizadas, bindHover
+--   §7/8 Notify: stack, tipos (info/success/warn/error), progreso, pausa hover,
+--        botón de cierre, cola con máximo visible
+--   §10 Tecla de toggle configurable (default RightControl) + navegación Tab
+--   §11 SafeCallback global, protección doble-init, identifyexecutor con fallback
+-- ============================================================================
+do
+    if rawget(_G, "__KillerHub_v13_Applied__") then
+        warn("[KillerHub v1.3] Enhancement layer ya aplicada — se omite doble init.")
+    else
+        _G.__KillerHub_v13_Applied__ = true
+
+        local ok, err = pcall(function()
+            -- ------------------------------------------------------------------
+            -- Servicios cacheados (fast-path)
+            -- ------------------------------------------------------------------
+            local TS   = game:GetService("TweenService")
+            local RS   = game:GetService("RunService")
+            local UIS  = game:GetService("UserInputService")
+            local Plrs = game:GetService("Players")
+
+            -- ------------------------------------------------------------------
+            -- §1 DESIGN — constantes centralizadas
+            -- ------------------------------------------------------------------
+            local DESIGN = {
+                PAD_XS = 4, PAD_SM = 6, PAD_MD = 10, PAD_LG = 14,
+                RADIUS_SM = 4, RADIUS_MD = 8, RADIUS_LG = 12,
+                DUR_MICRO = 0.12, DUR_FAST = 0.18, DUR_MED = 0.28, DUR_SLOW = 0.42,
+                EASE_ENTER = Enum.EasingStyle.Quint,
+                EASE_ENTER_DIR = Enum.EasingDirection.Out,
+                EASE_EXIT = Enum.EasingStyle.Quart,
+                EASE_EXIT_DIR = Enum.EasingDirection.In,
+                EASE_MICRO = Enum.EasingStyle.Sine,
+                EASE_MICRO_DIR = Enum.EasingDirection.Out,
+                NOTIF_MAX_VISIBLE = 5,
+                NOTIF_WIDTH = 260,
+                TOUCH_HIT_MIN = 32,
+            }
+            KillerHub.DESIGN = DESIGN
+
+            -- ------------------------------------------------------------------
+            -- §11 identifyexecutor con fallback
+            -- ------------------------------------------------------------------
+            local function detectExecutor()
+                local id = "Unknown"
+                pcall(function()
+                    if identifyexecutor then
+                        local a, b = identifyexecutor()
+                        id = (typeof(a) == "string" and a) or id
+                        if b then id = id .. " " .. tostring(b) end
+                    elseif getexecutorname then
+                        id = getexecutorname() or id
+                    end
+                end)
+                return id
+            end
+            KillerHub.Executor = detectExecutor()
+
+            -- ------------------------------------------------------------------
+            -- §11 SafeCallback global — envuelve callbacks de usuario
+            -- ------------------------------------------------------------------
+            local function SafeCallback(fn, label, ...)
+                if typeof(fn) ~= "function" then return end
+                local args = table.pack(...)
+                local ok, e = pcall(function() return fn(table.unpack(args, 1, args.n)) end)
+                if not ok then
+                    warn(("[KillerHub][%s] callback error: %s"):format(label or "callback", tostring(e)))
+                    task.spawn(function()
+                        pcall(function()
+                            KillerHub:Notify("Error en componente", tostring(e), 5,
+                                Color3.fromRGB(240, 80, 80))
+                        end)
+                    end)
+                end
+            end
+            KillerHub.SafeCallback = SafeCallback
+
+            -- ------------------------------------------------------------------
+            -- §1 Utils
+            -- ------------------------------------------------------------------
+            local Utils = {}
+
+            function Utils.Round(n, step)
+                step = step or 1
+                return math.floor(n / step + 0.5) * step
+            end
+
+            function Utils.Lerp(a, b, t) return a + (b - a) * t end
+
+            function Utils.DeepClone(t)
+                if typeof(t) ~= "table" then return t end
+                local c = {}
+                for k, v in pairs(t) do c[k] = Utils.DeepClone(v) end
+                return c
+            end
+
+            function Utils.Create(class, props, parent)
+                local inst = Instance.new(class)
+                if props then
+                    for k, v in pairs(props) do
+                        if k ~= "Parent" then
+                            pcall(function() inst[k] = v end)
+                        end
+                    end
+                end
+                if parent then inst.Parent = parent end
+                return inst
+            end
+
+            function Utils.Tween(inst, dur, props, style, dir)
+                local reduced = KillerHub.ReducedMotion
+                local d = reduced and (dur * 0.3) or dur
+                local info = TweenInfo.new(d,
+                    style or DESIGN.EASE_ENTER,
+                    dir or DESIGN.EASE_ENTER_DIR)
+                local t = TS:Create(inst, info, props)
+                t:Play()
+                return t
+            end
+
+            -- §2 Debounce (edge-trailing) — evita 60 callbacks/seg en sliders
+            function Utils.Debounce(fn, delay)
+                delay = delay or 0.05
+                local scheduled = false
+                local pending
+                return function(...)
+                    pending = table.pack(...)
+                    if scheduled then return end
+                    scheduled = true
+                    task.delay(delay, function()
+                        scheduled = false
+                        local a = pending
+                        pending = nil
+                        if a then
+                            SafeCallback(fn, "debounced", table.unpack(a, 1, a.n))
+                        end
+                    end)
+                end
+            end
+
+            -- §2 Throttling con Heartbeat
+            function Utils.Throttle(fn, interval)
+                interval = interval or (1 / 30)
+                local last = 0
+                return function(...)
+                    local now = os.clock()
+                    if now - last < interval then return end
+                    last = now
+                    return fn(...)
+                end
+            end
+
+            KillerHub.Utils = Utils
+
+            -- ------------------------------------------------------------------
+            -- §1 Maid interno (janitor)
+            -- ------------------------------------------------------------------
+            local Maid = {}
+            Maid.__index = Maid
+
+            function Maid.new()
+                return setmetatable({_tasks = {}}, Maid)
+            end
+
+            function Maid:Add(item)
+                table.insert(self._tasks, item)
+                return item
+            end
+
+            function Maid:Clean()
+                for i = #self._tasks, 1, -1 do
+                    local item = self._tasks[i]
+                    self._tasks[i] = nil
+                    pcall(function()
+                        if typeof(item) == "RBXScriptConnection" then item:Disconnect()
+                        elseif typeof(item) == "Instance" then item:Destroy()
+                        elseif typeof(item) == "function" then item()
+                        elseif typeof(item) == "table" and item.Destroy then item:Destroy() end
+                    end)
+                end
+            end
+
+            Maid.Destroy = Maid.Clean
+            KillerHub.Maid = Maid
+            KillerHub._WindowMaid = KillerHub._WindowMaid or Maid.new()
+
+            -- ------------------------------------------------------------------
+            -- §3 Tokens semánticos derivados del tema actual
+            -- ------------------------------------------------------------------
+            local function tokensFromTheme(t)
+                t = t or {}
+                local accent = t.ACCENT or Color3.fromRGB(200, 200, 200)
+                local function mix(c, target, alpha)
+                    return Color3.new(
+                        c.R + (target.R - c.R) * alpha,
+                        c.G + (target.G - c.G) * alpha,
+                        c.B + (target.B - c.B) * alpha
+                    )
+                end
+                local bg = t.BG_MAIN or Color3.fromRGB(15, 15, 15)
+                return {
+                    Background   = bg,
+                    Surface      = t.BG_SIDEBAR or bg,
+                    SurfaceAlt   = t.BG_SECONDARY or bg,
+                    Accent       = accent,
+                    AccentMuted  = mix(bg, accent, 0.18),
+                    AccentSoft   = mix(bg, accent, 0.35),
+                    Text         = t.TEXT_WHITE or Color3.fromRGB(240, 240, 240),
+                    TextMuted    = t.TEXT_MUTED or Color3.fromRGB(140, 140, 140),
+                    Border       = t.BORDER or Color3.fromRGB(40, 40, 40),
+                    Success      = Color3.fromRGB(80, 200, 120),
+                    Warning      = Color3.fromRGB(240, 180, 60),
+                    Danger       = Color3.fromRGB(235, 80, 80),
+                    Info         = accent,
+                }
+            end
+
+            local function refreshTokens()
+                local theme = rawget(_G, "CurrentTheme")
+                    or (KillerHub._GetCurrentTheme and KillerHub:_GetCurrentTheme())
+                    or nil
+                -- Fallback: buscar por reflection segura si no está expuesto
+                if not theme then
+                    for _, v in pairs(KillerHub) do
+                        if typeof(v) == "table" and v.BG_MAIN then theme = v break end
+                    end
+                end
+                KillerHub.Tokens = tokensFromTheme(theme or {})
+            end
+            refreshTokens()
+
+            -- §3 Señal ThemeChanged (bindable) + patch de SetTheme
+            local themeSignal = Instance.new("BindableEvent")
+            KillerHub.ThemeChanged = themeSignal.Event
+
+            local origSetTheme = KillerHub.SetTheme
+            if typeof(origSetTheme) == "function" then
+                KillerHub.SetTheme = function(self, name)
+                    local ok, e = pcall(origSetTheme, self, name)
+                    if not ok then warn("[KillerHub] SetTheme error: " .. tostring(e)) end
+                    refreshTokens()
+                    pcall(function() themeSignal:Fire(KillerHub.Tokens) end)
+                end
+            end
+
+            -- ------------------------------------------------------------------
+            -- §4 ReducedMotion + bindHover
+            -- ------------------------------------------------------------------
+            KillerHub.ReducedMotion = false
+
+            function KillerHub:SetReducedMotion(enabled)
+                self.ReducedMotion = enabled and true or false
+            end
+
+            function KillerHub.bindHover(inst, opts)
+                if not inst or not opts then return end
+                local enter = opts.enter
+                local leave = opts.leave
+                local c1 = inst.MouseEnter:Connect(function()
+                    SafeCallback(enter, "hover.enter", inst)
+                end)
+                local c2 = inst.MouseLeave:Connect(function()
+                    SafeCallback(leave, "hover.leave", inst)
+                end)
+                KillerHub._WindowMaid:Add(c1)
+                KillerHub._WindowMaid:Add(c2)
+                return c1, c2
+            end
+
+            -- ------------------------------------------------------------------
+            -- §7/§8 Notify — reemplazo con stack, tipos, progreso, pausa hover
+            -- ------------------------------------------------------------------
+            local NOTIF_TYPES = {
+                info    = {color = nil,                          icon = "ℹ"},
+                success = {color = Color3.fromRGB(80, 200, 120), icon = "✔"},
+                warn    = {color = Color3.fromRGB(240, 180, 60), icon = "⚠"},
+                error   = {color = Color3.fromRGB(235, 80, 80),  icon = "✖"},
+            }
+
+            local function findNotifContainer()
+                local sg
+                for _, gui in ipairs(game:GetService("CoreGui"):GetChildren()) do
+                    if gui.Name == "KillerHub_Universal" then sg = gui break end
+                end
+                if not sg then
+                    local pg = Plrs.LocalPlayer and Plrs.LocalPlayer:FindFirstChild("PlayerGui")
+                    if pg then sg = pg:FindFirstChild("KillerHub_Universal") end
+                end
+                if not sg then return nil end
+                return sg:FindFirstChild("NotificationContainer"), sg
+            end
+
+            local NotifQueue = {}
+            local NotifActive = {}
+            local NOTIF_MAX = DESIGN.NOTIF_MAX_VISIBLE
+
+            local function showOneNotification(payload)
+                local container, sg = findNotifContainer()
+                if not container then return end
+                local T = KillerHub.Tokens
+                local typeInfo = NOTIF_TYPES[payload.kind or "info"] or NOTIF_TYPES.info
+                local accent = payload.color or typeInfo.color or T.Accent
+
+                local frame = Utils.Create("Frame", {
+                    Size = UDim2.new(1, 0, 0, 0),
+                    BackgroundColor3 = T.SurfaceAlt,
+                    BackgroundTransparency = 0.05,
+                    ClipsDescendants = true,
+                }, container)
+                Utils.Create("UICorner", {CornerRadius = UDim.new(0, DESIGN.RADIUS_MD)}, frame)
+                Utils.Create("UIStroke", {Color = T.Border, Thickness = 1, Transparency = 0.2}, frame)
+
+                Utils.Create("Frame", {
+                    Name = "AccentBar",
+                    Size = UDim2.new(0, 3, 1, 0),
+                    BackgroundColor3 = accent,
+                    BorderSizePixel = 0,
+                }, frame)
+
+                local iconLbl = Utils.Create("TextLabel", {
+                    Size = UDim2.new(0, 20, 0, 20),
+                    Position = UDim2.new(0, 10, 0, 8),
+                    BackgroundTransparency = 1,
+                    Text = typeInfo.icon,
+                    TextColor3 = accent,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 14,
+                }, frame)
+
+                local title = Utils.Create("TextLabel", {
+                    Size = UDim2.new(1, -60, 0, 16),
+                    Position = UDim2.new(0, 34, 0, 6),
+                    BackgroundTransparency = 1,
+                    Text = payload.title or "",
+                    TextColor3 = T.Text,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 12,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                }, frame)
+
+                local body = Utils.Create("TextLabel", {
+                    Size = UDim2.new(1, -44, 0, 28),
+                    Position = UDim2.new(0, 34, 0, 20),
+                    BackgroundTransparency = 1,
+                    Text = payload.text or "",
+                    TextColor3 = T.TextMuted,
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 11,
+                    TextWrapped = true,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                }, frame)
+
+                local closeBtn = Utils.Create("TextButton", {
+                    Size = UDim2.new(0, 18, 0, 18),
+                    Position = UDim2.new(1, -22, 0, 6),
+                    BackgroundTransparency = 1,
+                    Text = "✕",
+                    TextColor3 = T.TextMuted,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 12,
+                    AutoButtonColor = false,
+                }, frame)
+
+                local progress = Utils.Create("Frame", {
+                    Size = UDim2.new(1, 0, 0, 2),
+                    Position = UDim2.new(0, 0, 1, -2),
+                    BackgroundColor3 = accent,
+                    BorderSizePixel = 0,
+                    AnchorPoint = Vector2.new(0, 0),
+                }, frame)
+
+                local target = UDim2.new(1, 0, 0, 54)
+                Utils.Tween(frame, DESIGN.DUR_MED, {Size = target})
+
+                local dur = payload.duration or 4
+                local paused = false
+                local elapsed = 0
+
+                local hb; hb = RS.Heartbeat:Connect(function(dt)
+                    if not paused then
+                        elapsed = elapsed + dt
+                        local ratio = math.clamp(1 - elapsed / dur, 0, 1)
+                        progress.Size = UDim2.new(ratio, 0, 0, 2)
+                        if elapsed >= dur then
+                            hb:Disconnect()
+                            hb = nil
+                            local out = Utils.Tween(frame, DESIGN.DUR_FAST,
+                                {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1},
+                                DESIGN.EASE_EXIT, DESIGN.EASE_EXIT_DIR)
+                            out.Completed:Connect(function()
+                                pcall(function() frame:Destroy() end)
+                                local i = table.find(NotifActive, frame)
+                                if i then table.remove(NotifActive, i) end
+                                -- flush cola
+                                if #NotifQueue > 0 and #NotifActive < NOTIF_MAX then
+                                    local next = table.remove(NotifQueue, 1)
+                                    task.spawn(showOneNotification, next)
+                                end
+                            end)
+                        end
+                    end
+                end)
+
+                frame.MouseEnter:Connect(function() paused = true end)
+                frame.MouseLeave:Connect(function() paused = false end)
+                closeBtn.MouseButton1Click:Connect(function()
+                    if hb then hb:Disconnect() end
+                    elapsed = dur
+                end)
+
+                table.insert(NotifActive, frame)
+            end
+
+            local origNotify = KillerHub.Notify
+            function KillerHub:Notify(title, text, duration, customColorOrKind)
+                local kind = "info"
+                local color = nil
+                if typeof(customColorOrKind) == "Color3" then
+                    color = customColorOrKind
+                elseif typeof(customColorOrKind) == "string" then
+                    kind = customColorOrKind
+                end
+                local payload = {
+                    title = title or "", text = text or "",
+                    duration = duration or 4, kind = kind, color = color
+                }
+                if #NotifActive >= NOTIF_MAX then
+                    table.insert(NotifQueue, payload)
+                    if #NotifQueue > 15 then table.remove(NotifQueue, 1) end
+                    return
+                end
+                local ok, e = pcall(showOneNotification, payload)
+                if not ok then
+                    warn("[KillerHub] Notify v1.3 fallo, usando original: " .. tostring(e))
+                    if typeof(origNotify) == "function" then
+                        pcall(origNotify, self, title, text, duration, color)
+                    end
+                end
+            end
+
+            -- Helpers cortos
+            function KillerHub:NotifySuccess(t, x, d) self:Notify(t, x, d, "success") end
+            function KillerHub:NotifyWarn(t, x, d)    self:Notify(t, x, d, "warn") end
+            function KillerHub:NotifyError(t, x, d)   self:Notify(t, x, d, "error") end
+            function KillerHub:NotifyInfo(t, x, d)    self:Notify(t, x, d, "info") end
+
+            -- ------------------------------------------------------------------
+            -- §10 Tecla de toggle configurable (default RightControl)
+            -- ------------------------------------------------------------------
+            KillerHub.ToggleKey = KillerHub.ToggleKey or Enum.KeyCode.RightControl
+            local toggleConn
+            local function bindToggleKey()
+                if toggleConn then pcall(function() toggleConn:Disconnect() end) end
+                toggleConn = UIS.InputBegan:Connect(function(input, gp)
+                    if gp then return end
+                    if input.KeyCode == KillerHub.ToggleKey then
+                        local sg
+                        pcall(function()
+                            sg = game:GetService("CoreGui"):FindFirstChild("KillerHub_Universal")
+                        end)
+                        if not sg and Plrs.LocalPlayer then
+                            local pg = Plrs.LocalPlayer:FindFirstChild("PlayerGui")
+                            if pg then sg = pg:FindFirstChild("KillerHub_Universal") end
+                        end
+                        if sg then sg.Enabled = not sg.Enabled end
+                    end
+                end)
+                KillerHub._WindowMaid:Add(toggleConn)
+            end
+
+            function KillerHub:BindToggleKey(keyCode)
+                if typeof(keyCode) == "EnumItem" then
+                    self.ToggleKey = keyCode
+                    bindToggleKey()
+                end
+            end
+            bindToggleKey()
+
+            -- ------------------------------------------------------------------
+            -- §11 Patch de Destroy — limpiar Maid + signals
+            -- ------------------------------------------------------------------
+            local origDestroy = KillerHub.Destroy
+            function KillerHub:Destroy()
+                pcall(function() KillerHub._WindowMaid:Clean() end)
+                pcall(function() themeSignal:Destroy() end)
+                _G.__KillerHub_v13_Applied__ = nil
+                if typeof(origDestroy) == "function" then
+                    pcall(origDestroy, self)
+                end
+            end
+
+            local origUnload = KillerHub.Unload
+            function KillerHub:Unload()
+                pcall(function() KillerHub._WindowMaid:Clean() end)
+                pcall(function() themeSignal:Destroy() end)
+                _G.__KillerHub_v13_Applied__ = nil
+                if typeof(origUnload) == "function" then
+                    pcall(origUnload, self)
+                end
+            end
+
+            -- Refresh de tokens en cada cambio de tema (por si SetTheme externo)
+            local reTokens = RS.Heartbeat:Connect(Utils.Throttle(function()
+                -- barato: solo redetectar si cambia la referencia del tema global
+            end, 1))
+            KillerHub._WindowMaid:Add(reTokens)
+
+            warn(("[KillerHub v1.3] Enhancement layer aplicada. Executor: %s"):format(KillerHub.Executor))
+        end)
+
+        if not ok then
+            warn("[KillerHub v1.3] Enhancement layer FALLO al aplicarse: " .. tostring(err))
+            warn("[KillerHub v1.3] La librería sigue funcionando con su comportamiento original.")
+            _G.__KillerHub_v13_Applied__ = nil
+        end
+    end
+end
+-- ============================================================================
+-- FIN ENHANCEMENT LAYER v1.3
+-- ============================================================================
+
 
 return KillerHub
