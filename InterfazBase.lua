@@ -2045,6 +2045,9 @@ function TabMethods:CreateButton(text, callback)
     return btnObj
 end
 
+-- Registro global de keybinds activos → detección de conflictos
+KillerHub._Keybinds = KillerHub._Keybinds or {}
+
 function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     if not SafeAssert("CreateKeybind", {
         ["flagName"] = {value = flagName, types = {"string"}},
@@ -2055,6 +2058,7 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
 
     if Config[flagName] == nil then Config[flagName] = defaultKey.Name end
     updateGlobalFlags(flagName, Config[flagName])
+    KillerHub._Keybinds[flagName] = { key = Config[flagName], text = text }
 
     local KFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     KFrame:SetAttribute("ThemeRole", "BG_SECONDARY") KFrame:SetAttribute("CustomColorLabel", true)
@@ -2073,9 +2077,26 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     connect(UserInputService.InputBegan, function(input, gp)
         if listening then
             if input.UserInputType == Enum.UserInputType.Keyboard then
-                listening = false Config[flagName] = input.KeyCode.Name 
-                updateGlobalFlags(flagName, input.KeyCode.Name)
-                saveConfig() BBtn.Text = input.KeyCode.Name pcall(callback, input.KeyCode)
+                listening = false
+                local newKey = input.KeyCode.Name
+                -- 🚨 Validar conflicto
+                local conflict
+                for otherFlag, info in pairs(KillerHub._Keybinds) do
+                    if otherFlag ~= flagName and info.key == newKey then conflict = info break end
+                end
+                if conflict then
+                    pcall(function()
+                        KillerHub:Notify("Tecla en uso",
+                            string.format("'%s' ya está asignada a: %s", newKey, conflict.text),
+                            4, "warn")
+                    end)
+                    BBtn.Text = Config[flagName]
+                    return
+                end
+                Config[flagName] = newKey
+                KillerHub._Keybinds[flagName].key = newKey
+                updateGlobalFlags(flagName, newKey)
+                saveConfig() BBtn.Text = newKey pcall(callback, input.KeyCode)
             elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.ButtonX or input.KeyCode == Enum.KeyCode.ButtonY then
                 listening = false Config[flagName] = input.UserInputType.Name 
                 updateGlobalFlags(flagName, input.UserInputType.Name)
@@ -2113,7 +2134,7 @@ function KillerHub:CreateTab(name, iconId)
 
     local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
-    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -28 or -10, 1, 0), Position = UDim2.new(0, iconId and 26 or 10, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, btn)
+    local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -28 or -10, 1, 0), Position = UDim2.new(0, iconId and 26 or 10, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left}, btn)
     pcall(function() btnLabel.TextStrokeTransparency = 1 end)
 
     local iconImg
@@ -2407,7 +2428,8 @@ local function createFloating(sc)
                 sc.cfg.userMoved = true
                 saveShortcuts()
             elseif not dragMoved then
-                -- Click limpio: dispara la acción
+                -- Click limpio: dispara la acción (con sonido UI del hub)
+                playUISound()
                 pcall(sc.data.fire)
                 refreshShortcutVisual(sc)
             end
@@ -2444,7 +2466,7 @@ local function buildModal()
         Name = "ShortcutConfigModal",
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, 460, 0, 300),
+        Size = UDim2.new(0, 520, 0, 340),
         BackgroundColor3 = CurrentTheme.BG_MAIN,
         BackgroundTransparency = 0.05,
         Visible = false,
@@ -2466,6 +2488,7 @@ local function buildModal()
         ZIndex = 49
     }, ScreenGui)
     connect(backdrop.MouseButton1Click, function()
+        playUISound()
         ConfigModal.Visible = false
         backdrop.Visible = false
         currentModalSc = nil
@@ -2497,6 +2520,7 @@ local function buildModal()
     }, ConfigModal)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, closeBtn)
     connect(closeBtn.MouseButton1Click, function()
+        playUISound()
         ConfigModal.Visible = false
         backdrop.Visible = false
         currentModalSc = nil
@@ -2549,6 +2573,7 @@ local function buildModal()
         create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, b)
         ModalShapeBtns[name] = b
         connect(b.MouseButton1Click, function()
+            playUISound()
             if not currentModalSc then return end
             currentModalSc.cfg.shape = name
             refreshShortcutVisual(currentModalSc)
@@ -2655,6 +2680,7 @@ local function buildModal()
     ModalLockKnob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE, ZIndex = 55}, ModalLockTrack)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, ModalLockKnob)
     connect(lockBtn.MouseButton1Click, function()
+        playUISound()
         if not currentModalSc then return end
         currentModalSc.cfg.lock = not currentModalSc.cfg.lock
         saveShortcuts()
@@ -2673,6 +2699,7 @@ local function buildModal()
     ModalActionBtn = actionBtn
     ModalActionStroke = actionStroke
     connect(actionBtn.MouseButton1Click, function()
+        playUISound()
         if not currentModalSc then return end
         if currentModalSc.cfg.active then
             setShortcutActive(currentModalSc, false)
@@ -2680,6 +2707,10 @@ local function buildModal()
             backdrop.Visible = false
             currentModalSc = nil
         else
+            -- 🩹 Fix: al re-activar un shortcut, resetear lock (antes heredaba
+            -- lock=true del cfg persistido y aparecía bloqueado sin querer).
+            currentModalSc.cfg.lock = false
+            currentModalSc.cfg.userMoved = false
             setShortcutActive(currentModalSc, true)
             ModalRefresh()
         end
@@ -2776,13 +2807,13 @@ function KillerHub._AttachShortcut(hostFrame, data)
     -- Activador ↖ separado del interruptor, tamaño amigable a móvil
     local act = create("TextButton", {
         Name = "ShortcutActivator",
-        Size = UDim2.new(0, 32, 0, 32),
-        Position = UDim2.new(0, 6, 0.5, -16),
+        Size = UDim2.new(0, 40, 0, 40),
+        Position = UDim2.new(0, 6, 0.5, -20),
         BackgroundColor3 = Color3.fromRGB(22, 22, 26),
         Text = "\226\134\150", -- ↖
         TextColor3 = CurrentTheme.TEXT_MUTED,
         Font = Enum.Font.GothamBold,
-        TextSize = 18,
+        TextSize = 24,
         AutoButtonColor = false,
         ZIndex = 3
     }, hostFrame)
@@ -2951,8 +2982,13 @@ SettingsTab:CreateSection("Personalización")
 SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 
 local TopFonts = {
-    "Gotham", "GothamMedium", "GothamBold", "GothamBlack", "Roboto", "RobotoMono", 
-    "SourceSans", "SourceSansBold", "Ubuntu", "FredokaOne", "Arcade", "SciFi"
+    "Gotham", "GothamMedium", "GothamBold", "GothamBlack", "GothamSemibold",
+    "Roboto", "RobotoCondensed", "RobotoMono",
+    "SourceSans", "SourceSansBold", "SourceSansSemibold",
+    "Ubuntu", "FredokaOne", "Arcade", "SciFi",
+    "Nunito", "Oswald", "Michroma", "Merriweather", "TitilliumWeb",
+    "Sarpanch", "DenkOne", "Jura", "JosefinSans",
+    "BuilderSans", "BuilderSansMedium", "BuilderSansBold"
 }
 SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, function(selected) KillerHub:SetFont(selected) end)
 SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
