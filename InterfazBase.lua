@@ -109,27 +109,15 @@ local CurrentTheme = Themes["Obsidian"]
 -- "config.json" en la raíz). Al vivir en su propia carpeta, dos autoguardados
 -- corriendo al mismo tiempo (este + el de tu otro archivo) nunca se pisan.
 local CONFIG_FOLDER = "KillerHub_Config"
--- 🆕 Persistencia inteligente en DOS capas:
---   • GLOBAL_FILE  → variables estéticas y estructurales (tema, tamaño de la
---                    ventana, opacidad, tecla de toggle, tamaño del botón,
---                    fuente, volumen y las posiciones del menú/botón).
---                    Nombre FIJO, sobrevive entre juegos.
---   • LOCAL_FILE   → interruptores, sliders, keybinds y shortcuts específicos
---                    del juego actual (segmentado por PlaceId).
--- Al iniciar, primero se lee el global para reconstruir la interfaz con tus
--- gustos exactos y luego se superpone el local con los flags del juego.
-local CURRENT_PLACE_ID = tostring(game.PlaceId or 0)
-local GLOBAL_FILE = CONFIG_FOLDER .. "/Global.json"
-local LOCAL_FILE  = CONFIG_FOLDER .. "/Game_" .. CURRENT_PLACE_ID .. ".json"
--- Compatibilidad hacia atrás con instalaciones que ya tenían Core_<id>.json
-local LEGACY_FILE = CONFIG_FOLDER .. "/Core_" .. CURRENT_PLACE_ID .. ".json"
-
--- Claves que viven en el JSON GLOBAL. El resto va al JSON local del juego.
-local GLOBAL_KEYS = {
-    Volume = true, ToggleKey = true, SelectedTheme = true, SelectedFont = true, MenuAnimEnabled = true, AutoArrangeShortcuts = true,
-    GuiWidth = true, GuiHeight = true, UiOpacity = true, ToggleBtnSize = true,
-    MainFrameX = true, MainFrameY = true, BtnX = true, BtnY = true,
-}
+-- 🌐 PERSISTENCIA UNIVERSAL (una sola configuración compartida entre TODOS los juegos).
+-- Antes se dividía en Global.json + Game_<PlaceId>.json, pero eso reiniciaba tus
+-- toggles/sliders al abrir otro juego. Ahora todo (estética + flags) vive en
+-- Universal.json y te acompaña a cualquier experiencia. Si aparecen los archivos
+-- viejos (Global.json / Game_<id>.json / Core_<id>.json) se importan una vez y
+-- listo — no hay dependencia de PlaceId por ningún lado.
+local UNIVERSAL_FILE = CONFIG_FOLDER .. "/Universal.json"
+-- Compatibilidad hacia atrás con instalaciones anteriores (se migran en silencio).
+local LEGACY_GLOBAL_FILE = CONFIG_FOLDER .. "/Global.json"
 
 pcall(function()
     if isfolder and makefolder and not isfolder(CONFIG_FOLDER) then
@@ -159,16 +147,12 @@ local function copyTable(target, source)
 end
 copyTable(Config, DefaultConfig)
 
--- 🩹 AUTOGUARDADO: dos capas de protección.
+-- 🩹 AUTOGUARDADO UNIVERSAL: un solo archivo con TODA tu configuración.
 -- 1) Debounce de escritura: saveConfig() se llama en cada muestra de arrastre de
---    sliders/keybinds/toggles (varias veces por frame). Antes solo el Color Picker
---    protegía esto con su propio "requestSave"; el resto golpeaba writefile() en
---    cada pixel de movimiento (I/O real -> microstutter / throttling del executor).
---    Ahora el debounce vive en la fuente: colapsa cualquier ráfaga del mismo
---    resumption cycle en un solo writefile, sin cambiar la firma de la función.
--- 2) pcall en cada paso (encode y write por separado): si el JSON.Encode falla
---    por lo que sea, o el executor lanza el write, no se rompe el hub ni se deja
---    un archivo a medio escribir con basura.
+--    sliders/keybinds/toggles (varias veces por frame). El debounce colapsa
+--    cualquier ráfaga del mismo resumption cycle en un solo writefile.
+-- 2) pcall en cada paso (encode y write por separado): si algo falla no se
+--    rompe el hub ni se deja un archivo a medio escribir con basura.
 local pendingConfigSave = false
 local function saveConfig()
     if pendingConfigSave then return end
@@ -176,25 +160,16 @@ local function saveConfig()
     task.defer(function()
         pendingConfigSave = false
         if not writefile then return end
-        -- Partir Config en dos subtablas segun GLOBAL_KEYS
-        local globalPart, localPart = {}, {}
-        for k, v in pairs(Config) do
-            if GLOBAL_KEYS[k] then globalPart[k] = v else localPart[k] = v end
-        end
-        local okG, encG = pcall(function() return HttpService:JSONEncode(globalPart) end)
-        if okG and encG then pcall(function() writefile(GLOBAL_FILE, encG) end) end
-        local okL, encL = pcall(function() return HttpService:JSONEncode(localPart) end)
-        if okL and encL then pcall(function() writefile(LOCAL_FILE, encL) end) end
+        local ok, enc = pcall(function() return HttpService:JSONEncode(Config) end)
+        if ok and enc then pcall(function() writefile(UNIVERSAL_FILE, enc) end) end
     end)
 end
 
 -- 🩹 CARGA BLINDADA: si el archivo no existe, está corrupto, o el JSON no es
--- una tabla válida (por ejemplo porque otro script escribió algo raro ahí, o
--- el archivo quedó truncado a medias), simplemente se ignora y se usan los
--- valores por defecto en vez de romper el :Init() de todo el hub.
--- Carga en dos pasos: 1) global (estetica), 2) local (flags del juego).
--- Si existe el archivo legado Core_<id>.json (formato anterior), se importa
--- una unica vez y se reparte automaticamente entre global y local.
+-- una tabla válida, simplemente se ignora y se usan los valores por defecto.
+-- Si existen archivos de versiones anteriores (Global.json / Game_<id>.json /
+-- Core_<id>.json) se fusionan una única vez dentro de Universal.json y luego
+-- este pasa a ser la única fuente de verdad, sin depender del PlaceId.
 local function _loadJsonInto(pathFile)
     if not (isfile and readfile and isfile(pathFile)) then return end
     local ok, raw = pcall(readfile, pathFile)
@@ -205,12 +180,25 @@ local function _loadJsonInto(pathFile)
     end
 end
 pcall(function()
-    -- Migracion silenciosa del formato antiguo
-    if isfile and isfile(LEGACY_FILE) and not (isfile(GLOBAL_FILE) or isfile(LOCAL_FILE)) then
-        _loadJsonInto(LEGACY_FILE)
+    -- Migración silenciosa: si aún no existe Universal.json pero hay archivos
+    -- viejos, los importamos en orden (global primero, luego el del juego que
+    -- hayas usado por última vez) y guardamos todo consolidado.
+    if isfile and not isfile(UNIVERSAL_FILE) then
+        if isfile(LEGACY_GLOBAL_FILE) then _loadJsonInto(LEGACY_GLOBAL_FILE) end
+        if listfiles and isfolder and isfolder(CONFIG_FOLDER) then
+            local okList, files = pcall(listfiles, CONFIG_FOLDER)
+            if okList and type(files) == "table" then
+                for _, f in ipairs(files) do
+                    local name = tostring(f)
+                    if name:find("Game_") or name:find("Core_") then
+                        _loadJsonInto(name)
+                    end
+                end
+            end
+        end
+        saveConfig()
     end
-    _loadJsonInto(GLOBAL_FILE)
-    _loadJsonInto(LOCAL_FILE)
+    _loadJsonInto(UNIVERSAL_FILE)
 end)
 
 if Themes[Config.SelectedTheme] then CurrentTheme = Themes[Config.SelectedTheme] end
@@ -733,7 +721,53 @@ local function SafeAssert(componentName, checks)
     return true
 end
 
--- 🛠 EXPOSICIÓN Y ACTUALIZACIÓN DINÁMICA DE FLAGS GLOBAL
+-- 🚨 REPORTE DE ERRORES EN TIEMPO DE EJECUCIÓN
+-- safeCall(context, fn, ...) ejecuta callbacks del usuario y, si tiran error,
+-- avisa por Notify con el mensaje exacto + un warn en consola con el traceback.
+-- Así, si alguien pasa mal la API, escribe mal un flag o su callback truena,
+-- el error no queda escondido: sale como notificación roja en pantalla.
+local ErrorNotifyCooldown = {}
+local function _notifyError(title, msg)
+    local key = title .. "|" .. msg
+    local now = os.clock()
+    if ErrorNotifyCooldown[key] and (now - ErrorNotifyCooldown[key]) < 3 then return end
+    ErrorNotifyCooldown[key] = now
+    task.spawn(function()
+        if KillerHub and KillerHub.Notify then
+            KillerHub:Notify(title, msg, 7, Color3.fromRGB(240, 70, 70))
+        end
+    end)
+end
+
+local function safeCall(context, fn, ...)
+    if type(fn) ~= "function" then return end
+    local args = table.pack(...)
+    local ok, err = xpcall(function() return fn(table.unpack(args, 1, args.n)) end, function(e)
+        local tb = debug.traceback(tostring(e), 2)
+        warn("⚠️ [KillerHub] Error en '" .. tostring(context) .. "':\n" .. tb)
+        return tostring(e)
+    end)
+    if not ok then
+        _notifyError("❌ Error en " .. tostring(context), tostring(err))
+    end
+end
+
+-- Enganche global: cualquier error de un LocalScript que llegue a
+-- ScriptContext.Error (por ejemplo, un error dentro de una corrutina que nadie
+-- envolvió en pcall) también se muestra como notificación.
+pcall(function()
+    local ScriptContext = game:GetService("ScriptContext")
+    connect(ScriptContext.Error, function(message, stackTrace, sc)
+        local msg = tostring(message or "")
+        -- Ignora ruido irrelevante o errores nuestros ya reportados
+        if msg == "" then return end
+        if msg:find("HTTP", 1, true) and msg:find("disabled", 1, true) then return end
+        _notifyError("⚠️ Error detectado", msg)
+        warn("[KillerHub] ScriptContext.Error:\n" .. tostring(stackTrace))
+    end)
+end)
+
+
 local function updateGlobalFlags(flagName, value)
     Flags[flagName] = { CurrentValue = value }
     if getgenv().KillerHub then
@@ -1241,7 +1275,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     end)
     
     table.insert(KillerHub.TargetThemeElements, stateUpdate)
-    task.spawn(function() stateUpdate() pcall(callback, Flags[flagName].CurrentValue) end)
+    task.spawn(function() stateUpdate() safeCall("callback", callback, Flags[flagName].CurrentValue) end)
 
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(ToggleButton, ToggleLabel, self.Frame.Name)
@@ -1362,13 +1396,13 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         SFill.Size = UDim2.new(pct, 0, 1, 0)
         SKnob.Position = UDim2.new(pct, -6, 0.5, -6)
         ValueBox.Text = formatValue(v)
-        if not skipCallback then pcall(callbackSlider, v) end
+        if not skipCallback then safeCall("callbackSlider", callbackSlider, v) end
     end
 
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagToggle].CurrentValue
         updateGlobalFlags(flagToggle, nextState) Config[flagToggle] = nextState saveConfig() playUISound()
-        stateUpdate() pcall(callbackToggle, nextState)
+        stateUpdate() safeCall("callbackToggle", callbackToggle, nextState)
     end)
 
     connect(ValueBox.FocusLost, function()
@@ -1404,14 +1438,14 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
 
     task.spawn(function()
         stateUpdate() runSliderValue(Flags[flagSlider].CurrentValue, true)
-        pcall(callbackToggle, Flags[flagToggle].CurrentValue) pcall(callbackSlider, Flags[flagSlider].CurrentValue)
+        safeCall("callbackToggle", callbackToggle, Flags[flagToggle].CurrentValue) safeCall("callbackSlider", callbackSlider, Flags[flagSlider].CurrentValue)
     end)
 
     addInteractiveFeedback(ToggleButton)
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     
     local tsObj = {
-        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool) end,
+        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() safeCall("callbackToggle", callbackToggle, bool) end,
         SetSlider = function(_, value) runSliderValue(value) end
     }
     KillerHub.Elements[flagToggle] = tsObj
@@ -1467,7 +1501,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         local pct = (max == min) and 0 or (v - min) / (max - min)
         Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -7, 0.5, -7)
         ValueBox.Text = formatValue(v)
-        if not skipCallback then pcall(callback, v) end
+        if not skipCallback then safeCall("callback", callback, v) end
     end
     
     connect(ValueBox.FocusLost, function()
@@ -1502,7 +1536,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         runSliderValue(Flags[flagName].CurrentValue, true)
     end)
 
-    task.spawn(function() runSliderValue(Flags[flagName].CurrentValue, true) pcall(callback, Flags[flagName].CurrentValue) end)
+    task.spawn(function() runSliderValue(Flags[flagName].CurrentValue, true) safeCall("callback", callback, Flags[flagName].CurrentValue) end)
     self:RegisterElement(SliderFrame, Label, self.Frame.Name)
     
     local sliderObj = {
@@ -1590,7 +1624,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
         if SearchBox then SearchBox.Text = "" SearchBox.Visible = false end
         TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 36)}):Play()
         TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
-        pcall(callback, name)
+        safeCall("callback", callback, name)
     end
 
     local function makeOptions()
@@ -1633,7 +1667,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback)
     end)
 
     makeOptions()
-    task.spawn(function() if Flags[flagName].CurrentValue ~= "" then pcall(callback, Flags[flagName].CurrentValue) end end)
+    task.spawn(function() if Flags[flagName].CurrentValue ~= "" then safeCall("callback", callback, Flags[flagName].CurrentValue) end end)
 
     addInteractiveFeedback(Trigger)
     self:RegisterElement(DDFrame, Label, self.Frame.Name)
@@ -1726,7 +1760,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback)
                     BackgroundColor3 = nextState and CurrentTheme.BG_MAIN or Color3.fromRGB(25, 25, 30),
                     TextColor3 = nextState and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
                 }):Play()
-                pcall(callback, Config[flagName])
+                safeCall("callback", callback, Config[flagName])
             end)
             addInteractiveFeedback(OptBtn)
         end
@@ -1791,7 +1825,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
     local Panel = BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColor, 44, function(col)
-        task.spawn(function() pcall(callbackColor, col) end)
+        task.spawn(function() safeCall("callbackColor", callbackColor, col) end)
     end)
 
     local function stateUpdate()
@@ -1806,7 +1840,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         local nextVal = not Flags[flagToggle].CurrentValue
         updateGlobalFlags(flagToggle, nextVal)
         Config[flagToggle] = nextVal saveConfig() playUISound()
-        stateUpdate() pcall(callbackToggle, nextVal)
+        stateUpdate() safeCall("callbackToggle", callbackToggle, nextVal)
     end)
 
     local open = false
@@ -1818,14 +1852,14 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     
     table.insert(KillerHub.TargetThemeElements, function() stateUpdate() Panel.ApplyTheme() end)
     Panel.RefreshInit()
-    task.spawn(function() stateUpdate() pcall(callbackToggle, Flags[flagToggle].CurrentValue) pcall(callbackColor, Flags[flagColor].CurrentValue) end)
+    task.spawn(function() stateUpdate() safeCall("callbackToggle", callbackToggle, Flags[flagToggle].CurrentValue) safeCall("callbackColor", callbackColor, Flags[flagColor].CurrentValue) end)
 
     addInteractiveFeedback(MainTrigger) addInteractiveFeedback(ColorBtn)
     self:RegisterElement(MasterFrame, Label, self.Frame.Name)
 
     local tsObj = {
         SetToggle = function(_, bool)
-            updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() pcall(callbackToggle, bool)
+            updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() safeCall("callbackToggle", callbackToggle, bool)
         end,
         SetColor = function(_, newColor) Panel.SetColor(newColor) end
     }
@@ -1859,7 +1893,7 @@ function TabMethods:CreateColorPicker(flagColor, text, defaultColor, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ColorBtn)
 
     local Panel = BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColor, 44, function(col)
-        task.spawn(function() pcall(callback, col) end)
+        task.spawn(function() safeCall("callback", callback, col) end)
     end)
 
     local open = false
@@ -1971,7 +2005,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
         updateGlobalFlags(flagName, processedText)
         Config[flagName] = processedText 
         saveConfig() 
-        pcall(callback, processedText) 
+        safeCall("callback", callback, processedText) 
     end)
 
     -- 🔧 BANDERA DE FOCUS: reemplaza HasFocus() que no existe en Roblox
@@ -2013,7 +2047,7 @@ function TabMethods:CreateInput(flagName, text, placeholder, callback)
             updateGlobalFlags(flagName, val)
             Config[flagName] = val 
             saveConfig() 
-            pcall(callback, val) 
+            safeCall("callback", callback, val) 
         end,
         GetHistory = function() return history end
     }
@@ -2033,12 +2067,12 @@ function TabMethods:CreateButton(text, callback)
     create("UIPadding", {PaddingLeft = UDim.new(0, 48), PaddingRight = UDim.new(0, 48)}, Button)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
     
-    connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
+    connect(Button.MouseButton1Click, function() playUISound() safeCall("callback", callback) end)
     addInteractiveFeedback(Button)
     self:RegisterElement(Button, Button, self.Frame.Name)
     
     local btnObj = {
-        Fire = function() pcall(callback) end
+        Fire = function() safeCall("callback", callback) end
     }
     KillerHub.Elements[text] = btnObj
     if KillerHub._AttachShortcut then
@@ -2046,7 +2080,7 @@ function TabMethods:CreateButton(text, callback)
             id = "button::" .. text,
             kind = "button",
             name = text,
-            fire = function() pcall(callback) end,
+            fire = function() safeCall("callback", callback) end,
             getState = function() return nil end,
         })
     end
@@ -2104,18 +2138,18 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
                 Config[flagName] = newKey
                 KillerHub._Keybinds[flagName].key = newKey
                 updateGlobalFlags(flagName, newKey)
-                saveConfig() BBtn.Text = newKey pcall(callback, input.KeyCode)
+                saveConfig() BBtn.Text = newKey safeCall("callback", callback, input.KeyCode)
             elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.ButtonX or input.KeyCode == Enum.KeyCode.ButtonY then
                 listening = false Config[flagName] = input.UserInputType.Name 
                 updateGlobalFlags(flagName, input.UserInputType.Name)
-                saveConfig() BBtn.Text = input.UserInputType.Name pcall(callback, input.UserInputType)
+                saveConfig() BBtn.Text = input.UserInputType.Name safeCall("callback", callback, input.UserInputType)
             end
         end
     end)
 
     task.spawn(function()
         local key = Enum.KeyCode[Flags[flagName].CurrentValue] or Enum.UserInputType[Flags[flagName].CurrentValue]
-        if key then pcall(callback, key) end
+        if key then safeCall("callback", callback, key) end
     end)
 
     addInteractiveFeedback(BBtn)
@@ -3069,8 +3103,8 @@ SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.
 SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
 SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
 
-SettingsTab:CreateSection("Configuración por Juego")
-SettingsTab:CreateParagraph("🎮 Persistencia inteligente", "Estilos, tamaño, opacidad, tema y tecla se guardan en Global.json (compartido). Los flags/toggles de este juego se guardan en Game_" .. CURRENT_PLACE_ID .. ".json")
+SettingsTab:CreateSection("Configuración Universal")
+SettingsTab:CreateParagraph("🌐 Persistencia universal", "Toda tu configuración (estilos, tamaños, tema, tecla, toggles, sliders, keybinds y shortcuts) se guarda en Universal.json y te acompaña a CUALQUIER juego. Nada se reinicia al cambiar de experiencia.")
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
