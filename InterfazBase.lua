@@ -1205,7 +1205,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -100, 1, 0), Position = UDim2.new(0, 42, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 46, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
@@ -2023,6 +2023,7 @@ function TabMethods:CreateButton(text, callback)
     local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 44), PaddingRight = UDim.new(0, 8)}, Button)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
     
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
@@ -2807,13 +2808,13 @@ function KillerHub._AttachShortcut(hostFrame, data)
     -- Activador ↖ separado del interruptor, tamaño amigable a móvil
     local act = create("TextButton", {
         Name = "ShortcutActivator",
-        Size = UDim2.new(0, 40, 0, 40),
-        Position = UDim2.new(0, 6, 0.5, -20),
-        BackgroundColor3 = Color3.fromRGB(22, 22, 26),
-        Text = "\226\134\150", -- ↖
+        Size = UDim2.new(0, 30, 0, 30),
+        Position = UDim2.new(0, 6, 0.5, -15),
+        BackgroundColor3 = Color3.fromRGB(6, 6, 8),
+        Text = "\240\159\161\148", -- 🡔 heavy NW arrow (palo largo)
         TextColor3 = CurrentTheme.TEXT_MUTED,
         Font = Enum.Font.GothamBold,
-        TextSize = 24,
+        TextSize = 26,
         AutoButtonColor = false,
         ZIndex = 3
     }, hostFrame)
@@ -2827,7 +2828,7 @@ function KillerHub._AttachShortcut(hostFrame, data)
             act.TextColor3 = glyph
             actStroke.Color = fill
         else
-            act.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+            act.BackgroundColor3 = Color3.fromRGB(6, 6, 8)
             act.TextColor3 = CurrentTheme.TEXT_MUTED
             actStroke.Color = CurrentTheme.BORDER
         end
