@@ -2027,10 +2027,10 @@ function TabMethods:CreateButton(text, callback)
         ["callback"] = {value = callback, types = {"function"}}
     }) then return end
 
-    local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
+    local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
-    create("UIPadding", {PaddingLeft = UDim.new(0, 40), PaddingRight = UDim.new(0, 8)}, Button)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 48), PaddingRight = UDim.new(0, 48)}, Button)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
     
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
@@ -2837,7 +2837,14 @@ function KillerHub._AttachShortcut(hostFrame, data)
     local ACT_SIZE = 32
     -- Anclado casi a la orilla izquierda del host, centrado vertical:
     -- lejos del centro del Button para no dispararlo por accidente.
-    local actPos = UDim2.new(0, 2, 0.5, -math.floor(ACT_SIZE / 2))
+    -- En botones (kind="button") el host tiene UIPadding lateral para centrar el texto,
+    -- asi que compensamos con offset negativo para pegar el activador al borde IZQUIERDO real.
+    local actPos
+    if isButtonHost then
+        actPos = UDim2.new(0, -42, 0.5, -math.floor(ACT_SIZE / 2))
+    else
+        actPos = UDim2.new(0, 2, 0.5, -math.floor(ACT_SIZE / 2))
+    end
 
     local act = create("TextButton", {
         Name = "ShortcutActivator",
