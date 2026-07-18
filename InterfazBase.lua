@@ -2027,7 +2027,7 @@ function TabMethods:CreateButton(text, callback)
         ["callback"] = {value = callback, types = {"function"}}
     }) then return end
 
-    local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
+    local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
     create("UIPadding", {PaddingLeft = UDim.new(0, 48), PaddingRight = UDim.new(0, 48)}, Button)
@@ -2353,7 +2353,8 @@ local function refreshShortcutVisual(sc)
     if sc.label then
         sc.label.Text = buildLabel(sc)
         sc.label.TextColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        sc.label.TextSize = math.clamp(math.floor(sc.cfg.size * 0.28), 9, 16)
+        -- Ligeramente más pequeño para que el texto entre completo en el cuadrito
+        sc.label.TextSize = math.clamp(math.floor(sc.cfg.size * 0.24), 8, 14)
         sc.label.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
         pcall(function() sc.label.TextStrokeTransparency = 1 end)
     end
@@ -2372,7 +2373,11 @@ end
 local function createFloating(sc)
     local cfg = sc.cfg
     -- Si nunca se movió (o no tiene coords válidas), colocar en grid superior
-    if (Config.AutoArrangeShortcuts ~= false) and (not cfg.userMoved) or (cfg.x or -1) < 0 or (cfg.y or -1) < 0 then
+    -- Solo autoubicar en grid si la posición guardada no es válida (nunca colocado)
+    -- o si aún no se movió y el auto-arrange está activo. Al re-activar tras dragging,
+    -- cfg.x/cfg.y y userMoved persisten → conserva la posición del usuario.
+    local needsAutoPos = ((cfg.x or -1) < 0) or ((cfg.y or -1) < 0)
+    if needsAutoPos or ((Config.AutoArrangeShortcuts ~= false) and (not cfg.userMoved)) then
         local nx, ny = nextShortcutSlot(cfg)
         cfg.x, cfg.y = nx, ny
     end
@@ -2394,13 +2399,13 @@ local function createFloating(sc)
     local accentBar = create("Frame", {Size = UDim2.new(1, -14, 0, 2), Position = UDim2.new(0, 7, 1, -6), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
-        Size = UDim2.new(1, -10, 1, -10),
-        Position = UDim2.new(0, 5, 0, 3),
+        Size = UDim2.new(1, -8, 1, -14),
+        Position = UDim2.new(0, 4, 0, 2),
         BackgroundTransparency = 1,
         Text = buildLabel(sc),
         TextColor3 = CurrentTheme.TEXT_WHITE,
         Font = fontEnum,
-        TextSize = 12,
+        TextSize = 10,
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Center,
         TextYAlignment = Enum.TextYAlignment.Center
@@ -2733,8 +2738,9 @@ local function buildModal()
         else
             -- 🩹 Fix: al re-activar un shortcut, resetear lock (antes heredaba
             -- lock=true del cfg persistido y aparecía bloqueado sin querer).
+            -- ⚠ NO tocar userMoved / x / y: así el shortcut re-aparece exactamente
+            -- donde el usuario lo dejó la última vez (antes volvía al grid por defecto).
             currentModalSc.cfg.lock = false
-            currentModalSc.cfg.userMoved = false
             setShortcutActive(currentModalSc, true)
             ModalRefresh()
         end
