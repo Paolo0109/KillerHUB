@@ -799,12 +799,57 @@ function KillerHub:Destroy()
 end
 
 function KillerHub:Unload()
+    -- 🛑 PASO 0 — AVISO DE APAGADO A LOS TOGGLES ACTIVOS.
+    -- Esto es lo que soluciona que "las funciones se quedan encendidas" al
+    -- cerrar el hub. Antes, Unload() solo borraba la UI y limpiaba sus propias
+    -- conexiones internas — pero jamás le avisaba a TU código (el callback que
+    -- le pasaste a CreateToggle/CreateToggleSlider/CreateToggleColorPicker) que
+    -- se estaba apagando. Si tu callback arranca un loop externo (ESP, un
+    -- while true, un RenderStepped propio, etc.) controlado por una variable
+    -- tipo `running`, ese loop nunca se enteraba y quedaba corriendo para
+    -- siempre en segundo plano, aunque la UI ya no existiera.
+    --
+    -- Ahora, para cada toggle que esté ACTIVO en este momento, se le llama a su
+    -- callback original con `false` — exactamente igual que si el usuario lo
+    -- hubiera apagado a mano con un click. Si tu callback está escrito de forma
+    -- normal (ej. `function(state) running = state end` con un loop que
+    -- revisa `running`), tu loop se detiene solo, limpio.
+    --
+    -- ⚠️ Importante y honesto: esto NO es magia ni "borra la caché" de nada.
+    -- Ningún script externo (ni este ni cualquier otro en Lua/Luau) puede matar
+    -- a la fuerza un hilo/loop que OTRO script haya creado por su cuenta, salvo
+    -- que ese hilo coopere revisando un estado que se le avisa que cambió. Es
+    -- la misma limitación que tiene cualquier engine con corrutinas. Lo que sí
+    -- puedo garantizar es que el aviso llega — si tu loop no lo respeta (por
+    -- ejemplo, ignora el parámetro `state` y hace su propia cosa sin revisar
+    -- nada), ningún Unload() de ninguna librería va a poder pararlo desde
+    -- afuera; eso hay que arreglarlo en el propio callback de tu script.
+    --
+    -- A propósito esto NO pasa por Set()/saveConfig(): así el valor que quedó
+    -- guardado en el JSON sigue siendo el que tenías (activo), y si vuelves a
+    -- ejecutar el hub más tarde recuerda que lo tenías prendido, en vez de
+    -- "olvidarlo" solo porque cerraste el menú una vez.
+    for _, obj in pairs(self.Elements) do
+        if type(obj) == "table" and type(obj._ShutdownNotify) == "function" then
+            pcall(obj._ShutdownNotify)
+        end
+    end
+    -- Un frame de gracia para que esos callbacks síncronos (task.spawn) alcancen
+    -- a correr antes de que sigamos destruyendo instancias/tablas debajo.
+    task.wait()
+
     for _, conn in ipairs(Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
     end
     for _, item in ipairs(self._Trash) do
         if typeof(item) == "RBXScriptConnection" then pcall(function() item:Disconnect() end)
-        elseif typeof(item) == "Instance" then pcall(function() item:Destroy() end) end
+        elseif typeof(item) == "Instance" then pcall(function() item:Destroy() end)
+        -- 🛡️ Red de seguridad extra: si en algún momento se registró un thread
+        -- con KillerHub:AddTask(coroutine), lo cancelamos a la fuerza aquí.
+        -- Esto SÍ puede matar un hilo de golpe (a diferencia del aviso
+        -- cooperativo de arriba), pero solo alcanza a los threads que el
+        -- propio desarrollador decidió registrar explícitamente.
+        elseif typeof(item) == "thread" then pcall(function() task.cancel(item) end) end
     end
     if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
 
@@ -826,7 +871,7 @@ function KillerHub:Unload()
     table.clear(self.Elements)
     
     if getgenv().KillerHub then getgenv().KillerHub = nil end
-    warn("❌ KillerHub desunificado por completo y memoria liberada.")
+    warn("❌ KillerHub desunificado por completo: toggles activos avisados, conexiones cerradas y memoria liberada.")
 end
 
 function KillerHub:SetTheme(themeName)
@@ -1304,6 +1349,18 @@ function TabMethods:CreateToggle(flagName, text, callback)
                     end
                 end
             end)
+        end,
+        -- 🛑 Llamado únicamente por KillerHub:Unload() antes de destruir nada.
+        -- Si este toggle está ACTIVO, avisa a su callback original con `false`,
+        -- igual que si el usuario lo hubiera apagado a mano — para que cualquier
+        -- loop externo que dependa de ese estado (ESP, aimbot, lo que sea) se
+        -- detenga solo. A propósito NO pasa por executeSet/saveConfig: así el
+        -- valor guardado en el JSON sigue siendo el que el usuario dejó, y al
+        -- recargar el hub vuelve tal cual, en vez de "olvidarse" que estaba activo.
+        _ShutdownNotify = function()
+            if Flags[flagName] and Flags[flagName].CurrentValue then
+                task.spawn(callback, false)
+            end
         end
     }
     
@@ -1446,7 +1503,14 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     
     local tsObj = {
         SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() safeCall("callbackToggle", callbackToggle, bool) end,
-        SetSlider = function(_, value) runSliderValue(value) end
+        SetSlider = function(_, value) runSliderValue(value) end,
+        -- 🛑 Ver nota en CreateToggle._ShutdownNotify: mismo mecanismo, aplicado
+        -- al flag de encendido/apagado de este widget combinado.
+        _ShutdownNotify = function()
+            if Flags[flagToggle] and Flags[flagToggle].CurrentValue then
+                task.spawn(callbackToggle, false)
+            end
+        end
     }
     KillerHub.Elements[flagToggle] = tsObj
     return tsObj
@@ -1861,7 +1925,13 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
         SetToggle = function(_, bool)
             updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() safeCall("callbackToggle", callbackToggle, bool)
         end,
-        SetColor = function(_, newColor) Panel.SetColor(newColor) end
+        SetColor = function(_, newColor) Panel.SetColor(newColor) end,
+        -- 🛑 Ver nota en CreateToggle._ShutdownNotify: mismo mecanismo.
+        _ShutdownNotify = function()
+            if Flags[flagToggle] and Flags[flagToggle].CurrentValue then
+                task.spawn(callbackToggle, false)
+            end
+        end
     }
     KillerHub.Elements[flagToggle] = tsObj
     return tsObj
