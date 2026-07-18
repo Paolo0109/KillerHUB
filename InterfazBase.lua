@@ -773,6 +773,13 @@ function KillerHub:Unload()
         elseif typeof(item) == "Instance" then pcall(function() item:Destroy() end) end
     end
     if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
+
+    -- 🩹 Fix: al apagar el script, retirar el BlurEffect que vive en Lighting;
+    -- si no lo destruimos, el desenfoque se queda pegado en pantalla.
+    if menuBlur and menuBlur.Parent then
+        pcall(function() menuBlur:Destroy() end)
+    end
+    menuBlur = nil
     
     -- Limpieza profunda de memoria
     table.clear(Connections)
@@ -2230,6 +2237,22 @@ end)
 -- ============================================================================
 Config.Shortcuts = Config.Shortcuts or {}
 
+-- ============================================================================
+-- 🎯 CONFIGURACIÓN DEL ÍCONO DEL CUADRITO DE SHORTCUTS  ← EDITA AQUÍ
+-- ----------------------------------------------------------------------------
+-- Si quieres usar una IMAGEN de Roblox (asset id), pon el id como string en
+-- SHORTCUT_ICON_IMAGE. Ejemplo:
+--     local SHORTCUT_ICON_IMAGE = "rbxassetid://7734053426"
+-- La imagen se auto-ajusta al cuadrito (padding interno) para que NO se salga.
+--
+-- Si SHORTCUT_ICON_IMAGE está vacío (""), se usa el TEXTO de SHORTCUT_ICON_TEXT.
+-- Prueba caracteres seguros en Roblox (todos los siguientes renderizan bien):
+--     "↖"  "↗"  "⬈"  "⤢"  "◤"  "◰"  "⌘"  "★"  "＋"  "SC"  "S"
+-- Evita flechas "heavy" del bloque U+1F800 (🡔 🡕 …), muchas veces salen ▯▯.
+-- ============================================================================
+local SHORTCUT_ICON_IMAGE = ""      -- ej: "rbxassetid://7072706796"
+local SHORTCUT_ICON_TEXT  = "↖"     -- se usa solo si SHORTCUT_ICON_IMAGE == ""
+
 -- Colores de "activo" para el activador; en temas cuyo ACCENT es prácticamente
 -- blanco, se usa un color distintivo para que se note el estado ON.
 local ShortcutAccentOverrides = {
@@ -2805,21 +2828,49 @@ function KillerHub._AttachShortcut(hostFrame, data)
     local sc = { data = data, cfg = cfg }
     Shortcuts[data.id] = sc
 
-    -- Activador ↖ separado del interruptor, tamaño amigable a móvil
+    -- Activador ↖ separado del interruptor, tamaño amigable a móvil.
+    -- Para botones (kind="button") se ancla a la esquina superior-izquierda
+    -- para que quede lejos del área de tap del botón grande (evita apagar
+    -- el script por accidente). Para toggles se centra verticalmente.
+    local isButtonHost = (data.kind == "button")
+    local ACT_SIZE = isButtonHost and 26 or 32
+    local actPos
+    if isButtonHost then
+        actPos = UDim2.new(0, 3, 0, 3) -- esquina superior-izquierda
+    else
+        actPos = UDim2.new(0, 4, 0.5, -math.floor(ACT_SIZE / 2))
+    end
+
     local act = create("TextButton", {
         Name = "ShortcutActivator",
-        Size = UDim2.new(0, 30, 0, 30),
-        Position = UDim2.new(0, 6, 0.5, -15),
+        Size = UDim2.new(0, ACT_SIZE, 0, ACT_SIZE),
+        Position = actPos,
         BackgroundColor3 = Color3.fromRGB(6, 6, 8),
-        Text = "\240\159\161\148", -- 🡔 heavy NW arrow (palo largo)
+        Text = (SHORTCUT_ICON_IMAGE == "") and SHORTCUT_ICON_TEXT or "",
         TextColor3 = CurrentTheme.TEXT_MUTED,
         Font = Enum.Font.GothamBold,
-        TextSize = 26,
+        TextSize = isButtonHost and 20 or 24,
         AutoButtonColor = false,
         ZIndex = 3
     }, hostFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, act)
     local actStroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER}, act)
+
+    -- Ícono por imagen (opcional): si se definió un asset id, se dibuja
+    -- centrado con padding interno para que NO se salga del cuadrito.
+    local actImage
+    if SHORTCUT_ICON_IMAGE ~= "" then
+        actImage = create("ImageLabel", {
+            Name = "ShortcutIconImg",
+            Size = UDim2.new(1, -8, 1, -8),
+            Position = UDim2.new(0, 4, 0, 4),
+            BackgroundTransparency = 1,
+            Image = SHORTCUT_ICON_IMAGE,
+            ScaleType = Enum.ScaleType.Fit,
+            ImageColor3 = CurrentTheme.TEXT_MUTED,
+            ZIndex = 4
+        }, act)
+    end
 
     local function refreshActivator()
         if cfg.active then
@@ -2827,10 +2878,12 @@ function KillerHub._AttachShortcut(hostFrame, data)
             act.BackgroundColor3 = fill
             act.TextColor3 = glyph
             actStroke.Color = fill
+            if actImage then actImage.ImageColor3 = glyph end
         else
             act.BackgroundColor3 = Color3.fromRGB(6, 6, 8)
             act.TextColor3 = CurrentTheme.TEXT_MUTED
             actStroke.Color = CurrentTheme.BORDER
+            if actImage then actImage.ImageColor3 = CurrentTheme.TEXT_MUTED end
         end
     end
     ShortcutActivators[data.id] = { btn = act, stroke = actStroke, refresh = refreshActivator }
