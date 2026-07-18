@@ -2030,7 +2030,7 @@ function TabMethods:CreateButton(text, callback)
     local Button = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.3, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 12}, self.Frame)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
-    create("UIPadding", {PaddingLeft = UDim.new(0, 44), PaddingRight = UDim.new(0, 8)}, Button)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 40), PaddingRight = UDim.new(0, 8)}, Button)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
     
     connect(Button.MouseButton1Click, function() playUISound() pcall(callback) end)
@@ -2833,13 +2833,11 @@ function KillerHub._AttachShortcut(hostFrame, data)
     -- para que quede lejos del área de tap del botón grande (evita apagar
     -- el script por accidente). Para toggles se centra verticalmente.
     local isButtonHost = (data.kind == "button")
-    local ACT_SIZE = isButtonHost and 26 or 32
-    local actPos
-    if isButtonHost then
-        actPos = UDim2.new(0, 3, 0, 3) -- esquina superior-izquierda
-    else
-        actPos = UDim2.new(0, 4, 0.5, -math.floor(ACT_SIZE / 2))
-    end
+    -- Mismo tamano en Button y Toggle: mismo target de tap, imposible fallar.
+    local ACT_SIZE = 32
+    -- Anclado casi a la orilla izquierda del host, centrado vertical:
+    -- lejos del centro del Button para no dispararlo por accidente.
+    local actPos = UDim2.new(0, 2, 0.5, -math.floor(ACT_SIZE / 2))
 
     local act = create("TextButton", {
         Name = "ShortcutActivator",
@@ -2849,7 +2847,7 @@ function KillerHub._AttachShortcut(hostFrame, data)
         Text = (SHORTCUT_ICON_IMAGE == "") and SHORTCUT_ICON_TEXT or "",
         TextColor3 = CurrentTheme.TEXT_MUTED,
         Font = Enum.Font.GothamBold,
-        TextSize = isButtonHost and 20 or 24,
+        TextSize = 24,
         AutoButtonColor = false,
         ZIndex = 3
     }, hostFrame)
