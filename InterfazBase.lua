@@ -2250,7 +2250,7 @@ Config.Shortcuts = Config.Shortcuts or {}
 --     "↖"  "↗"  "⬈"  "⤢"  "◤"  "◰"  "⌘"  "★"  "＋"  "SC"  "S"
 -- Evita flechas "heavy" del bloque U+1F800 (🡔 🡕 …), muchas veces salen ▯▯.
 -- ============================================================================
-local SHORTCUT_ICON_IMAGE = "135958512425125"      -- ej: "rbxassetid://7072706796"
+local SHORTCUT_ICON_IMAGE = "rbxassetid://135958512425125"      -- ej: "rbxassetid://7072706796"
 local SHORTCUT_ICON_TEXT  = ""     -- se usa solo si SHORTCUT_ICON_IMAGE == ""
 
 -- Colores de "activo" para el activador; en temas cuyo ACCENT es prácticamente
