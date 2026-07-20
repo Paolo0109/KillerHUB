@@ -1256,15 +1256,26 @@ function TabMethods:CreateSection(text)
         ["text"] = {value = text, types = {"string"}}
     }) then return end
 
-    local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1}, self.Frame)
-    local AccentLine = create("Frame", {Size = UDim2.new(0, 3, 1, -6), Position = UDim2.new(0, 2, 0, 3), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, SectionFrame)
-    create("UICorner", {CornerRadius = UDim.new(0, 1)}, AccentLine)
-    
-    local Label = create("TextLabel", {Size = UDim2.new(1, -15, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, SectionFrame)
+    -- 🎨 REDISEÑO: antes había una barrita vertical de acento a la izquierda del
+    -- texto. Ahora el texto va más grande y suelto arriba, y debajo hay un
+    -- divisor horizontal con degradado de transparencia (sólido a la izquierda,
+    -- se desvanece hacia la derecha) — igual al estilo de la imagen de referencia.
+    local SectionFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1}, self.Frame)
+
+    local Label = create("TextLabel", {Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = string.upper(text), TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left}, SectionFrame)
     Label:SetAttribute("ThemeRole", "TEXT_ACCENT")
+
+    local DividerLine = create("Frame", {Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, 0, 27), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, SectionFrame)
+    create("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.55, 0.35),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+    }, DividerLine)
     
     table.insert(KillerHub.TargetThemeElements, function()
-        AccentLine.BackgroundColor3 = CurrentTheme.ACCENT
+        DividerLine.BackgroundColor3 = CurrentTheme.ACCENT
     end)
     
     self:RegisterElement(SectionFrame, Label, self.Frame.Name)
