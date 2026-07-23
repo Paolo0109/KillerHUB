@@ -2243,11 +2243,14 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
 end
 
-function KillerHub:CreateTab(name, iconId)
+function KillerHub:CreateTab(name, iconId, opts)
     if not SafeAssert("CreateTab", {
         ["name"] = {value = name, types = {"string"}},
-        ["iconId"] = {value = iconId, types = {"string", "nil"}}
+        ["iconId"] = {value = iconId, types = {"string", "nil"}},
+        ["opts"] = {value = opts, types = {"table", "nil"}}
     }) then return end
+    -- opts.parent (Instance) permite anidar la pestaña dentro de un grupo colapsable (ver CreateTabGroup)
+    local parentContainer = (opts and opts.parent) or SidebarTabsContainer
 
     local frame = create("ScrollingFrame", {Name = name .. "Frame", Size = UDim2.new(1, -24, 1, -24), Position = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.5, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT}, ContentContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
@@ -2261,7 +2264,7 @@ function KillerHub:CreateTab(name, iconId)
     end)
     table.insert(Connections, sizeChangedConn)
 
-    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, (name == "Settings" and SettingsContainer or SidebarTabsContainer))
+    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, (name == "Settings" and SettingsContainer or parentContainer))
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
     local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -28 or -10, 1, 0), Position = UDim2.new(0, iconId and 26 or 10, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left}, btn)
     pcall(function() btnLabel.TextStrokeTransparency = 1 end)
@@ -2321,6 +2324,111 @@ function KillerHub:CreateTab(name, iconId)
     local tabObj = setmetatable({ Frame = frame }, TabMethods)
     KillerHub.Tabs[name] = tabObj return tabObj
 end
+
+-- ============================================================================
+-- 🗂️  CreateTabGroup: pestaña "carpeta" que agrupa varias sub-pestañas
+--    Se distingue con una flecha ▾ a la derecha; al abrirse rota a ▴ (180°).
+--    Las hijas se crean con group:CreateTab(name, iconId) y se muestran
+--    debajo, con un ligero sangrado, ahorrando espacio en la sidebar.
+-- ============================================================================
+function KillerHub:CreateTabGroup(name, iconId)
+    if not SafeAssert("CreateTabGroup", {
+        ["name"] = {value = name, types = {"string"}},
+        ["iconId"] = {value = iconId, types = {"string", "nil"}}
+    }) then return end
+
+    -- Contenedor del grupo (auto-size): apila el botón cabecera + contenedor de hijas
+    local groupFrame = create("Frame", {
+        Name = name .. "Group", Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1
+    }, SidebarTabsContainer)
+    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, groupFrame)
+
+    local btn = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT,
+        BackgroundTransparency = 1, Text = "", AutoButtonColor = false, LayoutOrder = 1
+    }, groupFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+    local btnLabel = create("TextLabel", {
+        Size = UDim2.new(1, iconId and -46 or -30, 1, 0),
+        Position = UDim2.new(0, iconId and 26 or 10, 0, 0),
+        BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left
+    }, btn)
+    pcall(function() btnLabel.TextStrokeTransparency = 1 end)
+
+    local iconImg
+    if iconId then
+        iconImg = create("ImageLabel", {
+            Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 6, 0.5, -7),
+            BackgroundTransparency = 1, Image = iconId, ImageColor3 = CurrentTheme.TEXT_MUTED
+        }, btn)
+    end
+
+    -- Chevron: ▾ cerrado, rota 180° → ▴ abierto (efecto ^ que pidió el user)
+    local chevron = create("TextLabel", {
+        Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(1, -22, 0.5, -9),
+        BackgroundTransparency = 1, Text = "▾", TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font.GothamBold, TextSize = 16, Rotation = 0
+    }, btn)
+
+    -- Contenedor de sub-pestañas, con leve sangrado izquierdo y auto-size
+    local childrenContainer = create("Frame", {
+        Name = "Children", Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1,
+        LayoutOrder = 2, Visible = false, ClipsDescendants = true
+    }, groupFrame)
+    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, childrenContainer)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 10), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 2)}, childrenContainer)
+
+    local open = false
+    local function applyVisual()
+        btn.BackgroundColor3 = CurrentTheme.ACCENT
+        TweenService:Create(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = open and 0.88 or 1}):Play()
+        local col = open and CurrentTheme.ACCENT or CurrentTheme.TEXT_MUTED
+        btnLabel.TextColor3 = col
+        chevron.TextColor3 = col
+        if iconImg then iconImg.ImageColor3 = col end
+    end
+
+    local function toggle()
+        open = not open
+        childrenContainer.Visible = open
+        TweenService:Create(chevron, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Rotation = open and 180 or 0}):Play()
+        applyVisual()
+    end
+    connect(btn.MouseButton1Click, function() toggle() playUISound() end)
+    connect(btn.MouseEnter, function()
+        if not open then
+            btnLabel.TextColor3 = CurrentTheme.TEXT_WHITE
+            chevron.TextColor3 = CurrentTheme.TEXT_WHITE
+        end
+    end)
+    connect(btn.MouseLeave, function()
+        if not open then
+            btnLabel.TextColor3 = CurrentTheme.TEXT_MUTED
+            chevron.TextColor3 = CurrentTheme.TEXT_MUTED
+        end
+    end)
+
+    table.insert(KillerHub.TargetThemeElements, function()
+        applyVisual()
+        btnLabel.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamBold
+    end)
+
+    local group = {}
+    function group:CreateTab(subName, subIcon)
+        return KillerHub:CreateTab(subName, subIcon, {parent = childrenContainer})
+    end
+    function group:Toggle() toggle() end
+    function group:SetOpen(v)
+        if (not not v) ~= open then toggle() end
+    end
+    return group
+end
+
 
 local searchThread
 -- 🆕 Filtro global en tiempo real, limitado a la pestaña activa para que la búsqueda
@@ -3766,7 +3874,7 @@ do
             end, 1))
             KillerHub._WindowMaid:Add(reTokens)
 
-            warn(("KillerHub Loaded By Paolo (destructor de puchas peludas 🥵 xddd. Executor: %s"):format(KillerHub.Executor))
+            warn(("[KillerHub] Enhancement layer aplicada. Executor: %s"):format(KillerHub.Executor))
         end)
 
         if not ok then
