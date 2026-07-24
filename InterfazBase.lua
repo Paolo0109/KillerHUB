@@ -275,9 +275,16 @@ local BordeGradient = create("UIGradient", {
 -- Y visible. Al cerrarlo, el RenderStepped simplemente hace early-return, sin
 -- tocar propiedades ni disparar re-layouts.
 local menuFocused = true
-local gradientRotationConn = RunService.RenderStepped:Connect(function(dt)
+-- Throttle a ~30Hz en Heartbeat: mantiene la animacion suave del borde
+-- pero reduce a la mitad los writes a UIGradient.Rotation (menos trabajo
+-- de layout/GPU en moviles, menos calor y menos caidas de FPS).
+local _gradAccum = 0
+local gradientRotationConn = RunService.Heartbeat:Connect(function(dt)
     if not (BordeGradient and MainFrame.Visible and menuFocused) then return end
-    BordeGradient.Rotation = (BordeGradient.Rotation + (15 * dt)) % 360
+    _gradAccum = _gradAccum + dt
+    if _gradAccum < 1/30 then return end
+    BordeGradient.Rotation = (BordeGradient.Rotation + (15 * _gradAccum)) % 360
+    _gradAccum = 0
 end)
 table.insert(Connections, gradientRotationConn)
 
@@ -3103,8 +3110,12 @@ function ModalRefresh()
         end
         local st = btn:FindFirstChildOfClass("UIStroke")
         if st then
-            st.Color = active and CurrentTheme.ACCENT or CurrentTheme.BORDER
-            st.Transparency = active and 0.15 or 0.35
+            -- Borde neutro suave (nunca el color del tema): evita el
+            -- efecto "letra en negrita/halo" cuando ACCENT es muy claro
+            -- (Obsidian, Classic Dark). En temas con accent contrastante
+            -- ya se distingue por el fondo tintado.
+            st.Color = Color3.fromRGB(30, 30, 34)
+            st.Transparency = active and 0.25 or 0.45
         end
     end
     -- Sliders
@@ -3137,8 +3148,10 @@ function ModalRefresh()
             ModalActionBtn.BackgroundTransparency = 0.15
             ModalActionBtn.TextColor3 = Color3.fromRGB(255, 180, 180)
             if ModalActionStroke then
-                ModalActionStroke.Color = Color3.fromRGB(180, 60, 70)
-                ModalActionStroke.Transparency = 0.2
+                -- Borde neutro: se ve como el resto del modal, no
+                -- envuelve al texto con un halo del color del tema.
+                ModalActionStroke.Color = Color3.fromRGB(60, 25, 28)
+                ModalActionStroke.Transparency = 0.35
             end
         else
             ModalActionBtn.Text = "Agregar shortcut"
@@ -3146,8 +3159,10 @@ function ModalRefresh()
             ModalActionBtn.BackgroundTransparency = 0.72
             ModalActionBtn.TextColor3 = CurrentTheme.TEXT_WHITE
             if ModalActionStroke then
-                ModalActionStroke.Color = CurrentTheme.ACCENT
-                ModalActionStroke.Transparency = 0.15
+                -- Ver comentario arriba: mantenemos el borde neutro
+                -- para no engrosar visualmente el texto en temas claros.
+                ModalActionStroke.Color = Color3.fromRGB(30, 30, 34)
+                ModalActionStroke.Transparency = 0.35
             end
         end
     end
@@ -3226,12 +3241,17 @@ function KillerHub._AttachShortcut(hostFrame, data)
             local fill, glyph = getShortcutAccent()
             act.BackgroundColor3 = fill
             act.TextColor3 = glyph
-            actStroke.Color = fill
+            -- Borde neutro tambien en estado activo: el fondo ya
+            -- indica seleccion, no hace falta un halo del color del tema
+            -- (evita que el icono/letra se vea engrosado en Obsidian).
+            actStroke.Color = Color3.fromRGB(30, 30, 34)
+            actStroke.Transparency = 0.3
             if actImage then actImage.ImageColor3 = glyph end
         else
             act.BackgroundColor3 = Color3.fromRGB(6, 6, 8)
             act.TextColor3 = CurrentTheme.TEXT_MUTED
-            actStroke.Color = CurrentTheme.BORDER
+            actStroke.Color = Color3.fromRGB(30, 30, 34)
+            actStroke.Transparency = 0.45
             if actImage then actImage.ImageColor3 = CurrentTheme.TEXT_MUTED end
         end
     end
