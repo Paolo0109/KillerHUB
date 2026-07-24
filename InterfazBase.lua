@@ -2582,6 +2582,19 @@ local function computeSize(cfg)
     return UDim2.new(0, cfg.size, 0, cfg.size)
 end
 
+-- 🩹 FIX: el preview del modal usaba computeSize() directo (tamaño REAL en pixeles),
+-- pero la forma "Rectángulo" (antes "Rounded") puede llegar a 220x100 con el slider al
+-- máximo (100), mientras el recuadro de preview mide ~170x130. Resultado: el preview
+-- se salía del recuadro. Esta función devuelve el mismo tamaño pero escalado (sin
+-- deformar, conserva la proporción) para que siempre quepa dentro del preview.
+local PREVIEW_MAX_W, PREVIEW_MAX_H = 132, 108
+local function computePreviewSize(cfg)
+    local real = computeSize(cfg)
+    local w, h = real.X.Offset, real.Y.Offset
+    local scale = math.min(PREVIEW_MAX_W / w, PREVIEW_MAX_H / h, 1)
+    return UDim2.new(0, math.floor(w * scale), 0, math.floor(h * scale))
+end
+
 local function buildLabel(sc)
     if sc.data.kind == "toggle" then
         local state = sc.data.getState()
@@ -2766,7 +2779,19 @@ end
 local ConfigModal, ModalBody, ModalTitle, ModalPreview, ModalPreviewFrame
 local ModalShapeBtns, ModalSizeSlider, ModalOpacitySlider, ModalLockTrack, ModalLockKnob, ModalLockLabel
 local ModalActionBtn, ModalActionStroke
+local ModalApplyBtn, ModalApplyDot
 local currentModalSc = nil
+-- 🆕 Cambios en modo "borrador": forma/tamaño/opacidad/lock se editan aquí primero
+-- y solo se aplican al shortcut real cuando el usuario pulsa "Aplicar cambios".
+-- Evita que, al mover el slider de tamaño, el shortcut real en pantalla salte o se
+-- mueva por accidente mientras todavía se está ajustando.
+local PendingCfg = nil
+local function pendingDirty()
+    if not (PendingCfg and currentModalSc) then return false end
+    local cfg = currentModalSc.cfg
+    return PendingCfg.shape ~= cfg.shape or PendingCfg.size ~= cfg.size
+        or PendingCfg.opacity ~= cfg.opacity or PendingCfg.lock ~= cfg.lock
+end
 
 local function buildModal()
     if ConfigModal then return end
@@ -2848,39 +2873,10 @@ local function buildModal()
     create("TextLabel", {Size = UDim2.new(1, -12, 0, 18), Position = UDim2.new(0, 6, 0, 6), BackgroundTransparency = 1, Text = "Vista previa", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 52}, previewCol)
 
     ModalPreview = previewCol
-
-    -- 🩹 FIX: antes la opacidad SÍ cambiaba (el código estaba bien), pero era casi
-    -- imperceptible porque el cuadro de preview (oscuro, color del tema) se volvía
-    -- transparente sobre un fondo TAMBIÉN oscuro (previewCol) — dos oscuros parecidos
-    -- encima de otro no muestran contraste visible al variar la transparencia.
-    -- Se agrega un fondo tipo "checker" (como en editores de imagen) detrás del
-    -- preview, fijo e independiente del tema, para que la opacidad se note siempre.
-    local CheckerBG = create("Frame", {
-        Name = "AlphaChecker",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(0.5, 0, 0.55, 0),
-        Size = UDim2.new(0, 100, 0, 100),
-        BackgroundTransparency = 1,
-        ClipsDescendants = true,
-        ZIndex = 51
-    }, previewCol)
-    create("UICorner", {CornerRadius = UDim.new(0, 8)}, CheckerBG)
-    do
-        local checkerColors = {Color3.fromRGB(70, 70, 78), Color3.fromRGB(40, 40, 46)}
-        local csize, cols = 12, 9
-        for gx = 0, cols - 1 do
-            for gy = 0, cols - 1 do
-                local idx = ((gx + gy) % 2) + 1
-                create("Frame", {
-                    Position = UDim2.new(0, gx * csize, 0, gy * csize),
-                    Size = UDim2.new(0, csize, 0, csize),
-                    BackgroundColor3 = checkerColors[idx],
-                    BorderSizePixel = 0,
-                    ZIndex = 51
-                }, CheckerBG)
-            end
-        end
-    end
+    -- ClipsDescendants: el preview real (en pixeles reales, no escalado) puede ser
+    -- más ancho que este panel cuando la forma "Rectángulo" crece a tamaños grandes.
+    -- Esto evita que se salga visualmente de su recuadro (ver computePreviewSize).
+    previewCol.ClipsDescendants = true
 
     ModalPreviewFrame = create("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2916,16 +2912,25 @@ local function buildModal()
         ModalShapeBtns[name] = b
         connect(b.MouseButton1Click, function()
             playUISound()
-            if not currentModalSc then return end
-            currentModalSc.cfg.shape = name
-            refreshShortcutVisual(currentModalSc)
-            saveShortcuts()
+            if not (currentModalSc and PendingCfg) then return end
+            PendingCfg.shape = name
             ModalRefresh()
         end)
     end
-    makeShape("circle", "Circle", 0)
-    makeShape("square", "Square", 84)
-    makeShape("rounded", "Rounded", 168)
+    makeShape("circle", "Círculo", 0)
+    makeShape("square", "Cuadrado", 84)
+    makeShape("rounded", "Rectángulo", 168)
+
+    -- Resalta el botón "Aplicar cambios" (con un puntito) cuando el borrador
+    -- (PendingCfg) difiere de lo que ya está guardado en el shortcut real.
+    local function updateApplyState()
+        if not ModalApplyDot then return end
+        local dirty = pendingDirty()
+        ModalApplyDot.Visible = dirty
+        if ModalApplyBtn then
+            ModalApplyBtn.BackgroundTransparency = dirty and 0.55 or 0.75
+        end
+    end
 
     -- Size slider
     local function buildSlider(labelText, y, minV, maxV, key, onChange)
@@ -2938,10 +2943,10 @@ local function buildModal()
         create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
         local valLbl = create("TextLabel", {Size = UDim2.new(0, 46, 0, 20), Position = UDim2.new(1, -46, 0, y + 15), BackgroundTransparency = 1, Text = "", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 52}, ModalBody)
 
-        local function set(v, save)
-            if not currentModalSc then return end
+        local function set(v)
+            if not (currentModalSc and PendingCfg) then return end
             v = math.clamp(v, minV, maxV)
-            currentModalSc.cfg[key] = v
+            PendingCfg[key] = v
             local pct = (v - minV) / (maxV - minV)
             fill.Size = UDim2.new(pct, 0, 1, 0)
             knob.Position = UDim2.new(pct, -7, 0.5, -7)
@@ -2951,13 +2956,13 @@ local function buildModal()
                 valLbl.Text = tostring(math.floor(v))
             end
             onChange(v)
-            if save then saveShortcuts() end
+            updateApplyState()
         end
 
         local dragging, activeInput, dragConn, endConn
         local function snap(input)
             local pct = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-            set(minV + pct * (maxV - minV), false)
+            set(minV + pct * (maxV - minV))
         end
         connect(track.InputBegan, function(input)
             if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
@@ -2970,7 +2975,6 @@ local function buildModal()
                 dragging = false activeInput = nil
                 if dragConn then dragConn:Disconnect() end
                 if endConn then endConn:Disconnect() end
-                saveShortcuts()
             end)
         end)
         connect(knob.InputBegan, function(input)
@@ -2984,30 +2988,25 @@ local function buildModal()
                 dragging = false activeInput = nil
                 if dragConn then dragConn:Disconnect() end
                 if endConn then endConn:Disconnect() end
-                saveShortcuts()
             end)
         end)
 
         return { set = set, fill = fill, knob = knob, val = valLbl }
     end
 
+    -- 🩹 Ahora el slider y las formas solo tocan PendingCfg (borrador) + el preview.
+    -- El shortcut real en pantalla NO se mueve ni cambia hasta pulsar "Aplicar cambios".
     ModalSizeSlider = buildSlider("Tamaño (20 - 100 px)", 62, 20, 100, "size", function(v)
-        if currentModalSc then
-            refreshShortcutVisual(currentModalSc)
-            if ModalPreviewFrame then
-                ModalPreviewFrame.Size = computeSize(currentModalSc.cfg)
-                applyShape(ModalPreviewFrame, currentModalSc.cfg.shape)
-                local pv = ModalPreviewFrame:FindFirstChild("PVLabel")
-                if pv then pv.TextSize = math.clamp(math.floor(currentModalSc.cfg.size * 0.22), 9, 14) end
-            end
+        if currentModalSc and PendingCfg and ModalPreviewFrame then
+            ModalPreviewFrame.Size = computePreviewSize(PendingCfg)
+            applyShape(ModalPreviewFrame, PendingCfg.shape)
+            local pv = ModalPreviewFrame:FindFirstChild("PVLabel")
+            if pv then pv.TextSize = math.clamp(math.floor(PendingCfg.size * 0.22), 9, 14) end
         end
     end)
     ModalOpacitySlider = buildSlider("Opacidad (0 - 1)", 108, 0, 1, "opacity", function(v)
-        if currentModalSc then
-            refreshShortcutVisual(currentModalSc)
-            if ModalPreviewFrame then
-                ModalPreviewFrame.BackgroundTransparency = 1 - currentModalSc.cfg.opacity
-            end
+        if currentModalSc and PendingCfg and ModalPreviewFrame then
+            ModalPreviewFrame.BackgroundTransparency = 1 - PendingCfg.opacity
         end
     end)
 
@@ -3023,9 +3022,43 @@ local function buildModal()
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, ModalLockKnob)
     connect(lockBtn.MouseButton1Click, function()
         playUISound()
-        if not currentModalSc then return end
-        currentModalSc.cfg.lock = not currentModalSc.cfg.lock
+        if not (currentModalSc and PendingCfg) then return end
+        PendingCfg.lock = not PendingCfg.lock
+        ModalRefresh()
+    end)
+
+    -- 🆕 Botón "Aplicar cambios": es el único punto donde forma/tamaño/opacidad/lock
+    -- del borrador (PendingCfg) pasan a ser reales sobre el shortcut en pantalla.
+    -- Así evitamos que arrastrar el slider o tocar una forma mueva o cambie el
+    -- shortcut real por accidente mientras el usuario todavía está ajustando.
+    local applyRow = create("Frame", {Size = UDim2.new(1, 0, 0, 34), Position = UDim2.new(0, 0, 0, 196), BackgroundTransparency = 1, ZIndex = 52}, ModalBody)
+    ModalApplyBtn = create("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 0.75,
+        Text = "Aplicar cambios", TextColor3 = CurrentTheme.TEXT_WHITE,
+        Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false, ZIndex = 53
+    }, applyRow)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, ModalApplyBtn)
+    local applyStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.ACCENT, Transparency = 0.3}, ModalApplyBtn)
+    ModalApplyDot = create("Frame", {
+        Size = UDim2.new(0, 6, 0, 6), AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, 10, 0.5, 0), BackgroundColor3 = CurrentTheme.ACCENT,
+        Visible = false, ZIndex = 54
+    }, ModalApplyBtn)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, ModalApplyDot)
+    connect(ModalApplyBtn.MouseButton1Click, function()
+        playUISound()
+        if not (currentModalSc and PendingCfg) then return end
+        local cfg = currentModalSc.cfg
+        cfg.shape = PendingCfg.shape
+        cfg.size = PendingCfg.size
+        cfg.opacity = PendingCfg.opacity
+        cfg.lock = PendingCfg.lock
+        refreshShortcutVisual(currentModalSc)
         saveShortcuts()
+        if KillerHub.NotifySuccess then
+            KillerHub:NotifySuccess("Shortcut", "Cambios aplicados.", 2)
+        end
         ModalRefresh()
     end)
 
@@ -3054,6 +3087,7 @@ local function buildModal()
             -- ⚠ NO tocar userMoved / x / y: así el shortcut re-aparece exactamente
             -- donde el usuario lo dejó la última vez (antes volvía al grid por defecto).
             currentModalSc.cfg.lock = false
+            if PendingCfg then PendingCfg.lock = false end
             setShortcutActive(currentModalSc, true)
             ModalRefresh()
         end
@@ -3063,10 +3097,16 @@ end
 function ModalRefresh()
     if not (ConfigModal and currentModalSc) then return end
     local cfg = currentModalSc.cfg
+    if not PendingCfg then
+        PendingCfg = {shape = cfg.shape, size = cfg.size, opacity = cfg.opacity, lock = cfg.lock}
+    end
+    local draft = PendingCfg
     ModalTitle.Text = "Shortcut · " .. currentModalSc.data.name
     -- Formas: resaltar seleccionada (accent translúcido, sin texto negro)
+    -- 🩹 Muestra la selección del BORRADOR (draft), no la ya guardada, para que se
+    -- vea de inmediato qué forma se está probando antes de pulsar Aplicar cambios.
     for shapeName, btn in pairs(ModalShapeBtns) do
-        local active = (cfg.shape == shapeName)
+        local active = (draft.shape == shapeName)
         if active then
             btn.BackgroundColor3 = CurrentTheme.ACCENT
             btn.BackgroundTransparency = 0.78
@@ -3082,27 +3122,32 @@ function ModalRefresh()
             st.Transparency = active and 0.15 or 0.35
         end
     end
-    -- Sliders
-    ModalSizeSlider.set(cfg.size, false)
-    ModalOpacitySlider.set(cfg.opacity, false)
-    -- Lock
-    if cfg.lock then
+    -- Sliders (reflejan el borrador)
+    ModalSizeSlider.set(draft.size)
+    ModalOpacitySlider.set(draft.opacity)
+    -- Lock (borrador)
+    if draft.lock then
         ModalLockTrack.BackgroundColor3 = CurrentTheme.ACCENT
         ModalLockTrack.BackgroundTransparency = 0.55
     else
         ModalLockTrack.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
         ModalLockTrack.BackgroundTransparency = 0
     end
-    ModalLockKnob.Position = cfg.lock and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-    ModalLockLabel.TextColor3 = cfg.lock and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-    -- Preview
-    ModalPreviewFrame.Size = computeSize(cfg)
-    ModalPreviewFrame.BackgroundTransparency = 1 - cfg.opacity
-    applyShape(ModalPreviewFrame, cfg.shape)
+    ModalLockKnob.Position = draft.lock and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    ModalLockLabel.TextColor3 = draft.lock and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+    -- Preview (borrador)
+    ModalPreviewFrame.Size = computePreviewSize(draft)
+    ModalPreviewFrame.BackgroundTransparency = 1 - draft.opacity
+    applyShape(ModalPreviewFrame, draft.shape)
     local pv = ModalPreviewFrame:FindFirstChild("PVLabel")
     if pv then
         pv.Text = buildLabel(currentModalSc)
-        pv.TextSize = math.clamp(math.floor(cfg.size * 0.22), 9, 14)
+        pv.TextSize = math.clamp(math.floor(draft.size * 0.22), 9, 14)
+    end
+    if ModalApplyDot then
+        local dirty = pendingDirty()
+        ModalApplyDot.Visible = dirty
+        if ModalApplyBtn then ModalApplyBtn.BackgroundTransparency = dirty and 0.55 or 0.75 end
     end
     -- Botón dinámico Agregar / Quitar
     if ModalActionBtn then
@@ -3131,6 +3176,7 @@ end
 local function openModal(sc)
     buildModal()
     currentModalSc = sc
+    PendingCfg = {shape = sc.cfg.shape, size = sc.cfg.size, opacity = sc.cfg.opacity, lock = sc.cfg.lock}
     local backdropName = ConfigModal:GetAttribute("BackdropName")
     local backdrop = backdropName and ScreenGui:FindFirstChild(backdropName)
     if backdrop then backdrop.Visible = true end
@@ -3795,15 +3841,25 @@ do
                 }, frame)
 
                 local closeBtn = Utils.Create("TextButton", {
-                    Size = UDim2.new(0, 18, 0, 18),
-                    Position = UDim2.new(1, -22, 0, 6),
+                    Size = UDim2.new(0, 24, 0, 24),
+                    Position = UDim2.new(1, -28, 0, 4),
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                     BackgroundTransparency = 1,
-                    Text = "✕",
+                    Text = "X",
                     TextColor3 = T.TextMuted,
                     Font = Enum.Font.GothamBold,
-                    TextSize = 12,
+                    TextSize = 13,
                     AutoButtonColor = false,
                 }, frame)
+                Utils.Create("UICorner", {CornerRadius = UDim.new(0, 6)}, closeBtn)
+                closeBtn.MouseEnter:Connect(function()
+                    closeBtn.BackgroundTransparency = 0.85
+                    closeBtn.TextColor3 = T.Text
+                end)
+                closeBtn.MouseLeave:Connect(function()
+                    closeBtn.BackgroundTransparency = 1
+                    closeBtn.TextColor3 = T.TextMuted
+                end)
 
                 local progress = Utils.Create("Frame", {
                     Size = UDim2.new(1, 0, 0, 2),
@@ -3819,38 +3875,51 @@ do
                 local dur = payload.duration or 4
                 local paused = false
                 local elapsed = 0
+                local dismissed = false
+                local hb
 
-                local hb; hb = RS.Heartbeat:Connect(function(dt)
+                local function dismiss()
+                    -- 🩹 FIX: antes el botón X solo ponía elapsed = dur y desconectaba el
+                    -- heartbeat, pero el código que realmente reproduce el tween de salida
+                    -- y destruye el frame vivía DENTRO del callback del heartbeat (solo se
+                    -- ejecutaba si elapsed >= dur se detectaba ANTES de desconectar). Al
+                    -- desconectar el heartbeat manualmente desde el botón, ese chequeo nunca
+                    -- volvía a correr y el frame se quedaba parado en pantalla para siempre
+                    -- (la notificación "pegada" del reporte, sin ✕ visible ni funcional).
+                    -- Ahora dismiss() es la única puerta de salida: la usan tanto el timeout
+                    -- automático como el clic en la X.
+                    if dismissed then return end
+                    dismissed = true
+                    if hb then hb:Disconnect() hb = nil end
+                    local out = Utils.Tween(frame, DESIGN.DUR_FAST,
+                        {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1},
+                        DESIGN.EASE_EXIT, DESIGN.EASE_EXIT_DIR)
+                    out.Completed:Connect(function()
+                        pcall(function() frame:Destroy() end)
+                        local i = table.find(NotifActive, frame)
+                        if i then table.remove(NotifActive, i) end
+                        -- flush cola
+                        if #NotifQueue > 0 and #NotifActive < NOTIF_MAX then
+                            local nextPayload = table.remove(NotifQueue, 1)
+                            task.spawn(showOneNotification, nextPayload)
+                        end
+                    end)
+                end
+
+                hb = RS.Heartbeat:Connect(function(dt)
                     if not paused then
                         elapsed = elapsed + dt
                         local ratio = math.clamp(1 - elapsed / dur, 0, 1)
                         progress.Size = UDim2.new(ratio, 0, 0, 2)
                         if elapsed >= dur then
-                            hb:Disconnect()
-                            hb = nil
-                            local out = Utils.Tween(frame, DESIGN.DUR_FAST,
-                                {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1},
-                                DESIGN.EASE_EXIT, DESIGN.EASE_EXIT_DIR)
-                            out.Completed:Connect(function()
-                                pcall(function() frame:Destroy() end)
-                                local i = table.find(NotifActive, frame)
-                                if i then table.remove(NotifActive, i) end
-                                -- flush cola
-                                if #NotifQueue > 0 and #NotifActive < NOTIF_MAX then
-                                    local next = table.remove(NotifQueue, 1)
-                                    task.spawn(showOneNotification, next)
-                                end
-                            end)
+                            dismiss()
                         end
                     end
                 end)
 
                 frame.MouseEnter:Connect(function() paused = true end)
                 frame.MouseLeave:Connect(function() paused = false end)
-                closeBtn.MouseButton1Click:Connect(function()
-                    if hb then hb:Disconnect() end
-                    elapsed = dur
-                end)
+                closeBtn.MouseButton1Click:Connect(dismiss)
 
                 table.insert(NotifActive, frame)
             end
