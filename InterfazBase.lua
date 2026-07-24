@@ -244,6 +244,11 @@ end
 -- 🖥 INTERFAZ CON CANVASGROUP DE ALTO RENDIMIENTO
 -- ============================================================================
 local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
+-- 🌐 Ref global al ScreenGui para que subsistemas (notificaciones v1.3) lo
+-- encuentren incluso cuando gethui() lo parenta a un contenedor no estándar
+-- (CoreGui protegido en algunos executors). Sin esto las notificaciones no
+-- aparecían en clientes donde findNotifContainer() sólo miraba CoreGui/PlayerGui.
+_G.__KillerHub_ScreenGui__ = ScreenGui
 
 local function playUISound()
     if not Config.Volume or Config.Volume <= 0 then return end
@@ -609,9 +614,12 @@ local KillerHub = {
 -- ============================================================================
 local NotifContainer = create("Frame", {
     Name = "NotificationContainer",
-    Size = UDim2.new(0, 240, 1, -20),
-    Position = UDim2.new(1, -250, 0, 10),
-    BackgroundTransparency = 1
+    Size = UDim2.new(0, 260, 1, -20),
+    Position = UDim2.new(1, -270, 0, 10),
+    BackgroundTransparency = 1,
+    -- 🔝 ZIndex alto para que las notificaciones nunca queden ocultas detrás
+    -- del modal de shortcuts (ZIndex 50+) ni del backdrop del color picker.
+    ZIndex = 900
 }, ScreenGui)
 local NotifLayout = create("UIListLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder,
@@ -2768,6 +2776,35 @@ local ModalShapeBtns, ModalSizeSlider, ModalOpacitySlider, ModalLockTrack, Modal
 local ModalActionBtn, ModalActionStroke
 local currentModalSc = nil
 
+-- 🧹 API pública para limpiar TODOS los shortcuts activos (usada por el
+-- botón "Remover todos los shortcuts" en Settings). No cambia la API
+-- pública existente: sólo agrega el método KillerHub:ClearAllShortcuts().
+function KillerHub:ClearAllShortcuts()
+    local removed = 0
+    for id, sc in pairs(Shortcuts) do
+        if sc and sc.cfg and sc.cfg.active then
+            pcall(setShortcutActive, sc, false)
+            removed = removed + 1
+        end
+    end
+    -- Higiene: cualquier config huérfana en disco (de scripts anteriores)
+    -- también queda marcada como inactiva para que no reaparezcan al recargar.
+    if type(Config.Shortcuts) == "table" then
+        for id, c in pairs(Config.Shortcuts) do
+            if type(c) == "table" then c.active = false end
+        end
+    end
+    pcall(saveShortcuts)
+    if self and self.Notify then
+        if removed > 0 then
+            self:Notify("Shortcuts removidos", removed .. " shortcut(s) fueron eliminados de la pantalla.", 4)
+        else
+            self:Notify("Sin shortcuts", "No había shortcuts activos para remover.", 3)
+        end
+    end
+    return removed
+end
+
 local function buildModal()
     if ConfigModal then return end
     ConfigModal = create("Frame", {
@@ -2848,6 +2885,34 @@ local function buildModal()
     create("TextLabel", {Size = UDim2.new(1, -12, 0, 18), Position = UDim2.new(0, 6, 0, 6), BackgroundTransparency = 1, Text = "Vista previa", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 52}, previewCol)
 
     ModalPreview = previewCol
+
+    -- 🎨 Underlay contrastante detrás del preview: sin esto, la opacidad del
+    -- cuadrito era invisible porque el fondo del preview y el fondo de la
+    -- columna eran ambos oscuros (transparencia → mismo negro). Ahora al bajar
+    -- la opacidad se ve claramente cómo el color claro del underlay emerge.
+    local ModalPreviewUnderlay = create("Frame", {
+        Name = "PreviewUnderlay",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.55, 0),
+        Size = UDim2.new(0, 108, 0, 108),
+        BackgroundColor3 = Color3.fromRGB(210, 210, 220),
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        ZIndex = 51
+    }, previewCol)
+    create("UICorner", {CornerRadius = UDim.new(0, 10)}, ModalPreviewUnderlay)
+    -- Gradiente diagonal para dar un patrón visible (efecto tablero suave)
+    local underlayGrad = create("UIGradient", {
+        Rotation = 45,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(230, 230, 240)),
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(150, 150, 165)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(230, 230, 240)),
+        })
+    }, ModalPreviewUnderlay)
+    -- Sin usar la variable pero registrada para el ciclo de vida del modal.
+    _ = underlayGrad
+
     ModalPreviewFrame = create("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0.5, 0, 0.55, 0),
@@ -3351,6 +3416,12 @@ SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) 
 SettingsTab:CreateSection("Configuración Universal")
 SettingsTab:CreateParagraph("🌐 Persistencia universal", "Toda tu configuración (estilos, tamaños, tema, tecla, toggles, sliders, keybinds y shortcuts) se guarda en Universal.json y te acompaña a CUALQUIER juego. Nada se reinicia al cambiar de experiencia.")
 
+SettingsTab:CreateSection("Shortcuts")
+SettingsTab:CreateParagraph("🧹 Limpieza rápida", "Elimina de la pantalla TODOS los cuadritos flotantes de shortcuts (incluye los creados por scripts externos). Los widgets originales del menú siguen funcionando y podrás volver a agregar shortcuts cuando quieras.")
+SettingsTab:CreateButton("Remover todos los shortcuts", function()
+    if KillerHub.ClearAllShortcuts then KillerHub:ClearAllShortcuts() end
+end)
+
 SettingsTab:CreateSection("Seguridad y Limpieza")
 SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
 SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
@@ -3655,13 +3726,24 @@ do
             }
 
             local function findNotifContainer()
-                local sg
-                for _, gui in ipairs(game:GetService("CoreGui"):GetChildren()) do
-                    if gui.Name == "KillerHub_Universal" then sg = gui break end
-                end
-                if not sg then
-                    local pg = Plrs.LocalPlayer and Plrs.LocalPlayer:FindFirstChild("PlayerGui")
-                    if pg then sg = pg:FindFirstChild("KillerHub_Universal") end
+                local sg = rawget(_G, "__KillerHub_ScreenGui__")
+                if not sg or not sg.Parent then
+                    sg = nil
+                    pcall(function()
+                        for _, gui in ipairs(game:GetService("CoreGui"):GetChildren()) do
+                            if gui.Name == "KillerHub_Universal" then sg = gui break end
+                        end
+                    end)
+                    if not sg and gethui then
+                        pcall(function()
+                            local h = gethui()
+                            if h then sg = h:FindFirstChild("KillerHub_Universal") end
+                        end)
+                    end
+                    if not sg then
+                        local pg = Plrs.LocalPlayer and Plrs.LocalPlayer:FindFirstChild("PlayerGui")
+                        if pg then sg = pg:FindFirstChild("KillerHub_Universal") end
+                    end
                 end
                 if not sg then return nil end
                 return sg:FindFirstChild("NotificationContainer"), sg
