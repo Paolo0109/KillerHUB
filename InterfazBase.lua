@@ -2420,7 +2420,16 @@ function KillerHub:CreateTabGroup(name, iconId)
 
     local group = {}
     function group:CreateTab(subName, subIcon)
-        return KillerHub:CreateTab(subName, subIcon, {parent = childrenContainer})
+        local child = KillerHub:CreateTab(subName, subIcon, {parent = childrenContainer})
+        -- 🩹 Si esta sub-pestaña resultó ser la seleccionada por defecto (caso:
+        -- es la primerísima pestaña creada en todo el hub), su contenido queda
+        -- visible pero su botón vive dentro de un grupo colapsado — el usuario
+        -- vería la pestaña activa sin poder ubicar ni volver a su botón. Se
+        -- abre el grupo automáticamente para evitar ese estado confuso.
+        if child and child.Frame and child.Frame.Visible and not open then
+            toggle()
+        end
+        return child
     end
     function group:Toggle() toggle() end
     function group:SetOpen(v)
