@@ -48,7 +48,12 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 196, 0),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(130, 130, 135),
-        BORDER = Color3.fromRGB(20, 0, 40)
+        BORDER = Color3.fromRGB(20, 0, 40),
+        -- 🆕 Borde "vistoso" para botones (CreateButton): el ACCENT de Obsidian es
+        -- casi blanco y el BORDER normal es casi negro, ninguno se nota como borde
+        -- de botón. Usamos el mismo morado "void" que ya identifica a este tema en
+        -- el activador de shortcuts, para que el botón se vea "aparte" del fondo.
+        BORDER_ACCENT = Color3.fromRGB(88, 30, 168)
     },
     ["Void Premium"] = {
         BG_MAIN = Color3.fromRGB(8, 5, 12),
@@ -58,7 +63,8 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 215, 0),
         TEXT_WHITE = Color3.fromRGB(245, 240, 255),
         TEXT_MUTED = Color3.fromRGB(130, 115, 145),
-        BORDER = Color3.fromRGB(40, 0, 80)
+        BORDER = Color3.fromRGB(40, 0, 80),
+        BORDER_ACCENT = Color3.fromRGB(138, 43, 226)
     },
     ["Midnight Emerald"] = {
         BG_MAIN = Color3.fromRGB(10, 12, 11),
@@ -68,7 +74,8 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 200, 50),
         TEXT_WHITE = Color3.fromRGB(245, 245, 245),
         TEXT_MUTED = Color3.fromRGB(130, 140, 130),
-        BORDER = Color3.fromRGB(28, 38, 32)
+        BORDER = Color3.fromRGB(28, 38, 32),
+        BORDER_ACCENT = Color3.fromRGB(0, 230, 115)
     },
     ["Classic Dark"] = {
         BG_MAIN = Color3.fromRGB(15, 15, 15),
@@ -78,7 +85,10 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 180, 0),
         TEXT_WHITE = Color3.fromRGB(245, 245, 245),
         TEXT_MUTED = Color3.fromRGB(130, 130, 130),
-        BORDER = Color3.fromRGB(40, 40, 40)
+        BORDER = Color3.fromRGB(40, 40, 40),
+        -- Igual que en el activador de shortcuts: ACCENT casi blanco no se nota
+        -- como borde sobre fondo oscuro, así que usamos el mismo rojo distintivo.
+        BORDER_ACCENT = Color3.fromRGB(215, 45, 55)
     },
     ["Sakura Blossom"] = {
         BG_MAIN = Color3.fromRGB(16, 12, 14),
@@ -88,7 +98,8 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 210, 120),
         TEXT_WHITE = Color3.fromRGB(255, 240, 243),
         TEXT_MUTED = Color3.fromRGB(150, 120, 128),
-        BORDER = Color3.fromRGB(50, 30, 38)
+        BORDER = Color3.fromRGB(50, 30, 38),
+        BORDER_ACCENT = Color3.fromRGB(255, 143, 163)
     },
     ["Blood"] = {
         BG_MAIN = Color3.fromRGB(10, 10, 10),
@@ -98,7 +109,8 @@ local Themes = {
         PREMIUM_GOLD = Color3.fromRGB(255, 170, 40),
         TEXT_WHITE = Color3.fromRGB(255, 255, 255),
         TEXT_MUTED = Color3.fromRGB(135, 105, 105),
-        BORDER = Color3.fromRGB(46, 20, 20)
+        BORDER = Color3.fromRGB(46, 20, 20),
+        BORDER_ACCENT = Color3.fromRGB(185, 15, 15)
     }
 }
 
@@ -304,6 +316,7 @@ local PerformanceLabel = create("TextLabel", {Size = UDim2.new(0, 160, 1, 0), Po
 local fpsTimer = 0
 local frameCounter = 0
 local perfConn = RunService.Heartbeat:Connect(function(dt)
+    if not MainFrame.Visible then return end
     fpsTimer = fpsTimer + dt
     frameCounter = frameCounter + 1
     if fpsTimer >= 1 then
@@ -393,7 +406,7 @@ local SearchInput = create("TextBox", {Size = UDim2.new(1, -10, 1, 0), Position 
 local TabsHeader = create("Frame", {Size = UDim2.new(1, -12, 0, 18), Position = UDim2.new(0, 6, 0, 38), BackgroundTransparency = 1}, Sidebar)
 local TabsHeaderLabel = create("TextLabel", {Size = UDim2.new(1, -30, 1, 0), BackgroundTransparency = 1, Text = "PESTAÑAS", TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left}, TabsHeader)
 local TabsHeaderCount = create("TextLabel", {Size = UDim2.new(0, 28, 1, 0), Position = UDim2.new(1, -28, 0, 0), BackgroundTransparency = 1, Text = "0", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right}, TabsHeader)
-local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -100), Position = UDim2.new(0, 0, 0, 56), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT, ScrollBarImageTransparency = 0.4, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
+local SidebarTabsContainer = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -118), Position = UDim2.new(0, 0, 0, 56), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT, ScrollBarImageTransparency = 0.4, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, BorderSizePixel = 0}, Sidebar)
 local tabsLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, SidebarTabsContainer)
 create("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, SidebarTabsContainer)
 
@@ -402,12 +415,21 @@ local tabsSizeConn = tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):
 end)
 table.insert(Connections, tabsSizeConn)
 
--- 🧷 Separador visual entre las pestañas y el botón "Settings" (abajo del sidebar).
--- Línea sutil + un pequeño acento centrado que hace juego con DecorLine del topbar.
-local SettingsDivider = create("Frame", {Name = "SettingsDivider", Size = UDim2.new(0.85, 0, 0, 1), Position = UDim2.new(0.075, 0, 1, -50), BackgroundColor3 = CurrentTheme.BORDER, BackgroundTransparency = 0.35, BorderSizePixel = 0}, Sidebar)
-local SettingsDividerAccent = create("Frame", {Name = "SettingsDividerAccent", Size = UDim2.new(0, 24, 0, 2), Position = UDim2.new(0.5, -12, 1, -51), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Sidebar)
-create("UICorner", {CornerRadius = UDim.new(1, 0)}, SettingsDividerAccent)
-local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
+-- 🆕 Separador de "Settings": vive DENTRO de SettingsContainer (que es un frame
+-- fijo, fuera del ScrollingFrame de arriba), así que nunca se desplaza con el
+-- scroll ni puede tapar los nombres de las demás pestañas al deslizar — solo
+-- SidebarTabsContainer se desplaza, y termina 10px por encima de este panel.
+-- Con un poco de aire arriba y abajo para que no se vea amontonado, pero sin
+-- dejar un hueco tan grande que parezca "flotando" lejos de Settings.
+local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 46), Position = UDim2.new(0, 6, 1, -52), BackgroundTransparency = 1}, Sidebar)
+local SettingsSeparator = create("Frame", {
+    Name = "SettingsSeparator",
+    Size = UDim2.new(1, 0, 0, 1),
+    Position = UDim2.new(0, 0, 0, 0),
+    BackgroundColor3 = Color3.fromRGB(35, 35, 40),
+    BackgroundTransparency = 0.25,
+    BorderSizePixel = 0
+}, SettingsContainer)
 local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
 
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, Config.BtnX or 15, 0, Config.BtnY or 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
@@ -904,6 +926,7 @@ function KillerHub:SetTheme(themeName)
     MainStroke.Color = CurrentTheme.BORDER
     Sidebar.BackgroundColor3 = CurrentTheme.BG_SIDEBAR
     SidebarLine.BackgroundColor3 = CurrentTheme.BORDER
+    if SettingsSeparator then SettingsSeparator.BackgroundColor3 = CurrentTheme.BORDER end
     Title.TextColor3 = CurrentTheme.TEXT_WHITE
     DecorLine.BackgroundColor3 = CurrentTheme.ACCENT
     PerformanceLabel.TextColor3 = CurrentTheme.TEXT_MUTED
@@ -934,16 +957,6 @@ function KillerHub:SetTheme(themeName)
         end
     end
     
-    -- Divisor de Settings sigue al tema
-    if SettingsDivider then SettingsDivider.BackgroundColor3 = CurrentTheme.BORDER end
-    if SettingsDividerAccent then SettingsDividerAccent.BackgroundColor3 = CurrentTheme.ACCENT end
-    -- Invalida el cache y repinta los bordes de los shortcuts flotantes
-    _cachedBorderTheme, _cachedBorderColor = nil, nil
-    if Shortcuts then
-        for _, sc in pairs(Shortcuts) do
-            pcall(refreshShortcutVisual, sc)
-        end
-    end
     for _, refreshCallback in ipairs(self.TargetThemeElements) do
         pcall(refreshCallback)
     end
@@ -2182,7 +2195,17 @@ function TabMethods:CreateButton(text, callback)
     Button:SetAttribute("ThemeRole", "BG_SECONDARY") Button:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, Button)
     create("UIPadding", {PaddingLeft = UDim.new(0, 48), PaddingRight = UDim.new(0, 48)}, Button)
-    local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, Button)
+    -- 🆕 Antes usaba CurrentTheme.BORDER (el mismo borde tenue de cualquier panel),
+    -- así que el botón nunca se distinguía como tal. Ahora usa BORDER_ACCENT: el
+    -- mismo tipo de color vistoso que ya usan los shortcuts (morado void en
+    -- Obsidian, etc.), para que el botón se note "aparte" del resto del menú.
+    local Stroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER_ACCENT, Transparency = 0.25}, Button)
+    -- El barrido genérico por ThemeRole="BG_SECONDARY" (ver SetTheme) resetea el
+    -- borde de cualquier UIStroke a CurrentTheme.BORDER; este callback corre
+    -- DESPUÉS de ese barrido y lo vuelve a pintar con el color vistoso correcto.
+    table.insert(KillerHub.TargetThemeElements, function()
+        Stroke.Color = CurrentTheme.BORDER_ACCENT
+    end)
     
     connect(Button.MouseButton1Click, function() playUISound() safeCall("callback", callback) end)
     addInteractiveFeedback(Button)
@@ -2264,10 +2287,10 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
         end
     end)
 
-    do
+    task.spawn(function()
         local key = Enum.KeyCode[Flags[flagName].CurrentValue] or Enum.UserInputType[Flags[flagName].CurrentValue]
         if key then safeCall("callback", callback, key) end
-    end
+    end)
 
     addInteractiveFeedback(BBtn)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
@@ -2294,7 +2317,11 @@ function KillerHub:CreateTab(name, iconId, opts)
     end)
     table.insert(Connections, sizeChangedConn)
 
-    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false}, (name == "Settings" and SettingsContainer or parentContainer))
+    local btn = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 34),
+        Position = (name == "Settings") and UDim2.new(0, 0, 0, 8) or UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1, Text = "", AutoButtonColor = false
+    }, (name == "Settings" and SettingsContainer or parentContainer))
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
     local btnLabel = create("TextLabel", {Size = UDim2.new(1, iconId and -28 or -10, 1, 0), Position = UDim2.new(0, iconId and 26 or 10, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = CurrentTheme.TEXT_MUTED, Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left}, btn)
     pcall(function() btnLabel.TextStrokeTransparency = 1 end)
@@ -2535,22 +2562,6 @@ local function getShortcutAccent()
     return CurrentTheme.ACCENT, CurrentTheme.TEXT_WHITE
 end
 
--- 🎨 Color de borde para los shortcuts flotantes: usa el color del tema.
--- Si el tema define un ShortcutAccentOverrides (Obsidian → morado void),
--- se usa ese color como borde para que se distinga sobre fondos claros.
--- Cache por tema para evitar re-indexar la tabla en cada refresh.
-local _cachedBorderTheme, _cachedBorderColor = nil, nil
-local function getShortcutBorderColor()
-    local themeName = Config.SelectedTheme
-    if _cachedBorderTheme == themeName and _cachedBorderColor then
-        return _cachedBorderColor
-    end
-    local ov = ShortcutAccentOverrides[themeName]
-    local col = (ov and ov.fill) or CurrentTheme.BORDER
-    _cachedBorderTheme, _cachedBorderColor = themeName, col
-    return col
-end
-
 -- Contenedor global de los botones flotantes; vive en su propio ScreenGui con
 -- DisplayOrder menor que el hub para que queden SIEMPRE debajo del menú y así
 -- no tapen opciones ni se puedan presionar accidentalmente al usar la UI.
@@ -2654,12 +2665,12 @@ local function buildLabel(sc)
 end
 
 local function refreshShortcutVisual(sc)
-    if not sc.frame or not sc.frame.Parent then return end
+    if not sc.frame then return end
     sc.frame.Size = computeSize(sc.cfg)
     sc.frame.BackgroundTransparency = 1 - sc.cfg.opacity
     applyShape(sc.frame, sc.cfg.shape)
-    -- Borde con el color del tema (Obsidian → morado void por override).
-    if sc.stroke then sc.stroke.Color = getShortcutBorderColor() sc.stroke.Thickness = 1.2 sc.stroke.Transparency = 0.15 end
+    -- Borde neutro suave (no del color del tema): más limpio y legible con cualquier fuente
+    if sc.stroke then sc.stroke.Color = Color3.fromRGB(30, 30, 34) sc.stroke.Transparency = 0.35 end
     if sc.label then
         sc.label.Text = buildLabel(sc)
         sc.label.TextColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
@@ -2704,8 +2715,8 @@ local function createFloating(sc)
         ZIndex = 11
     }, ShortcutLayer)
     applyShape(frame, cfg.shape)
-    -- Borde con el color del tema (Obsidian → morado void por override).
-    local stroke = create("UIStroke", {Thickness = 1.2, Color = getShortcutBorderColor(), Transparency = 0.15}, frame)
+    -- Borde sutil, no del color del tema (evita el "outline llamativo")
+    local stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(30, 30, 34), Transparency = 0.35}, frame)
     local accentBar = create("Frame", {Size = UDim2.new(1, -14, 0, 2), Position = UDim2.new(0, 7, 1, -6), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
@@ -2747,10 +2758,6 @@ local function createFloating(sc)
         dragStartTime = os.clock()
 
         moveConn = connect(UserInputService.InputChanged, function(changedInput)
-            -- Guardia temprana: solo movimientos de touch/mouse — evita trabajo
-            -- por cada input de teclado/gyro mientras estás arrastrando
-            local t = changedInput.UserInputType
-            if t ~= Enum.UserInputType.Touch and t ~= Enum.UserInputType.MouseMovement then return end
             if not dragging or changedInput ~= activeInput then return end
             -- 🩹 Fix #4: filtra el tipo de input — solo nos interesa el movimiento
             -- real del mouse/dedo; ignora gamepad, scroll wheel, etc. que también
