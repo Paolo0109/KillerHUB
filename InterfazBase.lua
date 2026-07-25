@@ -1121,7 +1121,7 @@ local function BuildColorPickerPanel(MasterFrame, ColorBtn, flagColor, savedColo
 
     local function setRainbowVisual(active)
         RTrack.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
-        RKnob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        RKnob.Position = active and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
         RainbowLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
     end
 
@@ -1381,15 +1381,15 @@ function TabMethods:CreateToggle(flagName, text, callback)
     if Config[flagName] == nil then Config[flagName] = false end
     updateGlobalFlags(flagName, Config[flagName])
     
-    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, Text = "", AutoButtonColor = false}, self.Frame)
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4, Text = "", AutoButtonColor = false}, self.Frame)
     ToggleButton:SetAttribute("ThemeRole", "BG_SECONDARY") ToggleButton:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, ToggleButton)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, ToggleButton)
     
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 46, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -116, 1, 0), Position = UDim2.new(0, 46, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagName] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 13}, ToggleButton)
+    local Track = create("Frame", {Size = UDim2.new(0, 40, 0, 22), Position = UDim2.new(1, -52, 0.5, -11), BackgroundColor3 = Config[flagName] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
-    local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagName] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
+    local Knob = create("Frame", {Size = UDim2.new(0, 18, 0, 18), Position = Config[flagName] and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
     local function stateUpdate()
@@ -1399,7 +1399,7 @@ function TabMethods:CreateToggle(flagName, text, callback)
             BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
         }):Play()
         TweenService:Create(Knob, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+            Position = active and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
         }):Play()
     end
     
@@ -1493,29 +1493,29 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     updateGlobalFlags(flagToggle, Config[flagToggle])
     updateGlobalFlags(flagSlider, Config[flagSlider])
     
-    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 54), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
+    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 64), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     TSFrame:SetAttribute("ThemeRole", "BG_SECONDARY") TSFrame:SetAttribute("CustomColorLabel", true)
     create("UICorner", {CornerRadius = UDim.new(0, 6)}, TSFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, TSFrame)
     
-    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, Text = ""}, TSFrame)
-    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = ""}, TSFrame)
+    local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -76, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 13}, ToggleButton)
     
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
+    local Track = create("Frame", {Size = UDim2.new(0, 40, 0, 22), Position = UDim2.new(1, -52, 0.5, -11), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
-    local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
+    local Knob = create("Frame", {Size = UDim2.new(0, 18, 0, 18), Position = Config[flagToggle] and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
-    local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 12, 0, 27), BackgroundTransparency = 1}, TSFrame)
+    local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 22), Position = UDim2.new(0, 12, 0, 36), BackgroundTransparency = 1}, TSFrame)
 
     -- Caja de valor estilo "textbox" oscura semitransparente, separada del track
-    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderContainer)
+    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 56, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ValueBoxBg)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50), Transparency = 0.3}, ValueBoxBg)
     local ValueBox = create("TextBox", {Size = UDim2.new(1, -8, 1, 0), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false}, ValueBoxBg)
     ValueBox:SetAttribute("ThemeRole", "TEXT_ACCENT")
     
-    local STrack = create("Frame", {Size = UDim2.new(1, -80, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
+    local STrack = create("Frame", {Size = UDim2.new(1, -94, 0, 7), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, STrack)
     local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
     create("UICorner", {CornerRadius = UDim.new(0, 3)}, SFill)
@@ -1527,7 +1527,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
         local active = Flags[flagToggle].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
-        Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        Knob.Position = active and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
     end
 
     -- Mismo formato flexible que CreateSlider: enteros sin decimales, y hasta 3 cifras en rangos 0-1
@@ -1623,23 +1623,23 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     if Config[flagName] == nil then Config[flagName] = min end
     updateGlobalFlags(flagName, Config[flagName])
     
-    local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Active = true}, self.Frame)
-    local Label = create("TextLabel", {Size = UDim2.new(1, -12, 0, 16), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
+    local SliderFrame = create("Frame", {Name = flagName, Size = UDim2.new(1, 0, 0, 52), BackgroundTransparency = 1, Active = true}, self.Frame)
+    local Label = create("TextLabel", {Size = UDim2.new(1, -12, 0, 18), Position = UDim2.new(0, 2, 0, 4), BackgroundTransparency = 1, Text = text, TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, SliderFrame)
 
     -- Caja de valor estilo "textbox" oscura semitransparente, separada del track (a un lado)
-    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 54, 0, 20), Position = UDim2.new(1, -2, 0, 22), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderFrame)
+    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 58, 0, 22), Position = UDim2.new(1, -2, 0, 28), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ValueBoxBg)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50), Transparency = 0.3}, ValueBoxBg)
     local ValueBox = create("TextBox", {Size = UDim2.new(1, -8, 1, 0), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false}, ValueBoxBg)
     ValueBox:SetAttribute("ThemeRole", "TEXT_ACCENT")
 
     -- Track más corto (ya no ocupa todo el ancho horizontal) y un poco más grueso
-    local Track = create("Frame", {Size = UDim2.new(1, -86, 0, 8), Position = UDim2.new(0, 2, 0, 26), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderFrame)
+    local Track = create("Frame", {Size = UDim2.new(1, -100, 0, 9), Position = UDim2.new(0, 2, 0, 33), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderFrame)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, Track)
     local Fill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, Fill)
     
-    local Knob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, -7, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
+    local Knob = create("TextButton", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, -8, 0.5, -8), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, Knob)
 
     -- Formato flexible: enteros como 1000 se muestran sin decimales, y los rangos 0-1
@@ -1658,7 +1658,7 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
         v = math.clamp(v, min, max) 
         updateGlobalFlags(flagName, v) Config[flagName] = v saveConfig()
         local pct = (max == min) and 0 or (v - min) / (max - min)
-        Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -7, 0.5, -7)
+        Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -8, 0.5, -8)
         ValueBox.Text = formatValue(v)
         if not skipCallback then safeCall("callback", callback, v) end
     end
@@ -1975,9 +1975,9 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local MainTrigger = create("TextButton", {Size = UDim2.new(1, -80, 0, CLOSED_H), BackgroundTransparency = 1, Text = ""}, MasterFrame)
     local Label = create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, MainTrigger)
 
-    local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, MainTrigger)
+    local Track = create("Frame", {Size = UDim2.new(0, 40, 0, 22), Position = UDim2.new(1, -52, 0.5, -11), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, MainTrigger)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Track)
-    local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
+    local Knob = create("Frame", {Size = UDim2.new(0, 18, 0, 18), Position = Config[flagToggle] and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
     local ColorBtn = create("TextButton", {Size = UDim2.new(0, 26, 0, 18), Position = UDim2.new(1, -38, 0, 9), BackgroundColor3 = savedColor, Text = ""}, MasterFrame)
@@ -1990,7 +1990,7 @@ function TabMethods:CreateToggleColorPicker(flagToggle, flagColor, text, default
     local function stateUpdate()
         local active = Flags[flagToggle].CurrentValue
         Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
-        Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        Knob.Position = active and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
         Label.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         Panel.Sync()
     end
@@ -3206,7 +3206,7 @@ function ModalRefresh()
         ModalLockTrack.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
         ModalLockTrack.BackgroundTransparency = 0
     end
-    ModalLockKnob.Position = cfg.lock and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    ModalLockKnob.Position = cfg.lock and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
     ModalLockLabel.TextColor3 = cfg.lock and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
     -- Preview
     ModalPreviewFrame.Size = computePreviewSize(cfg)
