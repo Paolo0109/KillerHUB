@@ -402,6 +402,11 @@ local tabsSizeConn = tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):
 end)
 table.insert(Connections, tabsSizeConn)
 
+-- 🧷 Separador visual entre las pestañas y el botón "Settings" (abajo del sidebar).
+-- Línea sutil + un pequeño acento centrado que hace juego con DecorLine del topbar.
+local SettingsDivider = create("Frame", {Name = "SettingsDivider", Size = UDim2.new(0.85, 0, 0, 1), Position = UDim2.new(0.075, 0, 1, -50), BackgroundColor3 = CurrentTheme.BORDER, BackgroundTransparency = 0.35, BorderSizePixel = 0}, Sidebar)
+local SettingsDividerAccent = create("Frame", {Name = "SettingsDividerAccent", Size = UDim2.new(0, 24, 0, 2), Position = UDim2.new(0.5, -12, 1, -51), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, Sidebar)
+create("UICorner", {CornerRadius = UDim.new(1, 0)}, SettingsDividerAccent)
 local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
 local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
 
@@ -929,6 +934,16 @@ function KillerHub:SetTheme(themeName)
         end
     end
     
+    -- Divisor de Settings sigue al tema
+    if SettingsDivider then SettingsDivider.BackgroundColor3 = CurrentTheme.BORDER end
+    if SettingsDividerAccent then SettingsDividerAccent.BackgroundColor3 = CurrentTheme.ACCENT end
+    -- Invalida el cache y repinta los bordes de los shortcuts flotantes
+    _cachedBorderTheme, _cachedBorderColor = nil, nil
+    if Shortcuts then
+        for _, sc in pairs(Shortcuts) do
+            pcall(refreshShortcutVisual, sc)
+        end
+    end
     for _, refreshCallback in ipairs(self.TargetThemeElements) do
         pcall(refreshCallback)
     end
@@ -2249,10 +2264,10 @@ function TabMethods:CreateKeybind(flagName, text, defaultKey, callback)
         end
     end)
 
-    task.spawn(function()
+    do
         local key = Enum.KeyCode[Flags[flagName].CurrentValue] or Enum.UserInputType[Flags[flagName].CurrentValue]
         if key then safeCall("callback", callback, key) end
-    end)
+    end
 
     addInteractiveFeedback(BBtn)
     self:RegisterElement(KFrame, Lbl, self.Frame.Name)
@@ -2520,6 +2535,22 @@ local function getShortcutAccent()
     return CurrentTheme.ACCENT, CurrentTheme.TEXT_WHITE
 end
 
+-- 🎨 Color de borde para los shortcuts flotantes: usa el color del tema.
+-- Si el tema define un ShortcutAccentOverrides (Obsidian → morado void),
+-- se usa ese color como borde para que se distinga sobre fondos claros.
+-- Cache por tema para evitar re-indexar la tabla en cada refresh.
+local _cachedBorderTheme, _cachedBorderColor = nil, nil
+local function getShortcutBorderColor()
+    local themeName = Config.SelectedTheme
+    if _cachedBorderTheme == themeName and _cachedBorderColor then
+        return _cachedBorderColor
+    end
+    local ov = ShortcutAccentOverrides[themeName]
+    local col = (ov and ov.fill) or CurrentTheme.BORDER
+    _cachedBorderTheme, _cachedBorderColor = themeName, col
+    return col
+end
+
 -- Contenedor global de los botones flotantes; vive en su propio ScreenGui con
 -- DisplayOrder menor que el hub para que queden SIEMPRE debajo del menú y así
 -- no tapen opciones ni se puedan presionar accidentalmente al usar la UI.
@@ -2623,12 +2654,12 @@ local function buildLabel(sc)
 end
 
 local function refreshShortcutVisual(sc)
-    if not sc.frame then return end
+    if not sc.frame or not sc.frame.Parent then return end
     sc.frame.Size = computeSize(sc.cfg)
     sc.frame.BackgroundTransparency = 1 - sc.cfg.opacity
     applyShape(sc.frame, sc.cfg.shape)
-    -- Borde neutro suave (no del color del tema): más limpio y legible con cualquier fuente
-    if sc.stroke then sc.stroke.Color = Color3.fromRGB(30, 30, 34) sc.stroke.Transparency = 0.35 end
+    -- Borde con el color del tema (Obsidian → morado void por override).
+    if sc.stroke then sc.stroke.Color = getShortcutBorderColor() sc.stroke.Thickness = 1.2 sc.stroke.Transparency = 0.15 end
     if sc.label then
         sc.label.Text = buildLabel(sc)
         sc.label.TextColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
@@ -2673,8 +2704,8 @@ local function createFloating(sc)
         ZIndex = 11
     }, ShortcutLayer)
     applyShape(frame, cfg.shape)
-    -- Borde sutil, no del color del tema (evita el "outline llamativo")
-    local stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(30, 30, 34), Transparency = 0.35}, frame)
+    -- Borde con el color del tema (Obsidian → morado void por override).
+    local stroke = create("UIStroke", {Thickness = 1.2, Color = getShortcutBorderColor(), Transparency = 0.15}, frame)
     local accentBar = create("Frame", {Size = UDim2.new(1, -14, 0, 2), Position = UDim2.new(0, 7, 1, -6), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
@@ -2716,6 +2747,10 @@ local function createFloating(sc)
         dragStartTime = os.clock()
 
         moveConn = connect(UserInputService.InputChanged, function(changedInput)
+            -- Guardia temprana: solo movimientos de touch/mouse — evita trabajo
+            -- por cada input de teclado/gyro mientras estás arrastrando
+            local t = changedInput.UserInputType
+            if t ~= Enum.UserInputType.Touch and t ~= Enum.UserInputType.MouseMovement then return end
             if not dragging or changedInput ~= activeInput then return end
             -- 🩹 Fix #4: filtra el tipo de input — solo nos interesa el movimiento
             -- real del mouse/dedo; ignora gamepad, scroll wheel, etc. que también
