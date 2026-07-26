@@ -349,7 +349,7 @@ table.insert(Connections, gradientRotationConn)
 
 local function updateGuiSize()
     if MainFrame.Visible then
-        MainFrame.Size = UDim2.new(0, math.floor(490 + ((Config.GuiWidth or 0.466) * 300)), 0, math.floor(320 + ((Config.GuiHeight or 0.4) * 250)))
+        MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
     end
 end
 
@@ -440,7 +440,7 @@ end
 
 makeDraggable(Topbar, MainFrame)
 
-local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 118, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
+local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
 local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(30, 30, 35), BorderSizePixel = 0}, Sidebar)
 
 local SearchBoxContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 8), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, Sidebar)
@@ -462,7 +462,7 @@ end)
 table.insert(Connections, tabsSizeConn)
 
 local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
-local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -118, 1, -45), Position = UDim2.new(0, 118, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
+local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -125, 1, -45), Position = UDim2.new(0, 125, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
 
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, Config.BtnX or 15, 0, Config.BtnY or 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
@@ -486,7 +486,7 @@ local function updateButtonSize()
     OpenCloseBtn.Size = UDim2.new(0, s, 0, s)
 end
 
-MainFrame.Size = UDim2.new(0, math.floor(490 + ((Config.GuiWidth or 0.466) * 300)), 0, math.floor(320 + ((Config.GuiHeight or 0.4) * 250)))
+MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
 updateUiOpacity()
 updateButtonSize()
 
@@ -2336,12 +2336,12 @@ function KillerHub:CreateTab(name, iconId, opts)
     -- opts.parent (Instance) permite anidar la pestaña dentro de un grupo colapsable (ver CreateTabGroup)
     local parentContainer = (opts and opts.parent) or SidebarTabsContainer
 
-    local frame = create("ScrollingFrame", {Name = name .. "Frame", Size = UDim2.new(1, -10, 1, -10), Position = UDim2.new(0, 5, 0, 5), BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.5, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT}, ContentContainer)
+    local frame = create("ScrollingFrame", {Name = name .. "Frame", Size = UDim2.new(1, -24, 1, -24), Position = UDim2.new(0, 12, 0, 12), BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.5, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT}, ContentContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
     local stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, frame)
     
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)}, frame)
-    create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, frame)
+    create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)}, frame)
     
     local sizeChangedConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
         frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20) 
