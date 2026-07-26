@@ -349,7 +349,7 @@ table.insert(Connections, gradientRotationConn)
 
 local function updateGuiSize()
     if MainFrame.Visible then
-        MainFrame.Size = UDim2.new(0, math.floor(490 + ((Config.GuiWidth or 0.466) * 300)), 0, math.floor(320 + ((Config.GuiHeight or 0.4) * 250)))
+        MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
     end
 end
 
@@ -440,7 +440,7 @@ end
 
 makeDraggable(Topbar, MainFrame)
 
-local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 118, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
+local Sidebar = create("Frame", {Name = "Sidebar", Size = UDim2.new(0, 125, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = CurrentTheme.BG_SIDEBAR, BorderSizePixel = 0, Active = true}, MainFrame)
 local SidebarLine = create("Frame", {Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Color3.fromRGB(30, 30, 35), BorderSizePixel = 0}, Sidebar)
 
 local SearchBoxContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 26), Position = UDim2.new(0, 6, 0, 8), BackgroundColor3 = CurrentTheme.BG_SECONDARY}, Sidebar)
@@ -462,7 +462,7 @@ end)
 table.insert(Connections, tabsSizeConn)
 
 local SettingsContainer = create("Frame", {Size = UDim2.new(1, -12, 0, 36), Position = UDim2.new(0, 6, 1, -42), BackgroundTransparency = 1}, Sidebar)
-local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -118, 1, -45), Position = UDim2.new(0, 118, 0, 45), BackgroundTransparency = 1, Active = true}, MainFrame)
+local ContentContainer = create("Frame", {Name = "ContentContainer", Size = UDim2.new(1, -123, 1, -43), Position = UDim2.new(0, 123, 0, 43), BackgroundTransparency = 1, Active = true}, MainFrame)
 
 local OpenCloseBtn = create("TextButton", {Name = "KillerHubToggle", Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(0, Config.BtnX or 15, 0, Config.BtnY or 100), BackgroundColor3 = CurrentTheme.BG_MAIN, Text = "", Active = true}, ScreenGui)
 create("UICorner", {CornerRadius = UDim.new(0, 10)}, OpenCloseBtn)
@@ -486,7 +486,7 @@ local function updateButtonSize()
     OpenCloseBtn.Size = UDim2.new(0, s, 0, s)
 end
 
-MainFrame.Size = UDim2.new(0, math.floor(490 + ((Config.GuiWidth or 0.466) * 300)), 0, math.floor(320 + ((Config.GuiHeight or 0.4) * 250)))
+MainFrame.Size = UDim2.new(0, math.floor(430 + ((Config.GuiWidth or 0.466) * 280)), 0, math.floor(280 + ((Config.GuiHeight or 0.4) * 230)))
 updateUiOpacity()
 updateButtonSize()
 
@@ -870,6 +870,9 @@ function KillerHub:SetFont(fontName)
             v.Font = fontEnum
         end
     end
+    -- Los shortcuts flotantes viven en OTRO ScreenGui, por eso antes no se
+    -- actualizaban hasta re-activarlos. Ahora se refrescan al instante.
+    if KillerHub._RefreshShortcuts then pcall(KillerHub._RefreshShortcuts) end
 end
 
 function KillerHub:AddTask(obj)
@@ -1002,6 +1005,7 @@ function KillerHub:SetTheme(themeName)
         pcall(refreshCallback)
     end
     self:SetFont(Config.SelectedFont or "GothamMedium")
+    if KillerHub._RefreshShortcuts then pcall(KillerHub._RefreshShortcuts) end
 end
 
 -- ============================================================================
@@ -2336,12 +2340,12 @@ function KillerHub:CreateTab(name, iconId, opts)
     -- opts.parent (Instance) permite anidar la pestaña dentro de un grupo colapsable (ver CreateTabGroup)
     local parentContainer = (opts and opts.parent) or SidebarTabsContainer
 
-    local frame = create("ScrollingFrame", {Name = name .. "Frame", Size = UDim2.new(1, -10, 1, -10), Position = UDim2.new(0, 5, 0, 5), BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.5, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT}, ContentContainer)
+    local frame = create("ScrollingFrame", {Name = name .. "Frame", Size = UDim2.new(1, -14, 1, -13), Position = UDim2.new(0, 7, 0, 6), BackgroundColor3 = CurrentTheme.BG_MAIN, BackgroundTransparency = 0.5, Visible = false, ScrollBarThickness = 2, ScrollBarImageColor3 = CurrentTheme.ACCENT}, ContentContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
     local stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, frame)
     
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)}, frame)
-    create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, frame)
+    create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 8)}, frame)
     
     local sizeChangedConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
         frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20) 
@@ -2615,6 +2619,18 @@ local ShortcutLayer = create("Frame", {
     ZIndex = 1
 }, ShortcutScreen)
 
+-- 🔤 Caché de la fuente activa: evita resolver Enum.Font en cada refresco de
+-- cada shortcut (se invalida sola cuando cambia Config.SelectedFont).
+local _fontCacheName, _fontCacheEnum = nil, Enum.Font.GothamMedium
+local function currentFontEnum()
+    local name = Config.SelectedFont or "GothamMedium"
+    if name ~= _fontCacheName then
+        _fontCacheName = name
+        _fontCacheEnum = Enum.Font[name] or Enum.Font.GothamMedium
+    end
+    return _fontCacheEnum
+end
+
 local Shortcuts = {}          -- id -> { data, cfg, floating instances }
 local ShortcutActivators = {} -- id -> { btn, stroke, glyph, refresh }
 
@@ -2705,13 +2721,13 @@ local function refreshShortcutVisual(sc)
     sc.frame.BackgroundTransparency = 1 - sc.cfg.opacity
     applyShape(sc.frame, sc.cfg.shape)
     -- Borde neutro suave (no del color del tema): más limpio y legible con cualquier fuente
-    if sc.stroke then sc.stroke.Color = Color3.fromRGB(30, 30, 34) sc.stroke.Transparency = 0.35 end
+    if sc.stroke then sc.stroke.Color = CurrentTheme.BORDER sc.stroke.Thickness = 1.2 sc.stroke.Transparency = 0 end
     if sc.label then
         sc.label.Text = buildLabel(sc)
         sc.label.TextColor3 = (sc.data.kind == "toggle" and sc.data.getState()) and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
         -- Ligeramente más pequeño para que el texto entre completo en el cuadrito
         sc.label.TextSize = math.clamp(math.floor(sc.cfg.size * 0.24), 8, 14)
-        sc.label.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
+        sc.label.Font = currentFontEnum()
         pcall(function() sc.label.TextStrokeTransparency = 1 end)
     end
     if sc.accentBar then
@@ -2737,7 +2753,7 @@ local function createFloating(sc)
         local nx, ny = nextShortcutSlot(cfg)
         cfg.x, cfg.y = nx, ny
     end
-    local fontEnum = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamMedium
+    local fontEnum = currentFontEnum()
     local frame = create("TextButton", {
         Name = "Shortcut_" .. sc.data.id,
         Text = "",
@@ -2751,7 +2767,7 @@ local function createFloating(sc)
     }, ShortcutLayer)
     applyShape(frame, cfg.shape)
     -- Borde sutil, no del color del tema (evita el "outline llamativo")
-    local stroke = create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(30, 30, 34), Transparency = 0.35}, frame)
+    local stroke = create("UIStroke", {Thickness = 1.2, Color = CurrentTheme.BORDER, Transparency = 0}, frame)
     local accentBar = create("Frame", {Size = UDim2.new(1, -14, 0, 2), Position = UDim2.new(0, 7, 1, -6), BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
@@ -2904,6 +2920,24 @@ function KillerHub:ClearAllShortcuts()
         end
     end
     return removed
+end
+
+-- 🔁 Refresco global de los botones flotantes: se llama desde SetFont/SetTheme
+-- para que la fuente y el borde del tema cambien EN VIVO (antes había que
+-- apagar y encender el shortcut para que se aplicaran).
+function KillerHub._RefreshShortcuts()
+    for _, sc in pairs(Shortcuts) do
+        if sc.frame then pcall(refreshShortcutVisual, sc) end
+    end
+    local fontEnum = currentFontEnum()
+    for _, act in pairs(ShortcutActivators) do
+        if act.btn and act.btn.Parent then pcall(function() act.btn.Font = fontEnum end) end
+    end
+    if ConfigModal then
+        for _, v in ipairs(ConfigModal:GetDescendants()) do
+            if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then v.Font = fontEnum end
+        end
+    end
 end
 
 local function buildModal()
@@ -3215,6 +3249,7 @@ function ModalRefresh()
     local pv = ModalPreviewFrame:FindFirstChild("PVLabel")
     if pv then
         pv.Text = buildLabel(currentModalSc)
+        pv.Font = currentFontEnum()
         pv.TextSize = math.clamp(math.floor(cfg.size * 0.22), 9, 14)
     end
     -- Botón dinámico Agregar / Quitar
