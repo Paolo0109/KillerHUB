@@ -1497,12 +1497,15 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     updateGlobalFlags(flagToggle, Config[flagToggle])
     updateGlobalFlags(flagSlider, Config[flagSlider])
     
-    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 54), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
+    -- 📐 LAYOUT V2: fila de toggle y fila de slider con respiración real entre
+    -- ambas (antes quedaban pegadas). Alturas: 34 (toggle) + 1 (divisor) + 24 (slider)
+    -- + paddings = 70px. Separadas, pero sin que parezcan dos widgets distintos.
+    local TSFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 70), BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.4}, self.Frame)
     TSFrame:SetAttribute("ThemeRole", "BG_SECONDARY") TSFrame:SetAttribute("CustomColorLabel", true)
-    create("UICorner", {CornerRadius = UDim.new(0, 6)}, TSFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 8)}, TSFrame)
     local Stroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, TSFrame)
     
-    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, Text = ""}, TSFrame)
+    local ToggleButton = create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, Text = ""}, TSFrame)
     local ToggleLabel = create("TextLabel", {Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Config[flagToggle] and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 12}, ToggleButton)
     
     local Track = create("Frame", {Size = UDim2.new(0, 34, 0, 18), Position = UDim2.new(1, -46, 0.5, -9), BackgroundColor3 = Config[flagToggle] and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)}, ToggleButton)
@@ -1510,82 +1513,129 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     local Knob = create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = Config[flagToggle] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE}, Track)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, Knob)
 
-    local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 12, 0, 27), BackgroundTransparency = 1}, TSFrame)
+    -- Divisor sutil: marca la separación visual sin abrir un hueco vacío enorme
+    local Divider = create("Frame", {Size = UDim2.new(1, -24, 0, 1), Position = UDim2.new(0, 12, 0, 35), BackgroundColor3 = CurrentTheme.BORDER, BackgroundTransparency = 0.55, BorderSizePixel = 0}, TSFrame)
+
+    local SliderContainer = create("Frame", {Size = UDim2.new(1, -24, 0, 22), Position = UDim2.new(0, 12, 0, 42), BackgroundTransparency = 1}, TSFrame)
 
     -- Caja de valor estilo "textbox" oscura semitransparente, separada del track
-    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderContainer)
+    local ValueBoxBg = create("Frame", {Size = UDim2.new(0, 52, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.fromRGB(15, 15, 18), BackgroundTransparency = 0.35}, SliderContainer)
     create("UICorner", {CornerRadius = UDim.new(0, 5)}, ValueBoxBg)
     create("UIStroke", {Thickness = 1, Color = Color3.fromRGB(45, 45, 50), Transparency = 0.3}, ValueBoxBg)
     local ValueBox = create("TextBox", {Size = UDim2.new(1, -8, 1, 0), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false}, ValueBoxBg)
     ValueBox:SetAttribute("ThemeRole", "TEXT_ACCENT")
     
-    local STrack = create("Frame", {Size = UDim2.new(1, -80, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, STrack)
+    local STrack = create("Frame", {Size = UDim2.new(1, -66, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = Color3.fromRGB(35, 35, 40)}, SliderContainer)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, STrack)
     local SFill = create("Frame", {BackgroundColor3 = CurrentTheme.ACCENT}, STrack)
-    create("UICorner", {CornerRadius = UDim.new(0, 3)}, SFill)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, SFill)
     
-    local SKnob = create("TextButton", {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, -6, 0.5, -6), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
-    create("UICorner", {CornerRadius = UDim.new(0, 4)}, SKnob)
+    local SKnob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, -7, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, SKnob)
 
-    local function stateUpdate()
+
+    local KNOB_ON, KNOB_OFF = UDim2.new(1, -16, 0.5, -7), UDim2.new(0, 2, 0.5, -7)
+    local TRACK_OFF = Color3.fromRGB(40, 40, 45)
+    local TOGGLE_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+    local function stateUpdate(animate)
         local active = Flags[flagToggle].CurrentValue
         ToggleLabel.TextColor3 = active and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        Track.BackgroundColor3 = active and CurrentTheme.ACCENT or Color3.fromRGB(40, 40, 45)
-        Knob.Position = active and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        local trackColor = active and CurrentTheme.ACCENT or TRACK_OFF
+        local knobPos = active and KNOB_ON or KNOB_OFF
+        if animate then
+            TweenService:Create(Track, TOGGLE_TWEEN, {BackgroundColor3 = trackColor}):Play()
+            TweenService:Create(Knob, TOGGLE_TWEEN, {Position = knobPos}):Play()
+        else
+            Track.BackgroundColor3 = trackColor
+            Knob.Position = knobPos
+        end
     end
 
     -- Mismo formato flexible que CreateSlider: enteros sin decimales, y hasta 3 cifras en rangos 0-1
     local function formatValue(v)
         if max <= 1 then
-            return string.format("%.3f", v)
+            return stringFormat("%.3f", v)
         elseif v % 1 ~= 0 then
-            return string.format("%.2f", v)
+            return stringFormat("%.2f", v)
         else
             return tostring(math.floor(v))
         end
     end
 
-    local function runSliderValue(v, skipCallback)
-        v = math.clamp(v, min, max) 
-        updateGlobalFlags(flagSlider, v) Config[flagSlider] = v saveConfig()
-        local pct = (max == min) and 0 or (v - min) / (max - min)
-        SFill.Size = UDim2.new(pct, 0, 1, 0)
-        SKnob.Position = UDim2.new(pct, -6, 0.5, -6)
-        ValueBox.Text = formatValue(v)
+    -- ⚡ OPTIMIZACIÓN: durante el arrastre no se guarda config (evita un JSONEncode
+    -- por frame) y se descartan valores repetidos, así el callback del usuario no
+    -- se dispara decenas de veces con el mismo número.
+    local lastValue = nil
+    local function runSliderValue(v, skipCallback, deferSave)
+        v = mathClamp(v, min, max)
+        if lastValue == v and not skipCallback then return end
+        local changed = lastValue ~= v
+        lastValue = v
+        updateGlobalFlags(flagSlider, v) Config[flagSlider] = v
+        if not deferSave then saveConfig() end
+        if changed then
+            local pct = (max == min) and 0 or (v - min) / (max - min)
+            SFill.Size = UDim2.new(pct, 0, 1, 0)
+            SKnob.Position = UDim2.new(pct, -7, 0.5, -7)
+            ValueBox.Text = formatValue(v)
+        end
         if not skipCallback then safeCall("callbackSlider", callbackSlider, v) end
     end
 
     connect(ToggleButton.MouseButton1Click, function()
         local nextState = not Flags[flagToggle].CurrentValue
         updateGlobalFlags(flagToggle, nextState) Config[flagToggle] = nextState saveConfig() playUISound()
-        stateUpdate() safeCall("callbackToggle", callbackToggle, nextState)
+        stateUpdate(true) safeCall("callbackToggle", callbackToggle, nextState)
     end)
 
     connect(ValueBox.FocusLost, function()
         local inputNum = tonumber(ValueBox.Text)
-        if not inputNum then runSliderValue(Flags[flagSlider].CurrentValue) else runSliderValue(inputNum) end
+        if not inputNum then
+            ValueBox.Text = formatValue(Flags[flagSlider].CurrentValue)
+        else
+            runSliderValue(inputNum)
+        end
     end)
 
     local sliding = false
-    local function snap(input)
-        local pct = math.clamp((input.Position.X - STrack.AbsolutePosition.X) / STrack.AbsoluteSize.X, 0, 1)
-        runSliderValue(min + (pct * (max - min)))
+    local function snap(input, deferSave)
+        local size = STrack.AbsoluteSize.X
+        if size <= 0 then return end
+        local pct = mathClamp((input.Position.X - STrack.AbsolutePosition.X) / size, 0, 1)
+        runSliderValue(min + (pct * (max - min)), false, deferSave)
     end
 
     local dragConn, endConn
-    connect(SKnob.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliding = true snap(input)
-            dragConn = connect(UserInputService.InputChanged, function(changedInput)
-                if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then snap(changedInput) end
-            end)
-            endConn = connect(UserInputService.InputEnded, function(endedInput)
-                if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
-                    sliding = false if dragConn then dragConn:Disconnect() end if endConn then endConn:Disconnect() end
-                end
-            end)
-        end
-    end)
+    local function stopSliding()
+        if not sliding then return end
+        sliding = false
+        if dragConn then dragConn:Disconnect() dragConn = nil end
+        if endConn then endConn:Disconnect() endConn = nil end
+        saveConfig()
+    end
+
+    local function beginSliding(input)
+        if sliding then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        sliding = true
+        snap(input, true)
+        dragConn = connect(UserInputService.InputChanged, function(changedInput)
+            if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                snap(changedInput, true)
+            end
+        end)
+        endConn = connect(UserInputService.InputEnded, function(endedInput)
+            if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
+                stopSliding()
+            end
+        end)
+    end
+
+    connect(SKnob.InputBegan, beginSliding)
+    -- Mejora: tocar cualquier punto del track mueve el slider (antes solo el knob)
+    connect(STrack.InputBegan, beginSliding)
+
 
     table.insert(KillerHub.TargetThemeElements, function()
         SFill.BackgroundColor3 = CurrentTheme.ACCENT
@@ -1601,8 +1651,14 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     self:RegisterElement(TSFrame, ToggleLabel, self.Frame.Name)
     
     local tsObj = {
-        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate() safeCall("callbackToggle", callbackToggle, bool) end,
+        SetToggle = function(_, bool) updateGlobalFlags(flagToggle, bool) Config[flagToggle] = bool saveConfig() stateUpdate(true) safeCall("callbackToggle", callbackToggle, bool) end,
         SetSlider = function(_, value) runSliderValue(value) end,
+        -- ➕ Extras de API (aditivos, no rompen nada existente)
+        GetToggle = function() return Flags[flagToggle] and Flags[flagToggle].CurrentValue end,
+        GetSlider = function() return Flags[flagSlider] and Flags[flagSlider].CurrentValue end,
+        SetText = function(_, newText) if type(newText) == "string" then ToggleLabel.Text = newText end end,
+        SetVisible = function(_, bool) TSFrame.Visible = bool and true or false end,
+        Instance = TSFrame,
         -- 🛑 Ver nota en CreateToggle._ShutdownNotify: mismo mecanismo, aplicado
         -- al flag de encendido/apagado de este widget combinado.
         _ShutdownNotify = function()
@@ -1611,6 +1667,7 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
             end
         end
     }
+
     KillerHub.Elements[flagToggle] = tsObj
     return tsObj
 end
@@ -1650,48 +1707,78 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     -- (u otros con decimales) muestran hasta 3 cifras, permitiendo escribir 0.0, 0.00 o 0.000
     local function formatValue(v)
         if max <= 1 then
-            return string.format("%.3f", v)
+            return stringFormat("%.3f", v)
         elseif v % 1 ~= 0 then
-            return string.format("%.2f", v)
+            return stringFormat("%.2f", v)
         else
             return tostring(math.floor(v))
         end
     end
 
-    local function runSliderValue(v, skipCallback)
-        v = math.clamp(v, min, max) 
-        updateGlobalFlags(flagName, v) Config[flagName] = v saveConfig()
-        local pct = (max == min) and 0 or (v - min) / (max - min)
-        Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -7, 0.5, -7)
-        ValueBox.Text = formatValue(v)
+    -- ⚡ Igual que en CreateToggleSlider: sin guardado ni callbacks redundantes
+    -- mientras se arrastra, para que el drag sea fluido incluso en móvil.
+    local lastValue = nil
+    local function runSliderValue(v, skipCallback, deferSave)
+        v = mathClamp(v, min, max)
+        if lastValue == v and not skipCallback then return end
+        local changed = lastValue ~= v
+        lastValue = v
+        updateGlobalFlags(flagName, v) Config[flagName] = v
+        if not deferSave then saveConfig() end
+        if changed then
+            local pct = (max == min) and 0 or (v - min) / (max - min)
+            Fill.Size = UDim2.new(pct, 0, 1, 0) Knob.Position = UDim2.new(pct, -7, 0.5, -7)
+            ValueBox.Text = formatValue(v)
+        end
         if not skipCallback then safeCall("callback", callback, v) end
     end
     
     connect(ValueBox.FocusLost, function()
         local inputNum = tonumber(ValueBox.Text)
-        if not inputNum then runSliderValue(Flags[flagName].CurrentValue) else runSliderValue(inputNum) end
+        if not inputNum then
+            ValueBox.Text = formatValue(Flags[flagName].CurrentValue)
+        else
+            runSliderValue(inputNum)
+        end
     end)
     
     local sliding = false
-    local function snap(input)
-        local pct = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
-        runSliderValue(min + (pct * (max - min)))
+    local function snap(input, deferSave)
+        local size = Track.AbsoluteSize.X
+        if size <= 0 then return end
+        local pct = mathClamp((input.Position.X - Track.AbsolutePosition.X) / size, 0, 1)
+        runSliderValue(min + (pct * (max - min)), false, deferSave)
     end
     
     local dragConn, endConn
-    connect(Knob.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliding = true snap(input)
-            dragConn = connect(UserInputService.InputChanged, function(changedInput)
-                if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then snap(changedInput) end
-            end)
-            endConn = connect(UserInputService.InputEnded, function(endedInput)
-                if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
-                    sliding = false if dragConn then dragConn:Disconnect() end if endConn then endConn:Disconnect() end
-                end
-            end)
-        end
-    end)
+    local function stopSliding()
+        if not sliding then return end
+        sliding = false
+        if dragConn then dragConn:Disconnect() dragConn = nil end
+        if endConn then endConn:Disconnect() endConn = nil end
+        saveConfig()
+    end
+
+    local function beginSliding(input)
+        if sliding then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        sliding = true
+        snap(input, true)
+        dragConn = connect(UserInputService.InputChanged, function(changedInput)
+            if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+                snap(changedInput, true)
+            end
+        end)
+        endConn = connect(UserInputService.InputEnded, function(endedInput)
+            if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
+                stopSliding()
+            end
+        end)
+    end
+
+    connect(Knob.InputBegan, beginSliding)
+    connect(Track.InputBegan, beginSliding)
+
     
     table.insert(KillerHub.TargetThemeElements, function()
         Label.TextColor3 = CurrentTheme.TEXT_WHITE
@@ -1722,8 +1809,14 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
                     runSliderValue(smartValue)
                 end
             end)
-        end
+        end,
+        -- ➕ Extras de API (aditivos)
+        Get = function() return Flags[flagName] and Flags[flagName].CurrentValue end,
+        SetText = function(_, newText) if type(newText) == "string" then Label.Text = newText end end,
+        SetVisible = function(_, bool) SliderFrame.Visible = bool and true or false end,
+        Instance = SliderFrame
     }
+
     
     KillerHub.Elements[flagName] = sliderObj
     return sliderObj
