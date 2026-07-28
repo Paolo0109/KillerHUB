@@ -3607,7 +3607,7 @@ end
 -- ============================================================================
 local SettingsTab = KillerHub:CreateTab("Settings", "Settings") -- engranaje 7059346373 (ver IconLibrary)
 
-SettingsTab:CreateSection("Personalización")
+SettingsTab:CreateSection("Personalization")
 SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 
 local TopFonts = {
@@ -3619,32 +3619,32 @@ local TopFonts = {
     "Sarpanch", "DenkOne", "Jura", "JosefinSans",
     "BuilderSans", "BuilderSansMedium", "BuilderSansBold"
 }
-SettingsTab:CreateDropdown("SelectedFont", "Fuente de Texto:", TopFonts, function(selected) KillerHub:SetFont(selected) end)
-SettingsTab:CreateSlider("UiOpacity", "Opacidad del Vidrio", 0.3, 1, function(v) updateUiOpacity() end)
+SettingsTab:CreateDropdown("SelectedFont", "Text Source:", TopFonts, function(selected) KillerHub:SetFont(selected) end)
+SettingsTab:CreateSlider("UiOpacity", "UI Opacity", 0.3, 1, function(v) updateUiOpacity() end)
 
-SettingsTab:CreateSection("Controles del Menú")
-SettingsTab:CreateToggle("MenuAnimEnabled", "Animación de apertura/cierre", function(v) Config.MenuAnimEnabled = v end)
-SettingsTab:CreateToggle("AutoArrangeShortcuts", "Auto-organizar shortcuts arriba", function(v) Config.AutoArrangeShortcuts = v end)
-SettingsTab:CreateKeybind("ToggleKey", "Cerrar / Abrir Menu (PC)", Enum.KeyCode.RightControl, function(key)
+SettingsTab:CreateSection("Menu Controls")
+SettingsTab:CreateToggle("MenuAnimEnabled", "UI Animation", function(v) Config.MenuAnimEnabled = v end)
+SettingsTab:CreateToggle("AutoArrangeShortcuts", "Auto-organize Shortcuts", function(v) Config.AutoArrangeShortcuts = v end)
+SettingsTab:CreateKeybind("ToggleKey", "Close/Open Menu", Enum.KeyCode.RightControl, function(key)
     print("Se presionó la tecla: " .. tostring(key))
 end)
-SettingsTab:CreateSlider("ToggleBtnSize", "Tamaño de Botón Flotante", 30, 80, function(v) updateButtonSize() end)
-SettingsTab:CreateSlider("Volume", "Volumen Interfaz", 0, 1, function(v) Config.Volume = v end)
-SettingsTab:CreateSlider("GuiWidth", "Ajustar Ancho Ventana", 0, 1, function(v) updateGuiSize() end)
-SettingsTab:CreateSlider("GuiHeight", "Ajustar Alto Ventana", 0, 1, function(v) updateGuiSize() end)
+SettingsTab:CreateSlider("ToggleBtnSize", "UI Button Size", 30, 80, function(v) updateButtonSize() end)
+SettingsTab:CreateSlider("Volume", "Interface Volume", 0, 1, function(v) Config.Volume = v end)
+SettingsTab:CreateSlider("GuiWidth", "Adjust UI Width", 0, 1, function(v) updateGuiSize() end)
+SettingsTab:CreateSlider("GuiHeight", "Adjust UI Height", 0, 1, function(v) updateGuiSize() end)
 
-SettingsTab:CreateSection("Configuración Universal")
-SettingsTab:CreateParagraph("🌐 Persistencia universal", "Toda tu configuración (estilos, tamaños, tema, tecla, toggles, sliders, keybinds y shortcuts) se guarda en Universal.json y te acompaña a CUALQUIER juego. Nada se reinicia al cambiar de experiencia.")
+SettingsTab:CreateSection("Universal Configuration")
+SettingsTab:CreateParagraph("🌐 Universal persistence", "All your settings (styles, sizes, theme, keys, toggles, sliders, keybinds, and shortcuts) are saved in Universal.json and go with you to ANY game. Nothing is reset when you switch experiences.")
 
 SettingsTab:CreateSection("Shortcuts")
-SettingsTab:CreateParagraph("🧹 Limpieza rápida", "Elimina de la pantalla TODOS los cuadritos flotantes de shortcuts (incluye los creados por scripts externos). Los widgets originales del menú siguen funcionando y podrás volver a agregar shortcuts cuando quieras.")
-SettingsTab:CreateButton("Remover todos los shortcuts", function()
+SettingsTab:CreateParagraph("🧹 Quick cleaning", "Removes ALL floating shortcut boxes from the screen (including those created by external scripts). The original menu widgets will continue to function, and you can add shortcuts again as needed.")
+SettingsTab:CreateButton("Remove all shortcuts", function()
     if KillerHub.ClearAllShortcuts then KillerHub:ClearAllShortcuts() end
 end)
 
 SettingsTab:CreateSection("Seguridad y Limpieza")
-SettingsTab:CreateParagraph("⚠️ ADVERTENCIA DE APAGADO", "Si decides apagar el script (Unload), la interfaz se cerrará y se eliminará por completo de la memoria.")
-SettingsTab:CreateButton("Apagar Script por Completo (Unload)", function() KillerHub:Unload() end)
+SettingsTab:CreateParagraph("⚠️ SHUTDOWN WARNING", "If you decide to unload the script, the interface will close and be completely removed from memory.")
+SettingsTab:CreateButton("Turn Off Script", function() KillerHub:Unload() end)
 
 task.defer(function() KillerHub:SetTheme(Config.SelectedTheme or "Obsidian") end)
 
@@ -3674,7 +3674,7 @@ getgenv().KillerHub.Flags = Flags
 -- ============================================================================
 do
     if rawget(_G, "__KillerHub_v13_Applied__") then
-        warn("[KillerHub v1.3] Enhancement layer ya aplicada — se omite doble init.")
+        warn("[KillerHub] Loaded")
     else
         _G.__KillerHub_v13_Applied__ = true
 
