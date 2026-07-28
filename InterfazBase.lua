@@ -3608,7 +3608,7 @@ end
 local SettingsTab = KillerHub:CreateTab("Settings", "Settings") -- engranaje 7059346373 (ver IconLibrary)
 
 SettingsTab:CreateSection("Personalization")
-SettingsTab:CreateDropdown("SelectedTheme", "Tema Visual:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
+SettingsTab:CreateDropdown("SelectedTheme", "UI themes:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end)
 
 local TopFonts = {
     "Gotham", "GothamMedium", "GothamBold", "GothamBlack", "GothamSemibold",
@@ -3642,7 +3642,7 @@ SettingsTab:CreateButton("Remove all shortcuts", function()
     if KillerHub.ClearAllShortcuts then KillerHub:ClearAllShortcuts() end
 end)
 
-SettingsTab:CreateSection("Seguridad y Limpieza")
+SettingsTab:CreateSection("Safety and Cleanliness")
 SettingsTab:CreateParagraph("⚠️ SHUTDOWN WARNING", "If you decide to unload the script, the interface will close and be completely removed from memory.")
 SettingsTab:CreateButton("Turn Off Script", function() KillerHub:Unload() end)
 
