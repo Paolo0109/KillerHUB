@@ -1532,6 +1532,10 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     
     local SKnob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, -7, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, STrack)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, SKnob)
+    -- 🎯 Hitbox invisible SOLO sobre la bolita: agranda el área táctil sin cambiar
+    -- el diseño. El track ya NO inicia arrastre (evita toques involuntarios al
+    -- deslizar la UI con el dedo).
+    local SKnobHit = create("TextButton", {Size = UDim2.new(0, 38, 0, 38), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 10}, SKnob)
 
 
     local KNOB_ON, KNOB_OFF = UDim2.new(1, -16, 0.5, -7), UDim2.new(0, 2, 0.5, -7)
@@ -1607,34 +1611,39 @@ function TabMethods:CreateToggleSlider(flagToggle, flagSlider, text, min, max, c
     end
 
     local dragConn, endConn
+    local activeInput = nil
     local function stopSliding()
         if not sliding then return end
         sliding = false
+        activeInput = nil
         if dragConn then dragConn:Disconnect() dragConn = nil end
         if endConn then endConn:Disconnect() endConn = nil end
         saveConfig()
     end
 
+    -- ✋ El arrastre SOLO se inicia tocando la bolita (knob). Tocar el track no
+    -- mueve nada, así los scrolls verticales sobre la UI no alteran valores.
     local function beginSliding(input)
         if sliding then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         sliding = true
-        snap(input, true)
+        activeInput = input
         dragConn = connect(UserInputService.InputChanged, function(changedInput)
-            if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+            if not sliding then return end
+            if changedInput ~= activeInput and changedInput.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+            if changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput == activeInput then
                 snap(changedInput, true)
             end
         end)
         endConn = connect(UserInputService.InputEnded, function(endedInput)
-            if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
+            if endedInput == activeInput or endedInput.UserInputType == Enum.UserInputType.MouseButton1 then
                 stopSliding()
             end
         end)
     end
 
     connect(SKnob.InputBegan, beginSliding)
-    -- Mejora: tocar cualquier punto del track mueve el slider (antes solo el knob)
-    connect(STrack.InputBegan, beginSliding)
+    connect(SKnobHit.InputBegan, beginSliding)
 
 
     table.insert(KillerHub.TargetThemeElements, function()
@@ -1702,6 +1711,8 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     
     local Knob = create("TextButton", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, -7, 0.5, -7), BackgroundColor3 = CurrentTheme.TEXT_WHITE, Text = "", AutoButtonColor = false}, Track)
     create("UICorner", {CornerRadius = UDim.new(0, 4)}, Knob)
+    -- 🎯 Hitbox invisible SOLO sobre la bolita (área táctil cómoda, mismo diseño)
+    local KnobHit = create("TextButton", {Size = UDim2.new(0, 38, 0, 38), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 10}, Knob)
 
     -- Formato flexible: enteros como 1000 se muestran sin decimales, y los rangos 0-1
     -- (u otros con decimales) muestran hasta 3 cifras, permitiendo escribir 0.0, 0.00 o 0.000
@@ -1751,33 +1762,39 @@ function TabMethods:CreateSlider(flagName, text, min, max, callback)
     end
     
     local dragConn, endConn
+    local activeInput = nil
     local function stopSliding()
         if not sliding then return end
         sliding = false
+        activeInput = nil
         if dragConn then dragConn:Disconnect() dragConn = nil end
         if endConn then endConn:Disconnect() endConn = nil end
         saveConfig()
     end
 
+    -- ✋ El arrastre SOLO se inicia tocando la bolita (knob). Tocar el track no
+    -- mueve nada, así los scrolls verticales sobre la UI no alteran valores.
     local function beginSliding(input)
         if sliding then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         sliding = true
-        snap(input, true)
+        activeInput = input
         dragConn = connect(UserInputService.InputChanged, function(changedInput)
-            if sliding and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
+            if not sliding then return end
+            if changedInput ~= activeInput and changedInput.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+            if changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput == activeInput then
                 snap(changedInput, true)
             end
         end)
         endConn = connect(UserInputService.InputEnded, function(endedInput)
-            if endedInput.UserInputType == Enum.UserInputType.MouseButton1 or endedInput.UserInputType == Enum.UserInputType.Touch then
+            if endedInput == activeInput or endedInput.UserInputType == Enum.UserInputType.MouseButton1 then
                 stopSliding()
             end
         end)
     end
 
     connect(Knob.InputBegan, beginSliding)
-    connect(Track.InputBegan, beginSliding)
+    connect(KnobHit.InputBegan, beginSliding)
 
     
     table.insert(KillerHub.TargetThemeElements, function()
@@ -3195,21 +3212,10 @@ local function buildModal()
             local pct = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
             set(minV + pct * (maxV - minV), false)
         end
-        connect(track.InputBegan, function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            dragging = true activeInput = input snap(input)
-            dragConn = connect(UserInputService.InputChanged, function(ci)
-                if dragging and ci == activeInput then snap(ci) end
-            end)
-            endConn = connect(UserInputService.InputEnded, function(ei)
-                if ei ~= activeInput then return end
-                dragging = false activeInput = nil
-                if dragConn then dragConn:Disconnect() end
-                if endConn then endConn:Disconnect() end
-                saveShortcuts()
-            end)
-        end)
-        connect(knob.InputBegan, function(input)
+        -- ✋ Solo la bolita inicia el arrastre (el track ya no responde), para
+        -- evitar cambios accidentales al deslizar la UI.
+        local knobHit = create("TextButton", {Size = UDim2.new(0, 38, 0, 38), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 55}, knob)
+        local function beginKnobDrag(input)
             if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
             dragging = true activeInput = input
             dragConn = connect(UserInputService.InputChanged, function(ci)
@@ -3222,7 +3228,9 @@ local function buildModal()
                 if endConn then endConn:Disconnect() end
                 saveShortcuts()
             end)
-        end)
+        end
+        connect(knob.InputBegan, beginKnobDrag)
+        connect(knobHit.InputBegan, beginKnobDrag)
 
         return { set = set, fill = fill, knob = knob, val = valLbl }
     end
