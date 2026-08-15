@@ -1,5 +1,5 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.3.1)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.3.3)
 -- Changelog V5.3.1:
 --   • Fix: borde/stroke de la opción seleccionada en Dropdown/MultiDropdown ya
 --     no se corta del lado izquierdo (UIPadding interno en la lista).
@@ -9,6 +9,28 @@
 --     el sufijo ON/OFF, sin importar la forma o el tamaño del botón.
 --   • Nuevo: los shortcuts de tipo "botón" (un solo click, sin toggle) ahora
 --     hacen un flash de luz al presionarse, para confirmar que sí se activó.
+-- Changelog V5.3.2:
+--   • Quitados los bordes (stroke + glow) de la ventana principal de la
+--     librería; también se eliminó el degradado giratorio del borde
+--     (ahorra Heartbeat en cada frame mientras el menú está abierto).
+--   • El borde de los botones flotantes ahora es un tono OSCURO del color del
+--     tema (no el acento brillante), y se vuelve más transparente junto con
+--     la opacidad configurada del botón, sin llegar nunca a invisible total.
+--   • Los shortcuts tipo toggle ahora colorean su texto ON con el acento del
+--     tema (rojo en Blood, morado en Obsidian, etc.).
+--   • Los shortcuts tipo botón ahora también iluminan su texto al presionar.
+--   • Nuevo: fondos personalizados por tema (ThemeBackgroundImages) + toggle
+--     "Activate Background" en Settings → Personalization.
+-- Changelog V5.3.3:
+--   • El fondo personalizado ahora respeta el slider "UI Opacity": se vuelve
+--     transparente junto con el resto de la librería en vez de quedarse
+--     siempre 100% sólido.
+--   • Alternativa a rbxassetid://: ThemeBackgroundImages ahora también acepta
+--     una URL directa (https://...). Si el executor soporta writefile +
+--     getcustomasset/getsynasset, la imagen se descarga UNA vez, se cachea
+--     localmente y se carga sin subir nada al catálogo de Roblox (así no te
+--     la puede eliminar la moderación). Si el tema no tiene imagen, o el
+--     executor no soporta esto, simplemente no muestra nada — no rompe nada.
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -206,7 +228,7 @@ end)
 local DefaultConfig = {
     Volume = 0.5, ToggleKey = "RightControl", SelectedTheme = "Obsidian", SelectedFont = "GothamMedium", MenuAnimEnabled = true, AutoArrangeShortcuts = true, DisableNotifications = false,
     GuiWidth = 0.466, GuiHeight = 0.4, UiOpacity = 0.75, ToggleBtnSize = 46,
-    MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100
+    MainFrameX = 0, MainFrameY = 0, BtnX = 15, BtnY = 100, BackgroundEnabled = false
 }
 local Config = {}
 local Flags = {}
@@ -407,40 +429,163 @@ local function playUISound()
     end)
 end
 
-local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, ClipsDescendants = true, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
-local MainStroke = create("UIStroke", {Thickness = 1.8, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
-create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainFrame)
--- ✨ Glow externo sutil: un segundo UIStroke más grueso y transparente detrás del
--- borde principal, da sensación de "aura" premium sin coste real (una sola
--- Instance estática, no anima nada por sí sola).
-local OuterGlow = create("UIStroke", {Thickness = 4, Color = CurrentTheme.GLOW or CurrentTheme.ACCENT, Transparency = 0.82, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, MainFrame)
+-- ============================================================================
+-- 🖼️ FONDOS PERSONALIZADOS POR TEMA (opcional)  ← EDITA AQUÍ
+-- ----------------------------------------------------------------------------
+-- Dos formas de poner una imagen por tema:
+--
+-- 1) rbxassetid://123456789  → un asset ya subido a Roblox. Simple, pero
+--    Roblox puede eliminarlo por moderación (así es como lo tenías antes).
+--
+-- 2) Una URL directa a la imagen (https://...) → NO pasa por Roblox en
+--    absoluto. Si tu executor soporta las funciones estándar UNC "writefile"
+--    + "getcustomasset" (Synapse X, Script-Ware, Krnl, Fluxus, Wave, Xeno,
+--    etc. las traen), la librería descarga la imagen UNA sola vez a una
+--    carpeta local, la guarda en caché, y la carga como asset local — sin
+--    subir nada al catálogo de Roblox, así que nadie te la puede eliminar.
+--    Ejemplo:  ["Blood"] = "https://i.imgur.com/tuimagen.png",
+--    Si tu executor NO soporta esto, esa entrada simplemente no muestra nada
+--    (no rompe la librería) — en ese caso toca usar rbxassetid:// para ese tema.
+--
+-- Si un tema no tiene imagen asignada (cadena vacía ""), no muestra fondo
+-- aunque el toggle "Activate Background" esté encendido — sigue viéndose el
+-- color sólido normal. La imagen SIEMPRE se recorta (Crop) al tamaño y a la
+-- forma real de la ventana (esquinas redondeadas incluidas, y el ancho/alto
+-- que configures en "Adjust UI Width/Height"), así que cualquier imagen sirve
+-- sin importar sus proporciones. También respeta el slider "UI Opacity": a
+-- menor opacidad de la librería, más transparente se ve el fondo también.
+-- ============================================================================
+local ThemeBackgroundImages = {
+    ["Obsidian"] = "rbxassetid://114873626468315",
+    ["Void Premium"] = "rbxassetid://",
+    ["Midnight Emerald"] = "rbxassetid://",
+    ["Classic Dark"] = "rbxassetid://114873626468315",
+    ["Sakura Blossom"] = "rbxassetid://",
+    ["Blood"] = "rbxassetid://"
+}
 
-local BordeGradient = create("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CurrentTheme.BORDER),
-        ColorSequenceKeypoint.new(0.5, CurrentTheme.GLOW or CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 14))
-    }), Rotation = 45
-}, MainStroke)
-
--- 🌀 Rotacion del gradiente del borde: solo gasta GPU si el menu esta abierto
--- Y visible. Al cerrarlo, el RenderStepped simplemente hace early-return, sin
--- tocar propiedades ni disparar re-layouts.
-local menuFocused = true
--- Throttle a ~30Hz en Heartbeat: mantiene la animacion suave del borde
--- pero reduce a la mitad los writes a UIGradient.Rotation (menos trabajo
--- de layout/GPU en moviles, menos calor y menos caidas de FPS).
-local _gradAccum = 0
-local gradientRotationConn = RunService.Heartbeat:Connect(function(dt)
-    if not (BordeGradient and MainFrame.Visible and menuFocused) then return end
-    -- Si el usuario apaga las animaciones (gama baja), ni escribimos la rotacion.
-    if Config.MenuAnimEnabled == false then return end
-    _gradAccum = _gradAccum + dt
-    if _gradAccum < 1/30 then return end
-    BordeGradient.Rotation = (BordeGradient.Rotation + (15 * _gradAccum)) % 360
-    _gradAccum = 0
+-- 📥 Descarga + caché local para fondos por URL (alternativa a rbxassetid).
+-- Usa exactamente los mismos globals "isfolder/makefolder/isfile/writefile"
+-- que ya usa el resto del archivo para el config, así que si tu executor
+-- soporta guardar el config también debería soportar esto.
+local BackgroundCacheFolder = CONFIG_FOLDER .. "/BackgroundCache"
+pcall(function()
+    if isfolder and makefolder and not isfolder(BackgroundCacheFolder) then
+        makefolder(BackgroundCacheFolder)
+    end
 end)
-table.insert(Connections, gradientRotationConn)
+
+-- true/false/nil (nil = aún no se supo). Evita spamear intentos si el
+-- executor no soporta esto: se prueba una vez y se recuerda el resultado.
+local customAssetSupported = nil
+local resolvedImageCache = {} -- url -> id final resuelto ("" si falló)
+
+local function resolveImageSource(source)
+    if not source or source == "" then return "" end
+    -- rbxassetid://, rbxasset:// o un id plano: se usa tal cual, sin descargar nada.
+    if not string.match(source, "^https?://") then return source end
+
+    if resolvedImageCache[source] ~= nil then return resolvedImageCache[source] end
+    if customAssetSupported == false then return "" end
+
+    local assetFn = (typeof(getcustomasset) == "function" and getcustomasset)
+        or (typeof(getsynasset) == "function" and getsynasset)
+    if not (writefile and isfile and assetFn) then
+        customAssetSupported = false
+        return ""
+    end
+
+    local ok, result = pcall(function()
+        local ext = string.match(source, "%.(%a+)%??[^./]*$") or "png"
+        local safeName = "bg_" .. string.gsub(HttpService:GenerateGUID(false), "[{}%-]", "") .. "." .. ext
+        local filePath = BackgroundCacheFolder .. "/" .. safeName
+
+        local bytes
+        if syn and syn.request then
+            local res = syn.request({Url = source, Method = "GET"})
+            bytes = res and res.Body
+        elseif http_request then
+            local res = http_request({Url = source, Method = "GET"})
+            bytes = res and res.Body
+        elseif request then
+            local res = request({Url = source, Method = "GET"})
+            bytes = res and res.Body
+        elseif game.HttpGetAsync then
+            bytes = game:HttpGetAsync(source)
+        end
+        if not bytes or bytes == "" then return nil end
+
+        writefile(filePath, bytes)
+        return assetFn(filePath)
+    end)
+
+    customAssetSupported = ok and result and true or customAssetSupported
+    resolvedImageCache[source] = (ok and result) or ""
+    return resolvedImageCache[source]
+end
+
+local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, ClipsDescendants = true, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
+-- 🩹 Pedido: quitar los bordes de la ventana principal (el borde base + el
+-- "glow" externo casi invisible que la rodeaba). Se dejan los objetos creados
+-- pero DESHABILITADOS (Enabled = false) en vez de borrarlos, porque SetTheme()
+-- y otras funciones siguen escribiendo su .Color más abajo — así no hay que
+-- tocar esas líneas ni arriesgar un error si algo más los referencia luego.
+local MainStroke = create("UIStroke", {Thickness = 1.8, Color = CurrentTheme.BORDER, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Enabled = false}, MainFrame)
+create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainFrame)
+local OuterGlow = create("UIStroke", {Thickness = 4, Color = CurrentTheme.GLOW or CurrentTheme.ACCENT, Transparency = 0.82, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Enabled = false}, MainFrame)
+
+-- 🖼️ Fondo personalizado: se crea como el PRIMER hijo (antes de Topbar/
+-- Sidebar/Content), así queda automáticamente DETRÁS de todo lo demás sin
+-- tocar ZIndex de nada. ClipsDescendants + UICorner de MainFrame hacen que la
+-- imagen se recorte sola a la forma redondeada de la ventana.
+local MainBackgroundImage = create("ImageLabel", {
+    Name = "MainBackgroundImage",
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Image = "",
+    ScaleType = Enum.ScaleType.Crop,
+    Visible = false,
+    ZIndex = 0
+}, MainFrame)
+
+-- 🩹 Resuelve la imagen (posiblemente descargándola si es una URL) sin
+-- congelar el hilo principal: la descarga corre en task.spawn, y un "token"
+-- descarta el resultado si el usuario cambió de tema/opción mientras tanto.
+local backgroundResolveToken = 0
+local function updateBackgroundImage()
+    local theme = Config.SelectedTheme
+    local rawSource = ThemeBackgroundImages[theme] or ""
+    local shouldShow = (Config.BackgroundEnabled == true) and rawSource ~= ""
+
+    backgroundResolveToken = backgroundResolveToken + 1
+    local myToken = backgroundResolveToken
+
+    if not shouldShow then
+        MainBackgroundImage.Visible = false
+        return
+    end
+
+    task.spawn(function()
+        local resolved = resolveImageSource(rawSource)
+        if myToken ~= backgroundResolveToken then return end -- quedó obsoleto
+        if resolved == "" then
+            MainBackgroundImage.Visible = false
+            return
+        end
+        MainBackgroundImage.Image = resolved
+        MainBackgroundImage.ImageTransparency = 1 - (Config.UiOpacity or 0.75)
+        MainBackgroundImage.Visible = (Config.BackgroundEnabled == true) and (ThemeBackgroundImages[Config.SelectedTheme] == rawSource)
+    end)
+end
+updateBackgroundImage()
+
+-- ⚡ Optimización + pedido: el degradado giratorio del borde ya no se crea ni
+-- se anima (antes escribía BordeGradient.Rotation hasta ~30 veces/seg en
+-- Heartbeat mientras el menú estaba abierto, incluso siendo un borde apenas
+-- visible). BordeGradient se deja como tabla vacía "apagada" para que el resto
+-- del archivo (SetTheme, etc.) pueda seguir "actualizándola" sin romperse.
+local BordeGradient = { Color = nil }
+local menuFocused = true
 
 local function updateGuiSize()
     if MainFrame.Visible then
@@ -593,6 +738,9 @@ local function updateUiOpacity()
     end
     Topbar.BackgroundTransparency = math.clamp((1 - opacity) + 0.1, 0, 0.95)
     Sidebar.BackgroundTransparency = math.clamp((1 - opacity) + 0.05, 0, 0.95)
+    -- 🩹 El fondo personalizado ahora sigue la misma opacidad configurada
+    -- en "UI Opacity" en vez de quedarse siempre 100% sólido.
+    MainBackgroundImage.ImageTransparency = 1 - opacity
 end
 
 local function updateButtonSize()
@@ -1137,8 +1285,9 @@ function KillerHub:SetTheme(themeName)
     saveConfig()
     
     MainFrame.BackgroundColor3 = CurrentTheme.BG_MAIN
-    MainStroke.Color = CurrentTheme.BORDER
-    OuterGlow.Color = CurrentTheme.GLOW or CurrentTheme.ACCENT
+    -- MainStroke / OuterGlow están deshabilitados (ver creación más arriba),
+    -- así que ya no hace falta seguir pintándolos en cada cambio de tema.
+    updateBackgroundImage()
     Sidebar.BackgroundColor3 = CurrentTheme.BG_SIDEBAR
     SidebarLine.BackgroundColor3 = CurrentTheme.BORDER
     Title.TextColor3 = CurrentTheme.TEXT_WHITE
@@ -1159,11 +1308,8 @@ function KillerHub:SetTheme(themeName)
     FloatingStroke.Color = CurrentTheme.BORDER
     BtnIcon.ImageColor3 = menuVisible and CurrentTheme.ACCENT or CurrentTheme.TEXT_WHITE
     
-    BordeGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CurrentTheme.BORDER),
-        ColorSequenceKeypoint.new(0.5, CurrentTheme.GLOW or CurrentTheme.ACCENT),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 14))
-    })
+    -- BordeGradient ya no existe como UIGradient real (borde eliminado), así
+    -- que no hay nada que recolorear aquí.
 
     -- 🔄 Instant repaint: every instance tagged at creation time gets the new
     -- theme color, so nothing stays painted with the previous palette.
@@ -3031,6 +3177,17 @@ local function lightenColor(c, f)
     return Color3.new(c.R + (1 - c.R) * f, c.G + (1 - c.G) * f, c.B + (1 - c.B) * f)
 end
 
+-- 🩹 Oscurece un color hacia negro conservando el matiz. Se usa SOLO para el
+-- contorno (borde) de los botones flotantes: mismo color del tema, pero un
+-- tono oscuro/apagado en vez del acento brillante — el acento brillante se
+-- reserva para el texto "ON" y el flash de los botones de un solo click.
+local function darkenColor(c, f)
+    return Color3.new(c.R * (1 - f), c.G * (1 - f), c.B * (1 - f))
+end
+local function getShortcutBorderDark()
+    return darkenColor(getShortcutBorder(), 0.55)
+end
+
 -- Contenedor global de los botones flotantes; vive en su propio ScreenGui con
 -- DisplayOrder menor que el hub para que queden SIEMPRE debajo del menú y así
 -- no tapen opciones ni se puedan presionar accidentalmente al usar la UI.
@@ -3154,15 +3311,24 @@ local function refreshShortcutVisual(sc)
     local isOn = (sc.data.kind == "toggle" and sc.data.getState()) and true or false
     -- Thin themed outline (purple on Obsidian, red on Blood / Classic Dark).
     if sc.stroke then
-        sc.stroke.Color = getShortcutBorder()
+        sc.stroke.Color = getShortcutBorderDark()
         sc.stroke.Thickness = 1.4
-        sc.stroke.Transparency = isOn and 0.05 or 0.35
+        -- 🩹 Antes el borde ignoraba la opacidad configurada del botón y se
+        -- quedaba 100% intacto aunque el fondo se pusiera casi invisible. Ahora
+        -- escala junto con cfg.opacity: mientras más transparente el botón, más
+        -- transparente el borde también — pero nunca llega a 1 (invisible
+        -- total), se limita a 0.88 como piso siempre visible.
+        local baseTransp = isOn and 0.05 or 0.35
+        local opacityPenalty = (1 - (sc.cfg.opacity or 1)) * 0.55
+        sc.stroke.Transparency = math.min(baseTransp + opacityPenalty, 0.88)
         sc.stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     end
     if sc.label then
         sc.label.Text = buildLabel(sc)
-        -- OFF text used to be almost unreadable; lift it towards white.
-        sc.label.TextColor3 = isOn and CurrentTheme.TEXT_WHITE or lightenColor(CurrentTheme.TEXT_MUTED, 0.5)
+        -- 🩹 Antes el texto ON se ponía blanco simple; ahora toma el color del
+        -- tema (rojo en Blood, morado en Obsidian, etc.), igual que el resto de
+        -- los acentos "encendidos" de la librería.
+        sc.label.TextColor3 = isOn and getShortcutBorder() or lightenColor(CurrentTheme.TEXT_MUTED, 0.5)
         sc.label.Font = currentFontEnum()
         -- 🩹 TextScaled maneja el tamaño real; solo actualizamos el techo (Max)
         -- según el tamaño del botón para que no crezca de más al agrandarlo.
@@ -3195,15 +3361,21 @@ end
 -- toggle) y luego vuelve a su color base, sin necesidad de mantener estado.
 local function flashShortcutButton(sc)
     if not sc.frame or not sc.stroke then return end
-    local frame, stroke, accentBar = sc.frame, sc.stroke, sc.accentBar
+    local frame, stroke, accentBar, label = sc.frame, sc.stroke, sc.accentBar, sc.label
     local baseBg = frame.BackgroundColor3
     local baseStrokeTransp = stroke.Transparency
+    local baseTextColor = label and label.TextColor3
     local flashColor = getShortcutBorder()
 
     TweenService:Create(stroke, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
     TweenService:Create(frame, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = baseBg:Lerp(flashColor, 0.35)}):Play()
     if accentBar then
         TweenService:Create(accentBar, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    end
+    -- 🩹 El texto también se "ilumina" con el color del tema al presionar,
+    -- igual que pediste para el borde/fondo.
+    if label then
+        TweenService:Create(label, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = flashColor}):Play()
     end
 
     task.delay(0.16, function()
@@ -3212,6 +3384,9 @@ local function flashShortcutButton(sc)
         TweenService:Create(frame, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = baseBg}):Play()
         if accentBar then
             TweenService:Create(accentBar, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45}):Play()
+        end
+        if label and baseTextColor then
+            TweenService:Create(label, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = baseTextColor}):Play()
         end
     end)
 end
@@ -3247,8 +3422,9 @@ local function createFloating(sc)
         ZIndex = 11
     }, ShortcutLayer)
     applyShape(frame, cfg.shape)
-    -- Thin themed outline around every floating shortcut
-    local stroke = create("UIStroke", {Thickness = 1.4, Color = getShortcutBorder(), Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, frame)
+    -- Thin themed outline around every floating shortcut (tono oscuro del
+    -- tema, no el acento brillante — ver getShortcutBorderDark()).
+    local stroke = create("UIStroke", {Thickness = 1.4, Color = getShortcutBorderDark(), Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, frame)
     local accentBar = create("Frame", {AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.new(0.58, 0, 0, 3), Position = UDim2.new(0.5, 0, 1, -7), BackgroundColor3 = getShortcutBorder(), BorderSizePixel = 0}, frame)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, accentBar)
     local label = create("TextLabel", {
@@ -4078,6 +4254,13 @@ local SettingsTab = KillerHub:CreateTab("Settings", "Settings") -- engranaje 705
 
 SettingsTab:CreateSection("Personalization")
 SettingsTab:CreateDropdown("SelectedTheme", "UI theme:", {"Obsidian", "Void Premium", "Midnight Emerald", "Classic Dark", "Sakura Blossom", "Blood"}, function(selected) KillerHub:SetTheme(selected) end, "Obsidian")
+-- 🖼️ Fondo personalizado: enciende/apaga la imagen de fondo del tema actual
+-- (definida en ThemeBackgroundImages, más arriba). Si el tema no tiene imagen
+-- asignada todavía, este toggle simplemente no hace nada visible.
+SettingsTab:CreateToggle("BackgroundEnabled", "Activate Background", function(v)
+    Config.BackgroundEnabled = v
+    updateBackgroundImage()
+end, false)
 
 local TopFonts = {
     "Gotham", "GothamMedium", "GothamBold", "GothamBlack", "GothamSemibold",
