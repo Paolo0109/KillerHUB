@@ -457,11 +457,11 @@ end
 -- ============================================================================
 local ThemeBackgroundImages = {
     ["Obsidian"] = "rbxassetid://114873626468315",
-    ["Void Premium"] = "rbxassetid://",
-    ["Midnight Emerald"] = "rbxassetid://",
-    ["Classic Dark"] = "rbxassetid://114873626468315",
-    ["Sakura Blossom"] = "rbxassetid://",
-    ["Blood"] = "rbxassetid://"
+    ["Void Premium"] = "rbxassetid://90496823708396",
+    ["Midnight Emerald"] = "rbxassetid://138390395135247",
+    ["Classic Dark"] = "rbxassetid://74234983877905",
+    ["Sakura Blossom"] = "rbxassetid://101109546604364",
+    ["Blood"] = "rbxassetid://130189660537327"
 }
 
 -- 📥 Descarga + caché local para fondos por URL (alternativa a rbxassetid).
