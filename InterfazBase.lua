@@ -31,6 +31,14 @@
 --     localmente y se carga sin subir nada al catálogo de Roblox (así no te
 --     la puede eliminar la moderación). Si el tema no tiene imagen, o el
 --     executor no soporta esto, simplemente no muestra nada — no rompe nada.
+-- Changelog V5.3.4:
+--   • Fondo: ahora se recorta con las esquinas redondeadas de la ventana
+--     (antes se veía cuadrado en las 4 orillas) + velo sutil para legibilidad.
+--   • Fondo por URL: descarga mucho más compatible (Delta, Codex, Fluxus,
+--     Arceus, Krnl, Wave, Xeno...), caché permanente por hash de URL,
+--     3 reintentos y aviso claro si el executor no lo soporta.
+--   • Dropdown / MultiDropdown: el outline de la PRIMERA y la ÚLTIMA opción
+--     ya no se corta (padding vertical dentro de la lista).
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -465,63 +473,149 @@ local ThemeBackgroundImages = {
 }
 
 -- 📥 Descarga + caché local para fondos por URL (alternativa a rbxassetid).
--- Usa exactamente los mismos globals "isfolder/makefolder/isfile/writefile"
--- que ya usa el resto del archivo para el config, así que si tu executor
--- soporta guardar el config también debería soportar esto.
+-- V5.3.4: reescrito para funcionar en MUCHOS más executors (Delta, Codex,
+-- Arceus, Fluxus, Krnl, Wave, Xeno, Synapse...):
+--   • Nombre de archivo determinista (hash de la URL) → la imagen se descarga
+--     UNA vez en la vida, no una por sesión, y se reutiliza al reabrir el hub.
+--   • Prueba TODAS las funciones de red conocidas (request, http_request,
+--     syn.request, http.request, fluxus.request, game:HttpGet) y reintenta
+--     hasta 3 veces con pequeñas esperas.
+--   • Prueba TODAS las funciones de asset local conocidas (getcustomasset,
+--     getsynasset, getcustomassetasync, ...).
+--   • Verifica que el archivo realmente se escribió antes de pedir el asset.
 local BackgroundCacheFolder = CONFIG_FOLDER .. "/BackgroundCache"
-pcall(function()
-    if isfolder and makefolder and not isfolder(BackgroundCacheFolder) then
-        makefolder(BackgroundCacheFolder)
-    end
-end)
+local function ensureFolder(path)
+    pcall(function()
+        if isfolder and makefolder and not isfolder(path) then makefolder(path) end
+    end)
+end
+ensureFolder(CONFIG_FOLDER)
+ensureFolder(BackgroundCacheFolder)
 
--- true/false/nil (nil = aún no se supo). Evita spamear intentos si el
--- executor no soporta esto: se prueba una vez y se recuerda el resultado.
+-- Notificador diferido: KillerHub aún no existe en este punto del archivo.
+local BG_NOTIFY = nil
 local customAssetSupported = nil
-local resolvedImageCache = {} -- url -> id final resuelto ("" si falló)
+local resolvedImageCache = {}   -- source -> id final ("" si falló)
+local warnedNoCustomAsset = false
+
+local function getAssetFn()
+    local names = {"getcustomasset", "getsynasset", "getcustomassetasync"}
+    for _, n in ipairs(names) do
+        local fn = rawget(getfenv(), n)
+        if typeof(fn) == "function" then return fn end
+    end
+    if syn and typeof(syn.getcustomasset) == "function" then return syn.getcustomasset end
+    return nil
+end
+
+local function httpGetBinary(url)
+    -- request-style executors (devuelven .Body ya en binario)
+    local candidates = {}
+    if syn and typeof(syn.request) == "function" then table.insert(candidates, syn.request) end
+    local envReq = rawget(getfenv(), "request") or rawget(getfenv(), "http_request")
+    if typeof(envReq) == "function" then table.insert(candidates, envReq) end
+    if http and typeof(http.request) == "function" then table.insert(candidates, http.request) end
+    if fluxus and typeof(fluxus.request) == "function" then table.insert(candidates, fluxus.request) end
+
+    for _, fn in ipairs(candidates) do
+        local ok, res = pcall(fn, {Url = url, Method = "GET"})
+        if ok and type(res) == "table" then
+            local code = res.StatusCode or res.Status or 200
+            if res.Body and res.Body ~= "" and (code == 200 or code == 0) then
+                return res.Body
+            end
+        end
+    end
+    -- último recurso
+    local ok, body = pcall(function() return game:HttpGet(url, true) end)
+    if ok and body and body ~= "" then return body end
+    return nil
+end
+
+local function urlKey(url)
+    local n = 5381
+    for i = 1, #url do
+        n = (n * 33 + string.byte(url, i)) % 4294967291
+    end
+    local ext = string.match(url, "%.(%a%a%a?%a?)%f[%W]") or "png"
+    ext = string.lower(ext)
+    if ext ~= "png" and ext ~= "jpg" and ext ~= "jpeg" and ext ~= "webp" then ext = "png" end
+    return string.format("bg_%010d.%s", n, ext)
+end
 
 local function resolveImageSource(source)
     if not source or source == "" then return "" end
-    -- rbxassetid://, rbxasset:// o un id plano: se usa tal cual, sin descargar nada.
+    -- Un id plano (solo números) también vale.
+    if string.match(source, "^%d+$") then return "rbxassetid://" .. source end
     if not string.match(source, "^https?://") then return source end
 
     if resolvedImageCache[source] ~= nil then return resolvedImageCache[source] end
-    if customAssetSupported == false then return "" end
 
-    local assetFn = (typeof(getcustomasset) == "function" and getcustomasset)
-        or (typeof(getsynasset) == "function" and getsynasset)
+    local assetFn = getAssetFn()
     if not (writefile and isfile and assetFn) then
         customAssetSupported = false
+        if not warnedNoCustomAsset then
+            warnedNoCustomAsset = true
+            task.delay(3, function()
+                pcall(function()
+                    if BG_NOTIFY then BG_NOTIFY("Fondo por URL no soportado",
+                        "Tu executor no permite guardar imágenes locales. Usa un rbxassetid:// para este tema.",
+                        6) end
+                end)
+            end)
+        end
+        resolvedImageCache[source] = ""
         return ""
     end
 
-    local ok, result = pcall(function()
-        local ext = string.match(source, "%.(%a+)%??[^./]*$") or "png"
-        local safeName = "bg_" .. string.gsub(HttpService:GenerateGUID(false), "[{}%-]", "") .. "." .. ext
-        local filePath = BackgroundCacheFolder .. "/" .. safeName
+    local filePath = BackgroundCacheFolder .. "/" .. urlKey(source)
 
-        local bytes
-        if syn and syn.request then
-            local res = syn.request({Url = source, Method = "GET"})
-            bytes = res and res.Body
-        elseif http_request then
-            local res = http_request({Url = source, Method = "GET"})
-            bytes = res and res.Body
-        elseif request then
-            local res = request({Url = source, Method = "GET"})
-            bytes = res and res.Body
-        elseif game.HttpGetAsync then
-            bytes = game:HttpGetAsync(source)
-        end
-        if not bytes or bytes == "" then return nil end
-
-        writefile(filePath, bytes)
-        return assetFn(filePath)
+    -- ¿Ya estaba cacheada de una sesión anterior?
+    local cachedOk, cachedId = pcall(function()
+        if isfile(filePath) then return assetFn(filePath) end
+        return nil
     end)
+    if cachedOk and cachedId then
+        customAssetSupported = true
+        resolvedImageCache[source] = cachedId
+        return cachedId
+    end
 
-    customAssetSupported = ok and result and true or customAssetSupported
-    resolvedImageCache[source] = (ok and result) or ""
-    return resolvedImageCache[source]
+    local finalId = ""
+    for attempt = 1, 3 do
+        local bytes = httpGetBinary(source)
+        if bytes and #bytes > 200 then
+            ensureFolder(BackgroundCacheFolder)
+            local wrote = pcall(writefile, filePath, bytes)
+            if wrote then
+                local exists = false
+                for _ = 1, 10 do
+                    local ok, r = pcall(isfile, filePath)
+                    if ok and r then exists = true break end
+                    task.wait(0.05)
+                end
+                if exists then
+                    local ok, id = pcall(assetFn, filePath)
+                    if ok and id then finalId = id break end
+                end
+            end
+        end
+        task.wait(0.35 * attempt)
+    end
+
+    customAssetSupported = (finalId ~= "")
+    resolvedImageCache[source] = finalId
+    if finalId == "" and not warnedNoCustomAsset then
+        warnedNoCustomAsset = true
+        task.delay(3, function()
+            pcall(function()
+                if BG_NOTIFY then BG_NOTIFY("No se pudo cargar el fondo",
+                    "La imagen por URL no se pudo descargar. Revisa el link (debe ser directo a .png/.jpg) o usa rbxassetid://.",
+                    6) end
+            end)
+        end)
+    end
+    return finalId
 end
 
 local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = CurrentTheme.BG_MAIN, BorderSizePixel = 0, ClipsDescendants = true, Active = true, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, Config.MainFrameX or 0, 0.5, Config.MainFrameY or 0)}, ScreenGui)
@@ -547,6 +641,33 @@ local MainBackgroundImage = create("ImageLabel", {
     Visible = false,
     ZIndex = 0
 }, MainFrame)
+-- 🩹 V5.3.4: ClipsDescendants recorta en RECTÁNGULO, no sigue el UICorner de la
+-- ventana; por eso el fondo se veía cuadrado en las 4 esquinas. Dándole su
+-- propio UICorner (mismo radio que MainFrame) la imagen queda perfectamente
+-- recortada a la forma redondeada de la UI.
+create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainBackgroundImage)
+pcall(function() MainBackgroundImage.ResampleMode = Enum.ResamplerMode.Default end)
+
+-- 🌑 Velo sutil sobre la imagen: mantiene el texto legible y hace que el fondo
+-- se vea "integrado" al tema en vez de una foto pegada encima.
+local MainBackgroundScrim = create("Frame", {
+    Name = "MainBackgroundScrim",
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = CurrentTheme.BG_MAIN,
+    BackgroundTransparency = 0.45,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 0
+}, MainFrame)
+create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainBackgroundScrim)
+create("UIGradient", {
+    Rotation = 90,
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.15),
+        NumberSequenceKeypoint.new(0.5, 0.45),
+        NumberSequenceKeypoint.new(1, 0.1)
+    })
+}, MainBackgroundScrim)
 
 -- 🩹 Resuelve la imagen (posiblemente descargándola si es una URL) sin
 -- congelar el hilo principal: la descarga corre en task.spawn, y un "token"
@@ -562,6 +683,7 @@ local function updateBackgroundImage()
 
     if not shouldShow then
         MainBackgroundImage.Visible = false
+        MainBackgroundScrim.Visible = false
         return
     end
 
@@ -570,11 +692,16 @@ local function updateBackgroundImage()
         if myToken ~= backgroundResolveToken then return end -- quedó obsoleto
         if resolved == "" then
             MainBackgroundImage.Visible = false
+            MainBackgroundScrim.Visible = false
             return
         end
         MainBackgroundImage.Image = resolved
         MainBackgroundImage.ImageTransparency = 1 - (Config.UiOpacity or 0.75)
-        MainBackgroundImage.Visible = (Config.BackgroundEnabled == true) and (ThemeBackgroundImages[Config.SelectedTheme] == rawSource)
+        local show = (Config.BackgroundEnabled == true) and (ThemeBackgroundImages[Config.SelectedTheme] == rawSource)
+        MainBackgroundImage.Visible = show
+        MainBackgroundScrim.BackgroundColor3 = CurrentTheme.BG_MAIN
+        MainBackgroundScrim.BackgroundTransparency = math.clamp(0.45 + (1 - (Config.UiOpacity or 0.75)) * 0.5, 0, 0.95)
+        MainBackgroundScrim.Visible = show
     end)
 end
 updateBackgroundImage()
@@ -741,6 +868,9 @@ local function updateUiOpacity()
     -- 🩹 El fondo personalizado ahora sigue la misma opacidad configurada
     -- en "UI Opacity" en vez de quedarse siempre 100% sólido.
     MainBackgroundImage.ImageTransparency = 1 - opacity
+    if MainBackgroundScrim then
+        MainBackgroundScrim.BackgroundTransparency = math.clamp(0.45 + (1 - opacity) * 0.5, 0, 0.95)
+    end
 end
 
 local function updateButtonSize()
@@ -1277,6 +1407,9 @@ function KillerHub:SetDefaults(tbl)
         applyDefault(flag, value, value)
     end
 end
+
+-- Conecta el notificador diferido del cargador de fondos (KillerHub ya existe).
+BG_NOTIFY = function(t, x, d) pcall(function() KillerHub:Notify(t, x, d) end) end
 
 function KillerHub:SetTheme(themeName)
     if not Themes[themeName] then return end
@@ -2274,19 +2407,22 @@ function TabMethods:CreateDropdown(flagName, text, options, callback, default)
     -- 🩹 Fix premium: da respiración extra a la izq/der para que el UIStroke del
     -- item seleccionado (que se dibuja centrado sobre el borde) nunca choque con
     -- el ClipsDescendants del DDFrame y se vea "cortado" del lado izquierdo.
-    create("UIPadding", {PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 5)}, OptsScroll)
+    -- 🩹 V5.3.4: también arriba/abajo, si no el UIStroke de la PRIMERA y la
+    -- ÚLTIMA opción se recorta contra el borde del ScrollingFrame.
+    create("UIPadding", {PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 5), PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3)}, OptsScroll)
+    local LIST_PAD_V = 6 -- 3 arriba + 3 abajo
 
     local open = false
     
     local function setDropdownOpen(shouldOpen)
         open = shouldOpen
-        local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
+        local targetH = open and math.min(layout.AbsoluteContentSize.Y + LIST_PAD_V, 126) or 0
         if SearchBox then SearchBox.Visible = open if not open then SearchBox.Text = "" end end
         
         TweenService:Create(DDFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 36 + targetH + searchHeight + (open and 6 or 0))}):Play()
         TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
         TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
-        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + LIST_PAD_V)
     end
 
     connect(Trigger.MouseButton1Click, function()
@@ -2319,7 +2455,7 @@ function TabMethods:CreateDropdown(flagName, text, options, callback, default)
             end)
             addInteractiveFeedback(OptBtn)
         end
-        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + LIST_PAD_V)
     end
 
     if SearchBox then
@@ -2330,10 +2466,10 @@ function TabMethods:CreateDropdown(flagName, text, options, callback, default)
             end
             task.defer(function()
                 if not open then return end
-                local targetH = math.min(layout.AbsoluteContentSize.Y, 120)
+                local targetH = math.min(layout.AbsoluteContentSize.Y + LIST_PAD_V, 126)
                 DDFrame.Size = UDim2.new(1, 0, 0, 36 + targetH + searchHeight + 6)
                 OptsScroll.Size = UDim2.new(1, -16, 0, targetH)
-                OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+                OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + LIST_PAD_V)
             end)
         end)
     end
@@ -2431,7 +2567,8 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback, defau
     local layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, OptsScroll)
     -- 🩹 Mismo fix que en CreateDropdown: evita que el UIStroke de la opción
     -- marcada se vea cortado del lado izquierdo contra el ClipsDescendants.
-    create("UIPadding", {PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 5)}, OptsScroll)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 5), PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3)}, OptsScroll)
+    local LIST_PAD_V = 6
 
     local function updateText()
         local selected = {}
@@ -2442,11 +2579,11 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback, defau
     local open = false
     connect(Trigger.MouseButton1Click, function()
         open = not open playUISound()
-        local targetH = open and math.min(layout.AbsoluteContentSize.Y, 120) or 0
+        local targetH = open and math.min(layout.AbsoluteContentSize.Y + LIST_PAD_V, 126) or 0
         TweenService:Create(MFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 36 + targetH + (open and 6 or 0))}):Play()
         TweenService:Create(OptsScroll, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, -16, 0, targetH)}):Play()
         TweenService:Create(Arrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = open and 180 or 0}):Play()
-        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + LIST_PAD_V)
     end)
 
     local cacheButtons = {}
@@ -2478,7 +2615,7 @@ function TabMethods:CreateMultiDropdown(flagName, text, options, callback, defau
             end)
             addInteractiveFeedback(OptBtn)
         end
-        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+        OptsScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + LIST_PAD_V)
     end
 
     table.insert(KillerHub.TargetThemeElements, function()
