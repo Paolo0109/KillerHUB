@@ -1,5 +1,14 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.4.9)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.5.0)
+-- Changelog V5.5.0:
+--   • Fix: "Reset style" ya mueve visualmente los sliders y toggles de la
+--     página Modify (antes solo cambiaba el valor interno, así que parecía que
+--     no hacía nada). Ahora usa KillerHub.Elements[flag]:Set(...) y repinta una
+--     sola vez al final en vez de una por valor.
+--   • Perf: los bordes internos de widgets que están en pestañas/páginas
+--     OCULTAS ya no se repintan cada frame. El costo por frame depende solo de
+--     la página abierta, no del total de widgets del hub (menos tirones/FPS
+--     inestables en hubs grandes).
 -- Changelog V5.4.9:
 --   • Fix: los bordes animados desaparecían en las últimas pestañas creadas
 --     (Troll, Modify, etc.) porque el registro de bordes internos se topaba con
@@ -1158,6 +1167,33 @@ end
 local BORDER_ANIM_SPEED = 185 -- valor base; Config.AnimSpeed manda (pestaña Modify)
 local _borderAngle = 0
 local _innerAccum = 0
+-- ⚡ V5.5.0 — CULLING DE BORDES INTERNOS
+-- `cache` guarda, por gradiente, la lista de contenedores (página, host de
+-- páginas, frame de la pestaña) de los que depende su visibilidad. Se resuelve
+-- UNA sola vez por widget (tabla débil: si el widget se destruye, la entrada se
+-- recolecta sola). Cada tick solo se leen 1-3 booleanos en vez de escribir la
+-- rotación de widgets que están en pestañas ocultas.
+local _innerCull = {
+    cache = setmetatable({}, {__mode = "k"}),
+    chain = function(g)
+        local list, node, depth = {}, g.Parent, 0
+        while node and depth < 10 do
+            if node == ContentContainer or node == MainFrame or not node:IsA("GuiObject") then break end
+            list[#list + 1] = node
+            node = node.Parent
+            depth = depth + 1
+        end
+        return list
+    end,
+    visible = function(list)
+        for i = 1, #list do
+            local f = list[i]
+            if not f.Parent or not f.Visible then return false end
+        end
+        return true
+    end,
+}
+
 local ShortcutBorderAnims = {}  -- id -> UIGradient del borde del shortcut
 local ShortcutLabelPulses = {}  -- id -> {label = TextLabel, base = Color3, pulse = Color3}
 local ShortcutLabelWaves = {}   -- id -> UIGradient del texto (ola hacia la derecha)
@@ -1181,6 +1217,12 @@ local function _borderAnimStep(dt)
 
     -- Bordes internos finos: se refrescan a ~30 Hz (y solo con el menú a la
     -- vista) para que el coste no crezca aunque haya decenas de widgets.
+    -- V5.5.0 ⚡: además solo se escribe la rotación de los bordes que el jugador
+    -- REALMENTE está viendo. Los widgets de pestañas ocultas se saltan (una
+    -- comparación booleana en vez de una escritura de propiedad), así el costo
+    -- por frame ya no crece con el total de widgets del hub, solo con los de la
+    -- pestaña abierta. La página contenedora se resuelve una única vez y queda
+    -- cacheada en _innerCull.
     if menuLive and Config.InnerBorders ~= false then
         _innerAccum = _innerAccum + dt
         if _innerAccum >= 0.033 then
@@ -1188,13 +1230,22 @@ local function _borderAnimStep(dt)
             for i = #InnerBorderGradients, 1, -1 do
                 local g = InnerBorderGradients[i]
                 if g.Parent then
-                    g.Rotation = _borderAngle
+                    local chain = _innerCull.cache[g]
+                    if not chain then
+                        chain = _innerCull.chain(g)
+                        _innerCull.cache[g] = chain
+                    end
+                    if _innerCull.visible(chain) then
+                        g.Rotation = _borderAngle
+                    end
                 else
+                    _innerCull.cache[g] = nil
                     table.remove(InnerBorderGradients, i)
                 end
             end
         end
     end
+
 
     -- Shortcuts flotantes: ahora respetan su propio toggle (Modify ▸ Shortcuts).
     if Config.ShortcutBorder ~= false and next(ShortcutBorderAnims) ~= nil then
@@ -5013,7 +5064,11 @@ local SP = {
     Modify  = SettingsTab:CreatePage("Modify"),
     Extras  = SettingsTab:CreatePage("Extras"),
 }
-SP.restyle = function() if KillerHub.RefreshBorderStyle then KillerHub:RefreshBorderStyle() end end
+SP.bulk = false
+SP.restyle = function()
+    if SP.bulk then return end -- durante "Reset style" se repinta una sola vez al final
+    if KillerHub.RefreshBorderStyle then KillerHub:RefreshBorderStyle() end
+end
 
 -- ─────────────────────────────── GENERAL ───────────────────────────────
 SP.General:CreateSection("Look")
@@ -5107,10 +5162,32 @@ SP.Modify:CreateHint("Animated border on the floating shortcut boxes.")
 SP.Modify:CreateSection("Text wave")
 SP.Modify:CreateSlider("WaveSpeed", "Wave speed", 0.1, 3, function(v) Config.WaveSpeed = v end, 0.85)
 SP.Modify:CreateHint("Speed of the light sweeping the ON text.")
+-- ♻️ V5.5.0: antes esto solo tocaba Config, así que el cambio SÍ ocurría pero
+-- los sliders y toggles de la propia página se quedaban dibujados donde el
+-- usuario los había dejado (parecía que el botón no hacía nada). Ahora se
+-- aplica a través de KillerHub.Elements[flag]:Set(...), que mueve la bolita del
+-- slider, el número, el switch y guarda el JSON — un solo repintado al final.
+SP.applyEl = function(flag, value)
+    local el = KillerHub.Elements and KillerHub.Elements[flag]
+    if el and el.Set then
+        local ok = pcall(el.Set, el, value)
+        if ok then return end
+    end
+    Config[flag] = value
+end
 SP.Modify:CreateButton("Reset style", function()
-    Config.AnimSpeed, Config.AnimGlow, Config.AnimDepth, Config.AnimWidth = 185, 0.30, 0.58, 3
-    Config.WaveSpeed, Config.FloatWidth = 0.85, 2.4
-    Config.WindowBorder, Config.InnerBorders, Config.FloatBorder, Config.ShortcutBorder = true, true, true, true
+    SP.bulk = true -- evita N repintados mientras se reponen los 9 valores
+    SP.applyEl("AnimSpeed", 185)
+    SP.applyEl("AnimGlow", 0.30)
+    SP.applyEl("AnimDepth", 0.58)
+    SP.applyEl("AnimWidth", 3)
+    SP.applyEl("WaveSpeed", 0.85)
+    SP.applyEl("FloatWidth", 2.4)
+    SP.applyEl("WindowBorder", true)
+    SP.applyEl("InnerBorders", true)
+    SP.applyEl("FloatBorder", true)
+    SP.applyEl("ShortcutBorder", true)
+    SP.bulk = false
     SP.restyle()
     KillerHub:Notify("Style reset", "Border animation back to default.", 3)
 end)
