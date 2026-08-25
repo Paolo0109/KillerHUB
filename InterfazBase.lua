@@ -1,5 +1,14 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.4.8)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.4.9)
+-- Changelog V5.4.9:
+--   • Fix: los bordes animados desaparecían en las últimas pestañas creadas
+--     (Troll, Modify, etc.) porque el registro de bordes internos se topaba con
+--     el límite de 160. Ahora el límite es 700.
+--   • Nuevo toggle real "Shortcut buttons" (Settings ▸ Modify ▸ Where): apaga /
+--     enciende la animación del borde de los botones flotantes de shortcuts.
+--     Antes "Float button" solo afectaba al icono de abrir/cerrar.
+--   • Nuevo TabMethods:CreateHint(text) — línea corta y apagada bajo cada
+--     opción; todo Settings ahora explica en inglés simple para qué sirve.
 -- Changelog V5.4.6:
 --   • El realce del borde animado (y de la ola de texto ON) ya no se va a un
 --     tono claro/lechoso: se conserva la saturación del tema y el brillo solo
@@ -286,8 +295,9 @@ local DefaultConfig = {
     WaveSpeed = 0.85,       -- velocidad de la ola del texto ON
     WindowBorder = true,    -- animación del borde de la ventana
     InnerBorders = true,    -- animación de los bordes internos (widgets)
-    FloatBorder = true,     -- animación del borde del botón flotante
-    FloatWidth = 2.4        -- grosor de ese borde
+    FloatBorder = true,     -- animación del borde del botón flotante (abrir/cerrar)
+    FloatWidth = 2.4,       -- grosor de ese borde
+    ShortcutBorder = true   -- animación del borde de los shortcuts flotantes
 }
 
 local Config = {}
@@ -417,8 +427,9 @@ end
 -- viviendo en UNA sola conexión Heartbeat (una escritura de Rotation por
 -- gradiente, sin Instances ni tweens por frame) y se refresca a ~30 Hz.
 local InnerBorderGradients = {}
-local INNER_BORDER_LIMIT = 160
+local INNER_BORDER_LIMIT = 700 -- V5.4.9: antes 160 -> las últimas pestañas (Troll, Modify...) se quedaban sin borde animado
 local _registerInnerStroke = nil -- se asigna cuando _borderSeq ya existe
+local _shortcutBorderColor = nil -- forward: se asigna junto a getShortcutBorder()
 
 local function create(instanceType, properties, parent)
     local obj = Instance.new(instanceType)
@@ -1185,7 +1196,8 @@ local function _borderAnimStep(dt)
         end
     end
 
-    if next(ShortcutBorderAnims) ~= nil then
+    -- Shortcuts flotantes: ahora respetan su propio toggle (Modify ▸ Shortcuts).
+    if Config.ShortcutBorder ~= false and next(ShortcutBorderAnims) ~= nil then
         for _, gradient in pairs(ShortcutBorderAnims) do
             gradient.Rotation = _borderAngle
         end
@@ -1379,8 +1391,19 @@ function KillerHub:RefreshBorderStyle()
             table.remove(InnerBorderGradients, i)
         end
     end
+    -- V5.4.9: el toggle de shortcuts ahora sí apaga/enciende su borde animado
+    -- (antes solo existía el del botón flotante de abrir/cerrar y no hacía nada).
+    local scOn = Config.ShortcutBorder ~= false
     for _, g in pairs(ShortcutBorderAnims) do
-        if g.Parent then g.Color = seq end
+        if g.Parent then
+            g.Color = _borderSeq(_shortcutBorderColor and _shortcutBorderColor() or (CurrentTheme.GLOW or CurrentTheme.ACCENT))
+            g.Enabled = scOn
+            local st = g.Parent
+            if st and st:IsA("UIStroke") then
+                st.Enabled = scOn
+                if not scOn then st.Color = _shortcutBorderColor and _shortcutBorderColor() or CurrentTheme.BORDER end
+            end
+        end
     end
     local wave = _waveSeq(CurrentTheme.GLOW or CurrentTheme.ACCENT)
     for _, g in pairs(ShortcutLabelWaves) do
@@ -2357,6 +2380,29 @@ function TabMethods:CreateSection(text)
     }
     KillerHub.Elements[text] = secObj
     return secObj
+end
+
+-- 📝 V5.4.9 · CreateHint(text): una línea corta y apagada que explica para qué
+-- sirve la opción de arriba. Es solo un TextLabel (sin fondo ni stroke), así que
+-- no cuesta nada de rendimiento ni ensucia el diseño.
+function TabMethods:CreateHint(text)
+    if not SafeAssert("CreateHint", {["text"] = {value = text, types = {"string"}}}) then return end
+    local Hint = create("TextLabel", {
+        Size = UDim2.new(1, -4, 0, 15),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = CurrentTheme.TEXT_MUTED,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 10,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top
+    }, self.Frame)
+    table.insert(KillerHub.TargetThemeElements, function()
+        Hint.TextColor3 = CurrentTheme.TEXT_MUTED
+    end)
+    self:RegisterElement(Hint, Hint, self.Frame.Name)
+    return {SetText = function(_, t) Hint.Text = t end}
 end
 
 function TabMethods:CreateToggle(flagName, text, callback, default)
@@ -3841,6 +3887,8 @@ end
 local function darkenColor(c, f)
     return Color3.new(c.R * (1 - f), c.G * (1 - f), c.B * (1 - f))
 end
+_shortcutBorderColor = getShortcutBorder
+
 local function getShortcutBorderDark()
     return darkenColor(getShortcutBorder(), 0.55)
 end
@@ -4973,11 +5021,13 @@ SP.General:CreateDropdown("SelectedTheme", "Theme", {"Obsidian", "Void Premium",
     KillerHub:SetTheme(selected)
     if KillerHub.RefreshBorderStyle then KillerHub:RefreshBorderStyle() end
 end, "Obsidian")
+SP.General:CreateHint("Color scheme of the whole hub.")
 -- 🖼️ Fondo del tema actual (definido en ThemeBackgroundImages).
 SP.General:CreateToggle("BackgroundEnabled", "Background", function(v)
     Config.BackgroundEnabled = v
     updateBackgroundImage()
 end, false)
+SP.General:CreateHint("Shows the theme wallpaper behind the menu.")
 
 SP.fonts = {
     "Gotham", "GothamMedium", "GothamBold", "GothamBlack", "GothamSemibold",
@@ -4989,12 +5039,17 @@ SP.fonts = {
     "BuilderSans", "BuilderSansMedium", "BuilderSansBold"
 }
 SP.General:CreateDropdown("SelectedFont", "Font", SP.fonts, function(selected) KillerHub:SetFont(selected) end, "GothamMedium")
+SP.General:CreateHint("Typeface used by every text in the hub.")
 
 SP.General:CreateSection("Size")
 SP.General:CreateSlider("UiOpacity", "Opacity", 0.3, 1, function(v) updateUiOpacity() end, 0.75)
+SP.General:CreateHint("How solid the menu looks (low = see-through).")
 SP.General:CreateSlider("GuiWidth", "Width", 0, 1, function(v) updateGuiSize() end, 0.466)
+SP.General:CreateHint("Menu width on screen.")
 SP.General:CreateSlider("GuiHeight", "Height", 0, 1, function(v) updateGuiSize() end, 0.4)
+SP.General:CreateHint("Menu height on screen.")
 SP.General:CreateSlider("ToggleBtnSize", "Button size", 30, 80, function(v) updateButtonSize() end, 46)
+SP.General:CreateHint("Size of the floating icon that opens the hub.")
 
 -- ──────────────────────────────── MENU ─────────────────────────────────
 SP.Menu:CreateSection("Controls")
@@ -5003,15 +5058,25 @@ SP.Menu:CreateKeybind("ToggleKey", "Open key", Enum.KeyCode.RightControl, functi
     -- Config.ToggleKey (string, lo que realmente usa el listener de teclado).
     if typeof(key) == "EnumItem" then KillerHub.ToggleKey = key end
 end)
+SP.Menu:CreateHint("Keyboard key that shows/hides the menu (PC).")
 SP.Menu:CreateSlider("Volume", "Volume", 0, 1, function(v) Config.Volume = v end, 0.5)
+SP.Menu:CreateHint("Loudness of the UI click sounds.")
 
 SP.Menu:CreateSection("Behavior")
-SP.Menu:CreateToggle("MenuAnimEnabled", "Animations", function(v) Config.MenuAnimEnabled = v end, true)
+SP.Menu:CreateToggle("MenuAnimEnabled", "Animations", function(v)
+    Config.MenuAnimEnabled = v
+    -- V5.4.9: al apagarlo, los bordes quedan en un ángulo fijo en vez de
+    -- congelarse a medio giro con el gradiente en cualquier posición.
+    if KillerHub.RefreshBorderStyle then KillerHub:RefreshBorderStyle() end
+end, true)
+SP.Menu:CreateHint("Open/close motion and moving border light.")
 SP.Menu:CreateToggle("DisableNotifications", "Mute alerts", function(v)
     Config.DisableNotifications = v
     if v then KillerHub:ClearNotifications() end
 end, false)
+SP.Menu:CreateHint("Hides the pop-up messages in the corner.")
 SP.Menu:CreateToggle("AutoArrangeShortcuts", "Auto-sort shortcuts", function(v) Config.AutoArrangeShortcuts = v end, true)
+SP.Menu:CreateHint("Places new floating shortcuts in a tidy grid.")
 
 -- ─────────────────────────────── MODIFY ────────────────────────────────
 -- Todo lo del borde animado se edita en vivo: cada cambio llama a
@@ -5019,25 +5084,37 @@ SP.Menu:CreateToggle("AutoArrangeShortcuts", "Auto-sort shortcuts", function(v) 
 
 SP.Modify:CreateSection("Border light")
 SP.Modify:CreateSlider("AnimSpeed", "Speed", 20, 500, function(v) Config.AnimSpeed = v end, 185)
+SP.Modify:CreateHint("How fast the light travels around the border.")
 SP.Modify:CreateSlider("AnimGlow", "Glow", 0, 1, function(v) Config.AnimGlow = v SP.restyle() end, 0.30)
+SP.Modify:CreateHint("Brightness of the light head.")
 SP.Modify:CreateSlider("AnimDepth", "Darkness", 0.15, 1, function(v) Config.AnimDepth = v SP.restyle() end, 0.58)
+SP.Modify:CreateHint("How dark the rest of the border stays.")
 SP.Modify:CreateSlider("AnimWidth", "Thickness", 1, 8, function(v) Config.AnimWidth = v SP.restyle() end, 3)
+SP.Modify:CreateHint("Border thickness of the main window.")
 
 SP.Modify:CreateSection("Where")
 SP.Modify:CreateToggle("WindowBorder", "Window", function(v) Config.WindowBorder = v SP.restyle() end, true)
+SP.Modify:CreateHint("Animated border around the main window.")
 SP.Modify:CreateToggle("InnerBorders", "Widgets", function(v) Config.InnerBorders = v SP.restyle() end, true)
+SP.Modify:CreateHint("Animated border on toggles, sliders and cards.")
 SP.Modify:CreateToggle("FloatBorder", "Float button", function(v) Config.FloatBorder = v SP.restyle() end, true)
+SP.Modify:CreateHint("Animated border on the open/close icon.")
 SP.Modify:CreateSlider("FloatWidth", "Float thickness", 1, 6, function(v) Config.FloatWidth = v SP.restyle() end, 2.4)
+SP.Modify:CreateHint("Border thickness of that icon.")
+SP.Modify:CreateToggle("ShortcutBorder", "Shortcut buttons", function(v) Config.ShortcutBorder = v SP.restyle() end, true)
+SP.Modify:CreateHint("Animated border on the floating shortcut boxes.")
 
 SP.Modify:CreateSection("Text wave")
 SP.Modify:CreateSlider("WaveSpeed", "Wave speed", 0.1, 3, function(v) Config.WaveSpeed = v end, 0.85)
+SP.Modify:CreateHint("Speed of the light sweeping the ON text.")
 SP.Modify:CreateButton("Reset style", function()
     Config.AnimSpeed, Config.AnimGlow, Config.AnimDepth, Config.AnimWidth = 185, 0.30, 0.58, 3
     Config.WaveSpeed, Config.FloatWidth = 0.85, 2.4
-    Config.WindowBorder, Config.InnerBorders, Config.FloatBorder = true, true, true
+    Config.WindowBorder, Config.InnerBorders, Config.FloatBorder, Config.ShortcutBorder = true, true, true, true
     SP.restyle()
     KillerHub:Notify("Style reset", "Border animation back to default.", 3)
 end)
+SP.Modify:CreateHint("Puts every border setting back to default.")
 
 -- ─────────────────────────────── EXTRAS ────────────────────────────────
 SP.Extras:CreateSection("Saving")
@@ -5049,10 +5126,12 @@ SP.Extras:CreateParagraph("🧹 Clean up", "Removes ALL floating shortcut boxes 
 SP.Extras:CreateButton("Clear shortcuts", function()
     if KillerHub.ClearAllShortcuts then KillerHub:ClearAllShortcuts() end
 end)
+SP.Extras:CreateHint("Deletes every floating shortcut at once.")
 
 SP.Extras:CreateSection("Danger")
 SP.Extras:CreateParagraph("⚠️ Unload", "If you unload the script, the interface closes and is fully removed from memory.")
 SP.Extras:CreateButton("Unload script", function() KillerHub:Unload() end)
+SP.Extras:CreateHint("Closes and removes the hub from this session.")
 end
 
 task.defer(function()
