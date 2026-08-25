@@ -659,7 +659,7 @@ local MainFrame = create("Frame", {Name = "MainFrame", BackgroundColor3 = Curren
 -- shortcuts (chiquitos) se notaba muy poco porque el tramo iluminado ocupaba
 -- una porción minúscula del perímetro total. El glow externo ahora también
 -- gira con SU propio degradado en vez de quedarse fijo y casi invisible.
-local MainStroke = create("UIStroke", {Thickness = 3, Color = CurrentTheme.BORDER, Transparency = 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Enabled = true}, MainFrame)
+local MainStroke = create("UIStroke", {Thickness = 4, Color = CurrentTheme.BORDER, Transparency = 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Enabled = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainFrame)
 -- 🩹 V5.4.3: el halo exterior semitransparente era justo el "borde raro que
 -- sobresale" de la captura: un contorno de 5px al 55% de transparencia que
@@ -677,19 +677,43 @@ local BLACK = Color3.fromRGB(0, 0, 0)
 -- el núcleo es casi blanco incandescente y el tramo apagado ya no es negro
 -- puro sino el color del tema muy oscurecido: así se ve el recorrido completo.
 local function _borderSeq(accent)
-    local deep = accent:Lerp(BLACK, 0.78)
-    local mid  = accent:Lerp(BLACK, 0.25)
+    -- 🌑 V5.4.4: degradado NEGRO real en la cola (antes el tramo apagado seguía
+    -- teniendo mucho color y el "cometa" se perdía). Ahora: negro → tema →
+    -- núcleo incandescente → tema → negro. Sigue siendo UN solo ColorSequence
+    -- estático: no cuesta nada por frame, solo se rota.
+    local ink  = accent:Lerp(BLACK, 0.96)
+    local deep = accent:Lerp(BLACK, 0.60)
+    local mid  = accent:Lerp(BLACK, 0.15)
     local hot  = _hotColor(accent)
     return ColorSequence.new({
-        ColorSequenceKeypoint.new(0, deep),
-        ColorSequenceKeypoint.new(0.12, mid),
-        ColorSequenceKeypoint.new(0.24, accent),
-        ColorSequenceKeypoint.new(0.36, hot),
+        ColorSequenceKeypoint.new(0, ink),
+        ColorSequenceKeypoint.new(0.10, deep),
+        ColorSequenceKeypoint.new(0.22, mid),
+        ColorSequenceKeypoint.new(0.34, accent),
+        ColorSequenceKeypoint.new(0.44, hot),
         ColorSequenceKeypoint.new(0.50, Color3.new(1, 1, 1)),
-        ColorSequenceKeypoint.new(0.64, hot),
-        ColorSequenceKeypoint.new(0.76, accent),
-        ColorSequenceKeypoint.new(0.88, mid),
-        ColorSequenceKeypoint.new(1, deep)
+        ColorSequenceKeypoint.new(0.56, hot),
+        ColorSequenceKeypoint.new(0.66, accent),
+        ColorSequenceKeypoint.new(0.78, mid),
+        ColorSequenceKeypoint.new(0.90, deep),
+        ColorSequenceKeypoint.new(1, ink)
+    })
+end
+
+-- 🌊 V5.4.4 — "ola" del texto de los shortcuts en ON. Se usa como UIGradient
+-- sobre el TextLabel (el color del texto se pone BLANCO para que el degradado
+-- se vea tal cual). Igual que el borde: una sola secuencia estática, lo único
+-- que se anima es el Offset, que viaja hacia la IZQUIERDA.
+local function _labelWaveSeq(accent)
+    local ink = accent:Lerp(BLACK, 0.92)
+    local hot = _hotColor(accent)
+    return ColorSequence.new({
+        ColorSequenceKeypoint.new(0, ink),
+        ColorSequenceKeypoint.new(0.28, accent),
+        ColorSequenceKeypoint.new(0.46, hot),
+        ColorSequenceKeypoint.new(0.54, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(0.70, accent),
+        ColorSequenceKeypoint.new(1, ink)
     })
 end
 
@@ -702,8 +726,8 @@ _registerInnerStroke = function(stroke, properties)
     g.Color = _borderSeq(CurrentTheme.GLOW or CurrentTheme.ACCENT)
     g.Rotation = 45
     g.Parent = stroke
-    if (properties.Thickness or 1) < 1.4 then
-        pcall(function() stroke.Thickness = 1.4 end)
+    if (properties.Thickness or 1) < 1.8 then
+        pcall(function() stroke.Thickness = 1.8 end)
     end
     InnerBorderGradients[#InnerBorderGradients + 1] = g
 end
@@ -1045,7 +1069,10 @@ local BORDER_ANIM_SPEED = 185 -- grados por segundo: notoriamente más ágil, si
 local _borderAngle = 0
 local _innerAccum = 0
 local ShortcutBorderAnims = {}  -- id -> UIGradient del borde del shortcut
-local ShortcutLabelPulses = {}  -- id -> {label = TextLabel, base = Color3, pulse = Color3}
+local ShortcutLabelPulses = {}  -- (legacy, ya no se usa: reemplazado por la ola)
+local ShortcutLabelWaves = {}   -- id -> UIGradient de la "ola" del texto en ON
+local _waveOffset = 0
+local _waveAccum = 0
 
 local function _borderAnimStep(dt)
     if not _animEnabled() then return end
@@ -1080,12 +1107,20 @@ local function _borderAnimStep(dt)
         end
     end
 
-    if next(ShortcutLabelPulses) ~= nil then
-        -- Un solo seno compartido: todas las etiquetas ON laten en fase,
-        -- se ve intencional en vez de aleatorio y es una sola llamada a math.sin.
-        local pulse = 0.5 + 0.5 * math.sin(os.clock() * 3.2)
-        for _, p in pairs(ShortcutLabelPulses) do
-            p.label.TextColor3 = p.base:Lerp(p.pulse, pulse)
+    -- 🌊 Ola de luz hacia la IZQUIERDA en el texto de los shortcuts en ON.
+    -- Un ÚNICO offset compartido (todas las etiquetas viajan en fase) y se
+    -- refresca a ~30 Hz: una escritura de Vector2 por etiqueta encendida,
+    -- sin tweens, sin Instances, sin math.sin por elemento.
+    if next(ShortcutLabelWaves) ~= nil then
+        _waveAccum = _waveAccum + dt
+        if _waveAccum >= 0.033 then
+            _waveAccum = 0
+            _waveOffset = (_waveOffset + 0.02) % 2
+            local ox = 1 - _waveOffset -- va de 1 a -1: recorrido hacia la izquierda
+            local v = Vector2.new(ox, 0)
+            for id, g in pairs(ShortcutLabelWaves) do
+                if g.Parent then g.Offset = v else ShortcutLabelWaves[id] = nil end
+            end
         end
     end
 end
@@ -3650,7 +3685,7 @@ local function refreshShortcutVisual(sc)
     -- Thin themed outline (purple on Obsidian, red on Blood / Classic Dark).
     if sc.stroke then
         sc.stroke.Color = getShortcutBorderDark()
-        sc.stroke.Thickness = 2.2
+        sc.stroke.Thickness = 3.2
         -- 🩹 Antes el borde ignoraba la opacidad configurada del botón y se
         -- quedaba 100% intacto aunque el fondo se pusiera casi invisible. Ahora
         -- escala junto con cfg.opacity: mientras más transparente el botón, más
@@ -3687,14 +3722,20 @@ local function refreshShortcutVisual(sc)
         -- Apagado, la letra se queda estática (tal como pediste) — solo el
         -- borde sigue animado. Se registra/desregistra acá mismo así siempre
         -- queda en sync con el estado real del toggle.
+        local wave = sc.label:FindFirstChildOfClass("UIGradient")
         if isOn then
-            ShortcutLabelPulses[sc.data.id] = {
-                label = sc.label,
-                base = getShortcutBorder(),
-                pulse = lightenColor(getShortcutBorder(), 0.6)
-            }
+            if not wave then
+                wave = create("UIGradient", {Rotation = 0, Offset = Vector2.new(1, 0)}, sc.label)
+            end
+            wave.Color = _labelWaveSeq(getShortcutBorder())
+            wave.Enabled = true
+            -- El UIGradient MULTIPLICA el color del texto: en blanco, la ola
+            -- se ve con sus colores reales (negro → tema → destello).
+            sc.label.TextColor3 = Color3.new(1, 1, 1)
+            ShortcutLabelWaves[sc.data.id] = wave
         else
-            ShortcutLabelPulses[sc.data.id] = nil
+            if wave then wave.Enabled = false end
+            ShortcutLabelWaves[sc.data.id] = nil
         end
     end
     if sc.accentBar then
@@ -3753,6 +3794,7 @@ local function destroyShortcut(id)
     if sc.frame then pcall(function() sc.frame:Destroy() end) end
     ShortcutBorderAnims[id] = nil
     ShortcutLabelPulses[id] = nil
+    ShortcutLabelWaves[id] = nil
     Shortcuts[id] = nil
 end
 
@@ -3782,7 +3824,7 @@ local function createFloating(sc)
     applyShape(frame, cfg.shape)
     -- Thin themed outline around every floating shortcut (tono oscuro del
     -- tema, no el acento brillante — ver getShortcutBorderDark()).
-    local stroke = create("UIStroke", {Thickness = 2.2, Color = getShortcutBorderDark(), Transparency = 0.05, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, frame)
+    local stroke = create("UIStroke", {Thickness = 3.2, Color = getShortcutBorderDark(), Transparency = 0.05, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, frame)
     -- ✨ Degradado giratorio (misma "luz recorriendo el borde" que la ventana
     -- principal): se registra en ShortcutBorderAnims y la ÚNICA conexión
     -- Heartbeat compartida (_borderAnimStep) lo va rotando. No crea ninguna
@@ -3918,6 +3960,7 @@ local function setShortcutActive(sc, active)
         sc.frame, sc.stroke, sc.label, sc.accentBar, sc.strokeGradient = nil, nil, nil, nil, nil
         ShortcutBorderAnims[sc.data.id] = nil
         ShortcutLabelPulses[sc.data.id] = nil
+        ShortcutLabelWaves[sc.data.id] = nil
     end
     if ShortcutActivators[sc.data.id] and ShortcutActivators[sc.data.id].refresh then
         ShortcutActivators[sc.data.id].refresh()
