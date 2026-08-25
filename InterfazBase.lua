@@ -1,5 +1,18 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.5.0)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.5.1)
+-- Changelog V5.5.1:
+--   • Fix: al apagar "Widgets" (Modify) los bordes de los widgets y del panel
+--     de Shortcuts quedaban BLANCOS. El stroke usaba base blanca porque el
+--     UIGradient la multiplica; sin gradiente se veía el blanco crudo. Ahora
+--     el color base se decide en un solo lugar (_paintInnerStroke): blanco con
+--     la animación ON, color BORDER del tema con la animación OFF.
+--   • Fix: repaintTagged pisaba el color de los strokes animados al cambiar de
+--     tema (bordes apagados o blancos según el orden). Ahora respeta el estado.
+--   • Fix: el grosor forzado a 1.4px ya no queda pegado: se guarda el grosor
+--     original (BaseThickness) y se restaura cuando la animación está OFF.
+--   • Perf: si no hay nada animable en pantalla (hub cerrado/sin foco, botón
+--     flotante oculto y sin shortcuts) el Heartbeat sale de inmediato, sin
+--     avanzar el ángulo ni recorrer listas. Cero costo con el hub cerrado.
 -- Changelog V5.5.0:
 --   • Fix: "Reset style" ya mueve visualmente los sliders y toggles de la
 --     página Modify (antes solo cambiaba el valor interno, así que parecía que
@@ -809,18 +822,34 @@ local function _waveSeq(accent)
 end
 
 -- Asigna el hook declarado arriba, ahora que _borderSeq ya existe.
+-- 🩹 V5.5.1: un UIStroke con degradado animado necesita base BLANCA (el
+-- gradiente MULTIPLICA el color del stroke). Si el degradado se apaga
+-- (Modify ▸ Widgets = OFF) esa base blanca queda a la vista y se ven los
+-- bordes blancos feos que no combinan con el tema. Desde aquí el color base
+-- se decide en UN solo lugar: blanco cuando la animación está encendida,
+-- color BORDER del tema cuando está apagada.
+local function _paintInnerStroke(stroke)
+    if not stroke or not stroke.Parent then return end
+    local on = Config.InnerBorders ~= false
+    pcall(function()
+        stroke.Color = on and STROKE_NEUTRAL or (CurrentTheme.BORDER or STROKE_NEUTRAL)
+        local base = stroke:GetAttribute("BaseThickness")
+        if base then stroke.Thickness = on and math.max(base, 1.4) or base end
+    end)
+end
+
 _registerInnerStroke = function(stroke, properties)
     if #InnerBorderGradients >= INNER_BORDER_LIMIT then return end
     if stroke:GetAttribute("ThemeStroke") ~= "BORDER" then return end
     if stroke:FindFirstChildOfClass("UIGradient") then return end
-    pcall(function() stroke.Color = STROKE_NEUTRAL end)
+    stroke:SetAttribute("BaseThickness", properties.Thickness or stroke.Thickness or 1)
+    stroke:SetAttribute("AnimBorder", true)
     local g = Instance.new("UIGradient")
     g.Color = _borderSeq(CurrentTheme.GLOW or CurrentTheme.ACCENT)
     g.Rotation = 45
+    g.Enabled = Config.InnerBorders ~= false
     g.Parent = stroke
-    if (properties.Thickness or 1) < 1.4 then
-        pcall(function() stroke.Thickness = 1.4 end)
-    end
+    _paintInnerStroke(stroke)
     InnerBorderGradients[#InnerBorderGradients + 1] = g
 end
 local BordeGradient = create("UIGradient", {
@@ -1202,8 +1231,16 @@ local _waveOffset = 0
 
 local function _borderAnimStep(dt)
     if not _animEnabled() then return end
+    -- ⚡ V5.5.1: si no hay NADA animable en pantalla (menú cerrado/sin foco,
+    -- botón flotante oculto y sin shortcuts activos) el frame no cuesta nada:
+    -- ni siquiera avanzamos el ángulo. Antes se seguían haciendo cuentas y
+    -- comprobaciones cada frame con el hub cerrado.
+    local scLive = next(ShortcutBorderAnims) ~= nil or next(ShortcutLabelWaves) ~= nil
+    local winLive = MainFrame.Visible and menuFocused
+    local floatLive = OpenCloseBtn.Visible and Config.FloatBorder ~= false
+    if not (winLive or floatLive or scLive) then return end
     _borderAngle = (_borderAngle + dt * (Config.AnimSpeed or BORDER_ANIM_SPEED)) % 360
-    local menuLive = MainFrame.Visible and menuFocused
+    local menuLive = winLive
 
     if menuLive and Config.WindowBorder ~= false then
         BordeGradient.Rotation = _borderAngle
@@ -1438,6 +1475,7 @@ function KillerHub:RefreshBorderStyle()
         if g.Parent then
             g.Color = seq
             g.Enabled = Config.InnerBorders ~= false
+            _paintInnerStroke(g.Parent)
         else
             table.remove(InnerBorderGradients, i)
         end
@@ -1825,7 +1863,7 @@ function KillerHub:SetTheme(themeName)
             local g = InnerBorderGradients[i]
             if g.Parent then
                 g.Color = seq
-                if g.Parent:IsA("UIStroke") then g.Parent.Color = STROKE_NEUTRAL end
+                if g.Parent:IsA("UIStroke") then _paintInnerStroke(g.Parent) end
             else table.remove(InnerBorderGradients, i) end
         end
     end
@@ -1876,7 +1914,14 @@ function KillerHub:SetTheme(themeName)
             local ts = v:GetAttribute("ThemeStroke")
             if ts then
                 pcall(function()
-                    v.Color = resolveThemeColor(ts)
+                    -- V5.5.1: los strokes con borde animado mantienen su base
+                    -- blanca (o el color del tema si la animación está OFF);
+                    -- repintarlos aquí rompía el degradado o dejaba bordes blancos.
+                    if v:GetAttribute("AnimBorder") then
+                        _paintInnerStroke(v)
+                    else
+                        v.Color = resolveThemeColor(ts)
+                    end
                     v.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 end)
             end
