@@ -1,5 +1,19 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.5.1)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.6.0)
+-- Changelog V5.6.0:
+--   • Las páginas de arriba (General / Menu / Modify / Extras) ahora SE VEN:
+--     la barra tiene pista propia (fondo + borde animado del tema) y se lee
+--     como un selector, no como texto flotante. Antes la gente creía que
+--     faltaban widgets cuando solo estaban en otra página.
+--   • Píldora activa mucho más marcada: relleno ACCENT con degradado, borde
+--     animado a 1.6px, texto blanco un punto más grande y puntito blanco.
+--     Inactiva con borde visible en vez de casi invisible.
+--   • Hover/tap feedback en las píldoras inactivas.
+--   • Flechita "›" al final de la barra cuando hay más páginas de las que caben.
+--   • CreatePage(name, icon) ya USA el icono (antes se ignoraba en silencio).
+--   • Nuevo Tab:SelectPage("Extras") para cambiar de página desde el script.
+--   • Refactor: un único paintPill() decide el look activo/inactivo, así el
+--     cambio de tema no puede dejar píldoras con colores desincronizados.
 -- Changelog V5.5.1:
 --   • Fix: al apagar "Widgets" (Modify) los bordes de los widgets y del panel
 --     de Shortcuts quedaban BLANCOS. El stroke usaba base blanca porque el
@@ -2265,16 +2279,41 @@ function TabMethods:CreatePage(pageName, iconId)
             BackgroundTransparency = 1, Visible = baseFrame.Visible
         }, ContentContainer)
 
+        -- ✨ V5.6.0: la barra de páginas ahora es un "segmented control" con
+        -- pista propia (fondo + borde animado). Antes flotaba transparente sobre
+        -- el contenido y muchos usuarios no la veían, así que creían que la
+        -- librería había perdido widgets cuando en realidad estaban en otra
+        -- página. Con pista visible se lee al instante como un selector.
         local bar = create("ScrollingFrame", {
-            Name = "PageBar", Size = UDim2.new(1, -14, 0, 32), Position = UDim2.new(0, 7, 0, 6),
-            BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0,
+            Name = "PageBar", Size = UDim2.new(1, -14, 0, 34), Position = UDim2.new(0, 7, 0, 5),
+            BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.25,
+            BorderSizePixel = 0, ScrollBarThickness = 0,
             ScrollingDirection = Enum.ScrollingDirection.X, CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.X
         }, host)
+        create("UICorner", {CornerRadius = UDim.new(1, 0)}, bar)
+        local barStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, bar)
+        create("UIPadding", {PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, bar)
         create("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6),
             SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center
         }, bar)
+        table.insert(KillerHub.TargetThemeElements, function()
+            bar.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+            barStroke.Color = CurrentTheme.BORDER
+        end)
+
+        -- Pista de scroll: si las píldoras no caben, aparece una flechita a la
+        -- derecha para avisar que hay más páginas (una sola conexión, cero costo
+        -- por frame).
+        local more = create("TextLabel", {
+            Name = "PageBarMore", Size = UDim2.new(0, 16, 0, 34), Position = UDim2.new(1, -13, 0, 5),
+            BackgroundTransparency = 1, Text = "›", TextColor3 = CurrentTheme.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 20, Visible = false, ZIndex = 5
+        }, host)
+        connect(bar:GetPropertyChangedSignal("CanvasSize"), function()
+            more.Visible = bar.CanvasSize.X.Offset > bar.AbsoluteSize.X - 8
+        end)
 
         -- La pestaña pasa a mostrarse a través del host (selectTab toca reg.Frame).
         local reg = KillerHub.TabRegistry[tabName]
@@ -2331,56 +2370,121 @@ end
 function TabMethods:_AddPagePill(pageName, iconId, targetFrame)
     local bar = self._pageBar
     local pill = create("TextButton", {
-        Name = pageName .. "Pill", Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
-        BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.45,
+        Name = pageName .. "Pill", Size = UDim2.new(0, 0, 1, -6), AutomaticSize = Enum.AutomaticSize.X,
+        BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.15,
         Text = "", AutoButtonColor = false
     }, bar)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, pill)
-    create("UIPadding", {PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 14)}, pill)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 11), PaddingRight = UDim.new(0, 14)}, pill)
+    -- Borde propio (entra al sistema de bordes animados por usar THEME.BORDER):
+    -- así la píldora activa "brilla" y se distingue sin lugar a dudas.
+    local pillStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER, Transparency = 0.45}, pill)
+    -- Relleno con degradado vertical: la activa se ve con volumen, no plana.
+    local pillGrad = create("UIGradient", {
+        Rotation = 90,
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 0.35)
+        })
+    }, pill)
+
     local dot = create("Frame", {
-        Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), AnchorPoint = Vector2.new(0, 0.5),
+        Name = "Dot", Size = UDim2.new(0, 7, 0, 7), AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, 0, 0.5, 0),
         BackgroundColor3 = CurrentTheme.ACCENT, BorderSizePixel = 0, BackgroundTransparency = 1
     }, pill)
-    dot.Position = UDim2.new(0, 0, 0.5, 0)
     create("UICorner", {CornerRadius = UDim.new(1, 0)}, dot)
+
+    -- El iconId ya no se ignora: si lo pasas, la píldora muestra su icono.
+    local icon = nil
+    local iconAsset = resolveIcon(iconId)
+    if iconAsset then
+        icon = create("ImageLabel", {
+            Name = "Icon", Size = UDim2.new(0, 14, 0, 14), AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, 11, 0.5, 0), BackgroundTransparency = 1,
+            Image = iconAsset, ImageColor3 = CurrentTheme.TEXT_MUTED
+        }, pill)
+    end
+
+    local textX = iconAsset and 30 or 13
     local label = create("TextLabel", {
-        Size = UDim2.new(0, 0, 1, 0), Position = UDim2.new(0, 12, 0, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.new(0, 0, 1, 0), Position = UDim2.new(0, textX, 0, 0), AutomaticSize = Enum.AutomaticSize.X,
         BackgroundTransparency = 1, Text = pageName, TextColor3 = CurrentTheme.TEXT_MUTED,
         Font = Enum.Font.GothamBold, TextSize = 13
     }, pill)
     pcall(function() label.TextStrokeTransparency = 1 end)
 
     self._pageRegistry = self._pageRegistry or {}
-    self._pageRegistry[pageName] = {Pill = pill, Label = label, Dot = dot, Frame = targetFrame}
+    self._pageRegistry[pageName] = {Pill = pill, Label = label, Dot = dot, Icon = icon,
+        Stroke = pillStroke, Gradient = pillGrad, Frame = targetFrame}
 
-    local function selectPage()
+    -- Un solo lugar que decide cómo se ve una píldora (activa / inactiva).
+    local PILL_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local function paintPill(reg, isSel, animate)
+        reg.Label.TextColor3 = isSel and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+        reg.Label.TextSize = isSel and 14 or 13
+        if reg.Icon then
+            reg.Icon.ImageColor3 = isSel and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
+        end
+        reg.Dot.BackgroundColor3 = isSel and CurrentTheme.TEXT_WHITE or CurrentTheme.ACCENT
+        reg.Dot.BackgroundTransparency = isSel and 0 or 1
+        reg.Pill.BackgroundColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY
+        reg.Stroke.Transparency = isSel and 0 or 0.55
+        pcall(function()
+            local base = reg.Stroke:GetAttribute("BaseThickness")
+            if base then reg.Stroke:SetAttribute("BaseThickness", isSel and 1.6 or 1) end
+            reg.Stroke.Thickness = isSel and 1.6 or 1
+        end)
+        local target = isSel and 0.12 or 0.15
+        if animate then
+            TweenService:Create(reg.Pill, PILL_TWEEN, {BackgroundTransparency = target}):Play()
+        else
+            reg.Pill.BackgroundTransparency = target
+        end
+    end
+
+    local function selectPage(animate)
         for pName, reg in pairs(self._pageRegistry) do
             local isSel = (pName == pageName)
             reg.Frame.Visible = isSel
-            reg.Label.TextColor3 = isSel and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-            reg.Dot.BackgroundColor3 = CurrentTheme.ACCENT
-            reg.Dot.BackgroundTransparency = isSel and 0 or 1
-            reg.Pill.BackgroundColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY
-            TweenService:Create(reg.Pill, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundTransparency = isSel and 0.78 or 0.45
-            }):Play()
+            paintPill(reg, isSel, animate)
         end
         self._activePage = pageName
     end
+    self._pageRegistry[pageName].Select = selectPage
+
     connect(pill.MouseButton1Click, function()
-        if self._activePage ~= pageName then selectPage() playUISound() end
+        if self._activePage ~= pageName then selectPage(true) playUISound() end
     end)
-    table.insert(KillerHub.TargetThemeElements, function()
-        local isSel = (self._activePage == pageName)
-        label.TextColor3 = isSel and CurrentTheme.TEXT_WHITE or CurrentTheme.TEXT_MUTED
-        label.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamBold
-        dot.BackgroundColor3 = CurrentTheme.ACCENT
-        pill.BackgroundColor3 = isSel and CurrentTheme.ACCENT or CurrentTheme.BG_SECONDARY
-        pill.BackgroundTransparency = isSel and 0.78 or 0.45
+    -- Feedback al pasar / tocar: la inactiva se aclara un poco.
+    connect(pill.MouseEnter, function()
+        if self._activePage ~= pageName then
+            TweenService:Create(pill, PILL_TWEEN, {BackgroundTransparency = 0.02}):Play()
+            pillStroke.Transparency = 0.25
+        end
+    end)
+    connect(pill.MouseLeave, function()
+        if self._activePage ~= pageName then
+            TweenService:Create(pill, PILL_TWEEN, {BackgroundTransparency = 0.15}):Play()
+            pillStroke.Transparency = 0.55
+        end
     end)
 
-    if not self._activePage then selectPage() end
+    table.insert(KillerHub.TargetThemeElements, function()
+        label.Font = Enum.Font[Config.SelectedFont or "GothamMedium"] or Enum.Font.GothamBold
+        paintPill(self._pageRegistry[pageName], self._activePage == pageName, false)
+    end)
+
+    if not self._activePage then selectPage(false) end
     return pill
+end
+
+-- Cambia de página desde el script: Tab:SelectPage("Extras")
+function TabMethods:SelectPage(pageName)
+    local host = self._isPage and self._tab or self
+    local reg = host._pageRegistry and host._pageRegistry[pageName]
+    if reg and reg.Select then reg.Select(true) return true end
+    return false
 end
 
 -- Devuelve una página ya creada: Tab:GetPage("Extras")
