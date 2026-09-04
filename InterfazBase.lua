@@ -1,5 +1,50 @@
 -- ============================================================================
--- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.7.1)
+-- 👻 KILLER HUB UNIVERSAL FRAMEWORK | OBSIDIAN ULTRA PREMIUM EDITION (V5.9.4)
+-- Changelog V5.9.4 (Panel Spy: acciones del juego + rutas completas):
+--   • 🩹 FIX PRINCIPAL: con el Spy activo el juego volvía a registrar la ruta
+--     pero NO ejecutaba la acción (disparar en MM2, golpear en TSB...). Causa:
+--     el hook de __namecall hacía TODO el trabajo pesado (GetFullName,
+--     serializar args, getcallingscript, string.format) DENTRO de la llamada y
+--     además iba envuelto en newcclosure, lo que mete una frontera C que rompe
+--     el yield de RemoteFunction:InvokeServer. Ahora el hook solo empuja la
+--     captura cruda a una cola y devuelve old(self, ...) en tail-call, con lo
+--     que se preservan todos los valores de retorno y el yield.
+--   • ⚙️ "Compat: yield-safe / cclosure": newcclosure queda APAGADO por defecto
+--     y se puede activar si tu executor lo exige.
+--   • ⚡ Serialización, rutas y dedupe se procesan fuera del hook, por
+--     Heartbeat, con techo de 120 capturas por frame: cero picos de lag.
+--   • 🔊 Bindables (Fire / Invoke) ahora están OFF por defecto (eran los que más
+--     spameaban y ensuciaban la lista); se activan con un botón.
+--   • 🔎 "Scan rutas": mapea TODAS las rutas del juego, incluidas las escondidas
+--     (nil-parented vía getnilinstances) y las que nunca se disparan, marcadas
+--     como [dormido]; el scan cede el frame cada 900 objetos para no congelar.
+--   • 📋 "Copiar todo": copia todas las rutas visibles (respeta el buscador).
+-- Changelog V5.9.1 (compatibilidad + rendimiento):
+--   • 🖥 SOPORTE UNIVERSAL DE EJECUTORES (PC / Android / iOS). El error
+--     "no se puede cargar la UI library" en PC venía de 4 puntos que NO
+--     estaban blindados y tiraban el script antes de dibujar nada:
+--       1. Players.LocalPlayer podía ser nil (los executors de PC inyectan
+--          antes de que el jugador exista) → ahora se espera de verdad.
+--       2. Workspace.CurrentCamera nil en la misma ventana → también se espera.
+--       3. ScreenGui.ScreenInsets / propiedades nuevas no existen en clientes
+--          o executors viejos → create() ahora asigna propiedad por propiedad
+--          si la asignación en bloque falla, en vez de morir.
+--       4. getgenv() / getfenv() no existen en todos los executors y se
+--          llamaban sin protección → ahora pasan por KH_ENV (con _G de
+--          respaldo).
+--     Además el ScreenGui se protege con syn.protect_gui / protectgui /
+--     gethui cuando existen, y si CoreGui está bloqueado cae solo a PlayerGui.
+--   • ⚡ RENDIMIENTO: el contador de FPS ya no toca Stats con el menú cerrado,
+--     el "engrosar scrollbars" de PC dejó de crear una tarea diferida por CADA
+--     descendiente creado (era un pico de lag al abrir el hub con muchos
+--     widgets), y el cierre del panel privado dejó de usar un bucle
+--     task.wait(0.03) por cada toque de pantalla (ahora es por evento).
+--   • 🎬 El panel privado de usuarios (solo el dueño) abre y cierra AL
+--     INSTANTE, sin tween de escala/fade. El resto de animaciones del hub
+--     quedan intactas.
+--   • 🩹 El panel privado ya no hace peticiones HTTP cuando el hub está
+--     cerrado, y sus bucles mueren solos al descargar el hub.
+-- Changelog V5.9.0:
 -- Changelog V5.7.1:
 --   • 🩹 Crear un shortcut con "UI optimization" ENCENDIDO ya no lo deja con el
 --     borde blanco ni con el degradado del modo animado congelado: nace plano y
@@ -167,8 +212,113 @@ local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+-- 🧩 V5.9.1 · Arranque blindado para executors de PC (Wave, Solara, Swift,
+-- Xeno, Potassium...) que inyectan el script ANTES de que exista el jugador o
+-- la cámara. Antes esto reventaba con "attempt to index nil" y el usuario solo
+-- veía "no se puede cargar la UI library".
 local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    pcall(function()
+        local t0 = os.clock()
+        while not Players.LocalPlayer and (os.clock() - t0) < 20 do task.wait(0.1) end
+    end)
+    LocalPlayer = Players.LocalPlayer
+end
+if not LocalPlayer then
+    warn("[KillerHub] No se pudo obtener LocalPlayer (ejecuta el script ya dentro del juego).")
+    return {}
+end
 local Camera = Workspace.CurrentCamera
+if not Camera then
+    pcall(function()
+        local t0 = os.clock()
+        while not Workspace.CurrentCamera and (os.clock() - t0) < 10 do task.wait(0.1) end
+    end)
+    Camera = Workspace.CurrentCamera or Workspace:FindFirstChildWhichIsA("Camera")
+end
+
+-- 🧩 CAPA DE COMPATIBILIDAD DE EJECUTOR (PC / Android / iOS).
+-- Vive en _G (no como locals) porque el chunk principal ya está al tope de las
+-- 200 variables locales que permite Luau.
+_G.__KH_ENV = _G.__KH_ENV or {}
+do
+    local E = _G.__KH_ENV
+    -- Entorno global compartido: getgenv() en executors que lo tengan, _G si no.
+    function E.genv()
+        local ok, env = pcall(function()
+            local f = rawget(_G, "getgenv") or (type(getgenv) == "function" and getgenv or nil)
+            return f and f() or nil
+        end)
+        if ok and type(env) == "table" then return env end
+        return _G
+    end
+    -- Lectura segura de un global del executor (getfenv puede no existir).
+    function E.g(name)
+        local v = rawget(_G, name)
+        if v ~= nil then return v end
+        local ok, res = pcall(function() return rawget(getfenv(), name) end)
+        if ok and res ~= nil then return res end
+        local ok2, res2 = pcall(function() return _G[name] end)
+        if ok2 then return res2 end
+        return nil
+    end
+    -- Petición HTTP unificada: cubre Synapse, Fluxus, Krnl, Wave, Delta,
+    -- Codex, Hydrogen, Arceus, Solara, Xeno, Swift, Trigon...
+    function E.requestFn()
+        local cands = {}
+        local function add(v) if type(v) == "function" then cands[#cands + 1] = v end end
+        pcall(function() add(syn and syn.request) end)
+        pcall(function() add(http and http.request) end)
+        pcall(function() add(fluxus and fluxus.request) end)
+        add(E.g("http_request"))
+        add(E.g("request"))
+        return cands
+    end
+    -- Protección del ScreenGui (evita que el juego lo detecte/borre).
+    function E.protect(gui)
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(gui) end end)
+        pcall(function()
+            local f = E.g("protectgui") or E.g("protect_gui")
+            if type(f) == "function" then f(gui) end
+        end)
+    end
+    -- Plataforma: PC / Android / iOS / Consola.
+    function E.platform()
+        local touch, kb, gamepad, accel = false, false, false, false
+        pcall(function()
+            touch = UserInputService.TouchEnabled
+            kb = UserInputService.KeyboardEnabled
+            gamepad = UserInputService.GamepadEnabled
+            accel = UserInputService.AccelerometerEnabled
+        end)
+        if kb and not touch then return "PC" end
+        if touch and not kb then
+            -- iOS no expone acelerómetro de la misma forma que Android en
+            -- todos los clientes; usamos la relación de pantalla como pista.
+            local ios = false
+            pcall(function() ios = (UserInputService:GetPlatform() == Enum.Platform.IOS) end)
+            if ios then return "iOS" end
+            local android = false
+            pcall(function() android = (UserInputService:GetPlatform() == Enum.Platform.Android) end)
+            if android then return "Android" end
+            return accel and "Android" or "Móvil"
+        end
+        if gamepad and not touch and not kb then return "Consola" end
+        return "Desconocido"
+    end
+    function E.executor()
+        local name
+        pcall(function()
+            local f = E.g("identifyexecutor") or E.g("getexecutorname")
+            if type(f) == "function" then name = f() end
+        end)
+        if type(name) == "string" and name ~= "" then return name end
+        if rawget(_G, "syn") then return "Synapse" end
+        if rawget(_G, "fluxus") then return "Fluxus" end
+        if rawget(_G, "KRNL_LOADED") then return "Krnl" end
+        return "desconocido"
+    end
+end
 
 -- ⚡ FAST-PATH LOCALS (caché de funciones matemáticas/color de uso frecuente en Luau,
 -- evita resoluciones de tabla globales repetidas durante el arrastre del Color Picker)
@@ -239,21 +389,41 @@ end
 
 
 -- 🛠 ANTI-CRASH UNIVERSAL INTEGRADO (GetSafeUIParent)
+-- 🧩 V5.9.1: se prueban en orden gethui() → CoreGui (con prueba real de
+-- escritura) → PlayerGui. En varios executors de PC, CoreGui existe pero
+-- parentar ahí lanza error de permisos: antes eso mataba la carga del hub.
 local function GetSafeUIParent()
-    local success, result = pcall(function()
-        if gethui then return gethui() end
-        local coreGui = game:GetService("CoreGui")
-        if coreGui and coreGui.Name then return coreGui end
+    local ok, hui = pcall(function()
+        local f = _G.__KH_ENV.g("gethui")
+        return type(f) == "function" and f() or nil
     end)
-    if success and result then return result end
+    if ok and hui then return hui end
+
+    local okCore, core = pcall(function()
+        local cg = game:GetService("CoreGui")
+        -- Prueba de escritura: si no tenemos permiso, esto falla aquí y no
+        -- más adelante (cuando ya sería un crash visible).
+        local probe = Instance.new("Folder")
+        probe.Name = "KH_Probe"
+        probe.Parent = cg
+        probe:Destroy()
+        return cg
+    end)
+    if okCore and core then return core end
+
+    local okPg, pg = pcall(function()
+        return LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
+    end)
+    if okPg and pg then return pg end
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
 local TargetParent = GetSafeUIParent()
 
-if TargetParent:FindFirstChild("KillerHub_Universal") then
-    TargetParent.KillerHub_Universal:Destroy()
-end
+pcall(function()
+    local old = TargetParent:FindFirstChild("KillerHub_Universal")
+    if old then old:Destroy() end
+end)
 
 local Themes = {
     ["Obsidian"] = {
@@ -505,7 +675,18 @@ local _shortcutBorderColor = nil -- forward: se asigna junto a getShortcutBorder
 
 local function create(instanceType, properties, parent)
     local obj = Instance.new(instanceType)
-    for prop, val in pairs(properties) do obj[prop] = val end
+    -- 🧩 V5.9.1: la asignación va dentro de un pcall en bloque (coste: un solo
+    -- pcall por instancia, únicamente al construir la UI). Si el cliente o el
+    -- executor no conoce alguna propiedad nueva (p.ej. ScreenInsets), en vez de
+    -- tirar TODO el script se reintenta propiedad por propiedad y se ignora
+    -- solo la que no existe. Esto es lo que hacía fallar la carga en PC.
+    if not pcall(function()
+        for prop, val in pairs(properties) do obj[prop] = val end
+    end) then
+        for prop, val in pairs(properties) do
+            pcall(function() obj[prop] = val end)
+        end
+    end
     -- 🧼 A UIStroke parented to a TextLabel/TextButton/TextBox defaults to
     -- "Contextual", which outlines every GLYPH -> the ugly double-layer text
     -- the premium themes suffered from. Border mode keeps only the frame edge.
@@ -570,12 +751,118 @@ end
 -- ============================================================================
 -- 🖥 INTERFAZ CON CANVASGROUP DE ALTO RENDIMIENTO
 -- ============================================================================
-local ScreenGui = create("ScreenGui", {Name = "KillerHub_Universal", IgnoreGuiInset = false, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ResetOnSpawn = false, DisplayOrder = 999999, ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, TargetParent)
+-- 🧩 V5.9.1 · ScreenGui a prueba de executors:
+--   • ScreenInsets solo se pide si el Enum existe en este cliente (en clientes
+--     viejos/PC no existe y la asignación tumbaba el script entero).
+--   • Se protege con syn.protect_gui / protectgui cuando el executor lo trae.
+--   • Si el parenteo al destino falla (CoreGui bloqueado), cae a PlayerGui.
+local ScreenGui = create("ScreenGui", (function()
+    local props = {
+        Name = "KillerHub_Universal",
+        IgnoreGuiInset = false,
+        ResetOnSpawn = false,
+        DisplayOrder = 999999,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    }
+    pcall(function() props.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets end)
+    return props
+end)())
+_G.__KH_ENV.protect(ScreenGui)
+if not pcall(function() ScreenGui.Parent = TargetParent end) or not ScreenGui.Parent then
+    pcall(function()
+        ScreenGui.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            or LocalPlayer:WaitForChild("PlayerGui")
+    end)
+end
+if not ScreenGui.Parent then
+    warn("[KillerHub] Tu ejecutor no permitió crear la interfaz (ni CoreGui ni PlayerGui).")
+    return {}
+end
 -- 🌐 Ref global al ScreenGui para que subsistemas (notificaciones v1.3) lo
 -- encuentren incluso cuando gethui() lo parenta a un contenedor no estándar
 -- (CoreGui protegido en algunos executors). Sin esto las notificaciones no
 -- aparecían en clientes donde findNotifContainer() sólo miraba CoreGui/PlayerGui.
 _G.__KillerHub_ScreenGui__ = ScreenGui
+
+-- ============================================================================
+-- 🖥 V5.8.0 · SOPORTE PC / EXECUTORS DE ESCRITORIO (Wave, Potassium, Solara...)
+-- ----------------------------------------------------------------------------
+--  • Rueda del mouse: en PC la rueda NO llegaba a los ScrollingFrame porque
+--    varios contenedores/filas tienen Active = true y se comen el input. Aquí
+--    resolvemos manualmente el ScrollingFrame que está debajo del cursor y
+--    movemos su CanvasPosition. Funciona en TODAS las páginas y en el sidebar.
+--  • Barras de scroll más gruesas en PC (2px era casi invisible con mouse).
+--  • Todo va dentro de pcall: si un executor no expone alguna API, no rompe.
+-- ============================================================================
+local KH_IsPC = false
+pcall(function()
+    KH_IsPC = UserInputService.KeyboardEnabled and UserInputService.MouseEnabled
+        and not UserInputService.TouchEnabled
+end)
+KillerHubIsPC = KH_IsPC
+
+local KH_WHEEL_STEP = 62 -- px por muesca de rueda
+
+local function _khFindScrollUnderCursor()
+    local ok, list = pcall(function()
+        local pos = UserInputService:GetMouseLocation()
+        local inset = game:GetService("GuiService"):GetGuiInset()
+        return ScreenGui:GetGuiObjectsAtPosition(pos.X - inset.X, pos.Y - inset.Y)
+    end)
+    if not ok or type(list) ~= "table" then return nil end
+    for _, obj in ipairs(list) do
+        local node = obj
+        while node and node ~= ScreenGui do
+            if node:IsA("ScrollingFrame") and node.Visible and node.ScrollingEnabled
+                and node.AbsoluteCanvasSize.Y > node.AbsoluteWindowSize.Y + 1 then
+                return node
+            end
+            node = node.Parent
+        end
+    end
+    return nil
+end
+
+if KH_IsPC then
+    task.defer(function()
+        pcall(function()
+            local conn = UserInputService.InputChanged:Connect(function(input, gp)
+                if gp then return end
+                if input.UserInputType ~= Enum.UserInputType.MouseWheel then return end
+                local sf = _khFindScrollUnderCursor()
+                if not sf then return end
+                local delta = -input.Position.Z * KH_WHEEL_STEP
+                local maxY = math.max(0, sf.AbsoluteCanvasSize.Y - sf.AbsoluteWindowSize.Y)
+                sf.CanvasPosition = Vector2.new(
+                    sf.CanvasPosition.X,
+                    math.clamp(sf.CanvasPosition.Y + delta, 0, maxY)
+                )
+            end)
+            table.insert(Connections, conn)
+        end)
+    end)
+
+    -- Barras de scroll usables con mouse
+    task.defer(function()
+        pcall(function()
+            local function thicken(inst)
+                if inst:IsA("ScrollingFrame") and inst.ScrollBarThickness < 6 then
+                    inst.ScrollBarThickness = 6
+                    inst.ScrollBarImageTransparency = 0.25
+                end
+            end
+            for _, d in ipairs(ScreenGui:GetDescendants()) do thicken(d) end
+            -- ⚡ V5.9.1: antes se creaba una tarea diferida por CADA descendiente
+            -- añadido (miles al construir el hub) = pico de lag al abrir. Ahora
+            -- se filtra en el propio evento y solo se toca un ScrollingFrame.
+            local c = ScreenGui.DescendantAdded:Connect(function(d)
+                if d:IsA("ScrollingFrame") then pcall(thicken, d) end
+            end)
+            table.insert(Connections, c)
+        end)
+    end)
+end
+
 
 local function playUISound()
     if not Config.Volume or Config.Volume <= 0 then return end
@@ -650,21 +937,21 @@ local warnedNoCustomAsset = false
 local function getAssetFn()
     local names = {"getcustomasset", "getsynasset", "getcustomassetasync"}
     for _, n in ipairs(names) do
-        local fn = rawget(getfenv(), n)
+        -- 🧩 V5.9.1: vía capa de compatibilidad (getfenv puede no existir).
+        local fn = _G.__KH_ENV.g(n)
         if typeof(fn) == "function" then return fn end
     end
-    if syn and typeof(syn.getcustomasset) == "function" then return syn.getcustomasset end
+    local synFn
+    pcall(function() synFn = syn and syn.getcustomasset end)
+    if typeof(synFn) == "function" then return synFn end
     return nil
 end
 
 local function httpGetBinary(url)
     -- request-style executors (devuelven .Body ya en binario)
-    local candidates = {}
-    if syn and typeof(syn.request) == "function" then table.insert(candidates, syn.request) end
-    local envReq = rawget(getfenv(), "request") or rawget(getfenv(), "http_request")
-    if typeof(envReq) == "function" then table.insert(candidates, envReq) end
-    if http and typeof(http.request) == "function" then table.insert(candidates, http.request) end
-    if fluxus and typeof(fluxus.request) == "function" then table.insert(candidates, fluxus.request) end
+    -- 🧩 V5.9.1: getfenv() no existe en varios executors de PC y se llamaba
+    -- sin protección. Ahora la lista sale de la capa de compatibilidad.
+    local candidates = _G.__KH_ENV.requestFn()
 
     for _, fn in ipairs(candidates) do
         local ok, res = pcall(fn, {Url = url, Method = "GET"})
@@ -1012,7 +1299,7 @@ local function updateGuiSize()
     end
 end
 
-local Topbar = create("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(3, 3, 4), BorderSizePixel = 0, Active = true, ClipsDescendants = true}, MainFrame)
+local Topbar = create("Frame", {Name = "Topbar", Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Color3.fromRGB(3, 3, 4), BorderSizePixel = 0, Active = true, ClipsDescendants = true}, MainFrame)
 create("UICorner", {CornerRadius = UDim.new(0, 16)}, Topbar)
 
 local Title = create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 18, 0, 0), BackgroundTransparency = 1, Text = "Killer Hub | By Paolo", TextColor3 = CurrentTheme.TEXT_WHITE, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14}, Topbar)
@@ -1073,7 +1360,16 @@ local function makeDraggable(clickObject, dragObject)
             startPos = dragObject.Position
             
             moveConn = UserInputService.InputChanged:Connect(function(changedInput)
-                if dragging and (changedInput == activeInput) then
+                -- 🖥 V5.8.0 PC FIX: en PC el objeto de input que llega en
+                -- InputChanged es un MouseMovement DISTINTO al MouseButton1 que
+                -- inició el arrastre, así que la comparación `== activeInput`
+                -- nunca era verdadera y la ventana NO se podía mover con mouse
+                -- (Wave, Potassium, Solara, Swift...). Ahora aceptamos también
+                -- MouseMovement cuando el arrastre se inició con el mouse.
+                local isSame = (changedInput == activeInput)
+                local isMouseMove = (changedInput.UserInputType == Enum.UserInputType.MouseMovement
+                    and activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1)
+                if dragging and (isSame or isMouseMove) then
                     task.defer(function()
                         if not dragging then return end
                         local delta = changedInput.Position - dragStart
@@ -1096,7 +1392,10 @@ local function makeDraggable(clickObject, dragObject)
             end)
             
             endConn = UserInputService.InputEnded:Connect(function(endedInput)
-                if endedInput == activeInput then
+                -- PC: el botón se suelta con otro objeto de input MouseButton1
+                if endedInput == activeInput
+                    or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1
+                        and endedInput.UserInputType == Enum.UserInputType.MouseButton1) then
                     dragging = false 
                     activeInput = nil
                     if moveConn then moveConn:Disconnect() moveConn = nil end
@@ -1796,6 +2095,17 @@ pcall(function()
         -- Ignora ruido irrelevante o errores nuestros ya reportados
         if msg == "" then return end
         if msg:find("HTTP", 1, true) and msg:find("disabled", 1, true) then return end
+        -- ⚡ V5.9.1 · ANTI-SPAM: en juegos con scripts rotos, ScriptContext.Error
+        -- puede dispararse decenas de veces por segundo. Cada aviso creaba un
+        -- Frame + tweens → tirones reales. Ahora: mismo mensaje se ignora, y
+        -- como máximo un aviso cada 3 segundos.
+        KillerHub.__LastErrText = KillerHub.__LastErrText or ""
+        KillerHub.__LastErrAt = KillerHub.__LastErrAt or 0
+        local nowClock = os.clock()
+        if msg == KillerHub.__LastErrText and (nowClock - KillerHub.__LastErrAt) < 15 then return end
+        if (nowClock - KillerHub.__LastErrAt) < 3 then return end
+        KillerHub.__LastErrText = msg
+        KillerHub.__LastErrAt = nowClock
         _notifyError("⚠️ Error detectado", msg)
         warn("[KillerHub] ScriptContext.Error:\n" .. tostring(stackTrace))
     end)
@@ -1804,9 +2114,8 @@ end)
 
 local function updateGlobalFlags(flagName, value)
     Flags[flagName] = { CurrentValue = value }
-    if getgenv().KillerHub then
-        getgenv().KillerHub.Flags = Flags
-    end
+    local env = _G.__KH_ENV.genv()
+    if env.KillerHub then env.KillerHub.Flags = Flags end
 end
 
 function KillerHub:SetPremiumIds(idTable) end
@@ -1917,7 +2226,10 @@ function KillerHub:Unload()
     table.clear(self.TargetThemeElements)
     table.clear(self.Elements)
     
-    if getgenv().KillerHub then getgenv().KillerHub = nil end
+    pcall(function()
+        local env = _G.__KH_ENV.genv()
+        if env.KillerHub then env.KillerHub = nil end
+    end)
     warn("KillerHub fully unloaded: active toggles notified, connections closed and memory freed.")
 end
 
@@ -4537,7 +4849,9 @@ local function createFloating(sc)
         -- release. They must NOT go into the global Connections table (it grew
         -- forever, one dead entry per drag = memory + GC pressure).
         moveConn = UserInputService.InputChanged:Connect(function(changedInput)
-            if not dragging or changedInput ~= activeInput then return end
+            if not dragging then return end
+            if changedInput ~= activeInput and not (changedInput.UserInputType == Enum.UserInputType.MouseMovement
+                and activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1) then return end
             -- 🩹 Fix #4: filtra el tipo de input — solo nos interesa el movimiento
             -- real del mouse/dedo; ignora gamepad, scroll wheel, etc. que también
             -- disparan InputChanged y no deberían procesarse en cada frame.
@@ -5540,6 +5854,625 @@ SP.Extras:CreateSection("Danger")
 SP.Extras:CreateParagraph("⚠️ Unload", "If you unload the script, the interface closes and is fully removed from memory.")
 SP.Extras:CreateButton("Unload script", function() KillerHub:Unload() end)
 SP.Extras:CreateHint("Closes and removes the hub from this session.")
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 🕵️ PANEL SPY v2 — página PRIVADA del dueño (solo se crea si el UserId coincide)
+-- Consola tipo termux estilo SimpleSpy: traza remotes (incluidos ocultos /
+-- nil-parented), genera código listo para pegar, Get Script, Decompile,
+-- buscador en vivo y dedupe inteligente (misma ruta + mismos argumentos).
+-- Optimizado: hook con newcclosure, salida inmediata en pausa, buffer por
+-- Heartbeat, reciclado de filas y serialización con tope de profundidad.
+-- ════════════════════════════════════════════════════════════════════════════
+do
+if LocalPlayer and LocalPlayer.UserId == 312419911 then -- ← mismo UserId que usa el panel privado
+    local S = {}                      -- un solo local para todo (límite de 200)
+    S.page      = SettingsTab:CreatePage("Panel Spy")
+    S.active    = false
+    S.seen      = {}                  -- firma -> fila
+    S.rows      = {}                  -- filas en orden de llegada
+    S.raw       = {}                  -- capturas crudas (procesadas fuera del hook)
+    S.rawn      = 0
+    S.buffer    = {}                  -- filas pendientes de pintar
+    S.dirty     = {}                  -- filas con contador cambiado
+    S.unique    = 0
+    S.MAXROWS   = 250
+    S.RAWCAP    = 120                 -- techo de capturas crudas por frame
+    S.hooked    = false
+    S.query     = ""
+    S.sel       = nil
+    S.bindables = false               -- Bindables OFF por defecto (son los que más spamean)
+    S.wrapC     = false               -- ⚠️ newcclosure OFF por defecto: ver nota de yield
+    S.mode      = "namecall"
+
+    -- Métodos vigilados. Los "yield" (InvokeServer / Invoke) son los delicados:
+    -- el juego espera su retorno, así que el hook NO puede hacer trabajo pesado
+    -- ni romper la cadena de retorno o la acción (disparar, atacar) se pierde.
+    S.watch = {FireServer = true, InvokeServer = true}
+    S.bindWatch = {Fire = true, Invoke = true}
+
+    S.env = (function()
+        local ok, e = pcall(function() return getgenv() end)
+        if ok and type(e) == "table" then return e end
+        return _G
+    end)()
+    S.get = function(name)
+        local v = rawget(S.env, name)
+        if type(v) == "function" then return v end
+        v = rawget(_G, name)
+        if type(v) == "function" then return v end
+        return nil
+    end
+    S.clip = function(txt)
+        local f = S.get("setclipboard") or S.get("toclipboard") or S.get("set_clipboard") or S.get("write_clipboard")
+        if f then pcall(f, txt); return true end
+        return false
+    end
+    S.hex = function(c)
+        return string.format("#%02X%02X%02X",
+            math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+    end
+
+    -- ── Buscador ────────────────────────────────────────────────────────────
+    S.searchBox = create("Frame", {
+        Size = UDim2.new(1, -4, 0, 32), BackgroundColor3 = CurrentTheme.BG_SECONDARY,
+        BorderSizePixel = 0, LayoutOrder = 0
+    }, S.page.Frame)
+    create("UICorner", {CornerRadius = UDim.new(0, 10)}, S.searchBox)
+    S.searchStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, S.searchBox)
+    S.searchIcon = create("TextLabel", {
+        Size = UDim2.new(0, 26, 1, 0), BackgroundTransparency = 1, Text = "🔎",
+        TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.Code, TextSize = 13
+    }, S.searchBox)
+    S.search = create("TextBox", {
+        Size = UDim2.new(1, -34, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1,
+        Text = "", PlaceholderText = "buscar ruta, método o argumento…",
+        PlaceholderColor3 = CurrentTheme.TEXT_MUTED, TextColor3 = CurrentTheme.TEXT_WHITE,
+        Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+        ClearTextOnFocus = false
+    }, S.searchBox)
+
+    -- ── Terminal ────────────────────────────────────────────────────────────
+    S.term = create("Frame", {
+        Name = "SpyTerminal", Size = UDim2.new(1, -4, 0, 330),
+        BackgroundColor3 = Color3.fromRGB(8, 9, 12), BorderSizePixel = 0, LayoutOrder = 1
+    }, S.page.Frame)
+    create("UICorner", {CornerRadius = UDim.new(0, 12)}, S.term)
+    S.termStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, S.term)
+
+    S.head = create("Frame", {
+        Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = CurrentTheme.BG_SECONDARY,
+        BackgroundTransparency = 0.2, BorderSizePixel = 0
+    }, S.term)
+    create("UICorner", {CornerRadius = UDim.new(0, 12)}, S.head)
+    create("Frame", { -- tapa las esquinas inferiores redondeadas del header
+        Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10),
+        BackgroundColor3 = CurrentTheme.BG_SECONDARY, BackgroundTransparency = 0.2, BorderSizePixel = 0
+    }, S.head)
+
+    S.dot = create("Frame", {
+        Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, 12, 0.5, -4),
+        BackgroundColor3 = Color3.fromRGB(220, 70, 70), BorderSizePixel = 0, ZIndex = 2
+    }, S.head)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, S.dot)
+
+    S.title = create("TextLabel", {
+        Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 28, 0, 0), BackgroundTransparency = 1,
+        Text = "KH SPY ~ remote tracer", TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.Code,
+        TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2
+    }, S.head)
+
+    S.counter = create("TextLabel", {
+        Size = UDim2.new(0, 120, 1, 0), Position = UDim2.new(1, -132, 0, 0), BackgroundTransparency = 1,
+        Text = "0 rutas", TextColor3 = CurrentTheme.ACCENT, Font = Enum.Font.Code, TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 2
+    }, S.head)
+
+    S.body = create("ScrollingFrame", {
+        Size = UDim2.new(1, -12, 1, -38), Position = UDim2.new(0, 6, 0, 32), BackgroundTransparency = 1,
+        BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = CurrentTheme.ACCENT,
+        ScrollBarImageTransparency = 0.35, CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y
+    }, S.term)
+    S.layout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2)}, S.body)
+    create("UIPadding", {PaddingLeft = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4)}, S.body)
+    connect(S.layout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        S.body.CanvasSize = UDim2.new(0, 0, 0, S.layout.AbsoluteContentSize.Y + 6)
+    end)
+
+    -- ── Botonera principal ──────────────────────────────────────────────────
+    S.row = create("Frame", {
+        Size = UDim2.new(1, -4, 0, 38), BackgroundTransparency = 1, LayoutOrder = 2
+    }, S.page.Frame)
+
+    S.main = create("TextButton", {
+        Size = UDim2.new(0.62, -4, 1, 0), BackgroundColor3 = CurrentTheme.ACCENT,
+        Text = "Spy", TextColor3 = Color3.fromRGB(12, 12, 14), Font = Enum.Font.GothamBold,
+        TextSize = 13, AutoButtonColor = false
+    }, S.row)
+    create("UICorner", {CornerRadius = UDim.new(0, 10)}, S.main)
+
+    S.del = create("TextButton", {
+        Size = UDim2.new(0.38, -4, 1, 0), Position = UDim2.new(0.62, 8, 0, 0),
+        BackgroundColor3 = CurrentTheme.BG_SECONDARY, Text = "Delete",
+        TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamBold, TextSize = 13,
+        AutoButtonColor = false
+    }, S.row)
+    create("UICorner", {CornerRadius = UDim.new(0, 10)}, S.del)
+    S.delStroke = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, S.del)
+
+    -- ── Acciones sobre la línea seleccionada + utilidades ────────────────────
+    S.tools = create("Frame", {
+        Size = UDim2.new(1, -4, 0, 160), BackgroundTransparency = 1, LayoutOrder = 3
+    }, S.page.Frame)
+    S.toolBtns = {}
+    S.mkTool = function(text, x, y, cb)
+        local b = create("TextButton", {
+            Size = UDim2.new(0.5, -4, 0, 34), Position = UDim2.new(x * 0.5, x == 0 and 0 or 8, 0, y * 42),
+            BackgroundColor3 = CurrentTheme.BG_SECONDARY, Text = text,
+            TextColor3 = CurrentTheme.TEXT_WHITE, Font = Enum.Font.GothamMedium, TextSize = 12,
+            AutoButtonColor = false
+        }, S.tools)
+        create("UICorner", {CornerRadius = UDim.new(0, 10)}, b)
+        local st = create("UIStroke", {Thickness = 1, Color = CurrentTheme.BORDER}, b)
+        S.toolBtns[#S.toolBtns + 1] = {btn = b, stroke = st}
+        connect(b.MouseButton1Click, cb)
+        return b
+    end
+
+    -- Repintado por tema (mismo mecanismo que el resto del hub).
+    table.insert(KillerHub.TargetThemeElements, function()
+        S.termStroke.Color   = CurrentTheme.BORDER
+        S.head.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+        for _, ch in ipairs(S.head:GetChildren()) do
+            if ch:IsA("Frame") and ch ~= S.dot then ch.BackgroundColor3 = CurrentTheme.BG_SECONDARY end
+        end
+        S.title.TextColor3   = CurrentTheme.TEXT_WHITE
+        S.counter.TextColor3 = CurrentTheme.ACCENT
+        S.body.ScrollBarImageColor3 = CurrentTheme.ACCENT
+        S.main.BackgroundColor3 = S.active and Color3.fromRGB(220, 160, 60) or CurrentTheme.ACCENT
+        S.del.BackgroundColor3  = CurrentTheme.BG_SECONDARY
+        S.del.TextColor3        = CurrentTheme.TEXT_WHITE
+        S.delStroke.Color       = CurrentTheme.BORDER
+        S.searchBox.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+        S.searchStroke.Color   = CurrentTheme.BORDER
+        S.searchIcon.TextColor3 = CurrentTheme.ACCENT
+        S.search.TextColor3    = CurrentTheme.TEXT_WHITE
+        S.search.PlaceholderColor3 = CurrentTheme.TEXT_MUTED
+        for i = 1, #S.toolBtns do
+            S.toolBtns[i].btn.BackgroundColor3 = CurrentTheme.BG_SECONDARY
+            S.toolBtns[i].btn.TextColor3       = CurrentTheme.TEXT_WHITE
+            S.toolBtns[i].stroke.Color         = CurrentTheme.BORDER
+        end
+        for i = 1, #S.rows do S.rows[i].repaint() end
+    end)
+
+    -- ── Serialización ───────────────────────────────────────────────────────
+    S.q = function(s)
+        return "\"" .. s:gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n") .. "\""
+    end
+    S.lit = function(v, depth)
+        local t = typeof(v)
+        if t == "string" then
+            if #v > 90 then v = v:sub(1, 90) .. "…" end
+            return S.q(v)
+        elseif t == "number" or t == "boolean" then return tostring(v)
+        elseif t == "nil" then return "nil"
+        elseif t == "Instance" then
+            local ok, full = pcall(function() return v:GetFullName() end)
+            return ok and ("game." .. tostring(full):gsub("^game%.", "")) or ("--[[" .. v.ClassName .. "]] nil")
+        elseif t == "Vector3" then return ("Vector3.new(%.3f, %.3f, %.3f)"):format(v.X, v.Y, v.Z)
+        elseif t == "Vector2" then return ("Vector2.new(%.3f, %.3f)"):format(v.X, v.Y)
+        elseif t == "CFrame" then return "CFrame.new(" .. tostring(v) .. ")"
+        elseif t == "Color3" then return ("Color3.new(%.3f, %.3f, %.3f)"):format(v.R, v.G, v.B)
+        elseif t == "EnumItem" then return tostring(v)
+        elseif t == "BrickColor" then return ("BrickColor.new(%s)"):format(S.q(tostring(v)))
+        elseif t == "table" then
+            depth = depth or 0
+            if depth >= 2 then return "{ --[[…]] }" end
+            local parts, n = {}, 0
+            for k, val in pairs(v) do
+                n = n + 1
+                if n > 8 then parts[#parts + 1] = "--[[…]]" break end
+                local key = type(k) == "string" and (("[%s] = "):format(S.q(k))) or ("[" .. tostring(k) .. "] = ")
+                parts[#parts + 1] = key .. S.lit(val, depth + 1)
+            end
+            return "{" .. table.concat(parts, ", ") .. "}"
+        end
+        return "--[[" .. t .. "]] nil"
+    end
+    S.short = function(s)
+        if #s > 34 then return s:sub(1, 34) .. "…" end
+        return s
+    end
+
+    -- ── Filas ───────────────────────────────────────────────────────────────
+    S.matches = function(e)
+        if S.query == "" then return true end
+        return (e.path:lower():find(S.query, 1, true) ~= nil)
+            or (e.args:lower():find(S.query, 1, true) ~= nil)
+            or (e.method:lower():find(S.query, 1, true) ~= nil)
+    end
+
+    S.select = function(entry)
+        S.sel = entry
+        for i = 1, #S.rows do
+            local r = S.rows[i]
+            r.btn.BackgroundTransparency = (r == entry) and 0.86 or 1
+        end
+        S.title.Text = entry.remote and ("KH SPY ~ " .. S.short(entry.remote)) or "KH SPY ~ remote tracer"
+    end
+
+    S.makeRow = function(entry)
+        local btn = create("TextButton", {
+            Size = UDim2.new(1, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = CurrentTheme.ACCENT, BackgroundTransparency = 1,
+            Text = "", AutoButtonColor = false, LayoutOrder = #S.rows + 1
+        }, S.body)
+        create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+        local lbl = create("TextLabel", {
+            Size = UDim2.new(1, -6, 0, 0), Position = UDim2.new(0, 3, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1, RichText = true, TextWrapped = true,
+            Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = CurrentTheme.TEXT_WHITE, Text = ""
+        }, btn)
+        entry.btn, entry.lbl = btn, lbl
+        entry.repaint = function()
+            local acc, mut = S.hex(CurrentTheme.ACCENT), S.hex(CurrentTheme.TEXT_MUTED)
+            local tag = ""
+            if entry.hidden then tag = "<font color=\"#E5C07B\">[oculto]</font> " end
+            if entry.dormant then tag = tag .. "<font color=\"#7AA2F7\">[dormido]</font> " end
+            lbl.Text = ("<font color=\"#57E389\">></font> %s<font color=\"%s\">%s</font>  <font color=\"%s\">%s %s</font>%s")
+                :format(tag, acc, entry.path, mut, entry.method, entry.args,
+                    entry.count > 1 and ("  <font color=\"%s\">x%d</font>"):format(mut, entry.count) or "")
+            btn.Visible = S.matches(entry)
+        end
+        connect(btn.MouseButton1Click, function() S.select(entry) end)
+        entry.repaint()
+        table.insert(S.rows, entry)
+        if #S.rows > S.MAXROWS then
+            local old = table.remove(S.rows, 1)
+            if old.sig then S.seen[old.sig] = nil end
+            if S.sel == old then S.sel = nil end
+            old.btn:Destroy()
+        end
+    end
+
+    S.flush = function()
+        if #S.buffer > 0 then
+            for i = 1, #S.buffer do S.makeRow(S.buffer[i]) end
+            table.clear(S.buffer)
+            S.counter.Text = S.unique .. " rutas"
+            S.body.CanvasPosition = Vector2.new(0, math.max(0, S.layout.AbsoluteContentSize.Y))
+        end
+        if #S.dirty > 0 then
+            for i = 1, #S.dirty do S.dirty[i].pending = false; S.dirty[i].repaint() end
+            table.clear(S.dirty)
+        end
+    end
+
+    S.logLine = function(text)
+        S.makeRow({sig = nil, path = text, method = "", args = "", count = 1, vals = {}})
+    end
+
+    -- ── Rutas ───────────────────────────────────────────────────────────────
+    S.pathOf = function(obj)
+        local ok, full = pcall(function() return obj:GetFullName() end)
+        if not ok or type(full) ~= "string" or full == "" then
+            return ("--[[remote oculto]] %s"):format(tostring(obj)), true
+        end
+        -- remote fuera del DataModel (nil-parented / oculto): se busca por nombre
+        local root = obj
+        local hidden = false
+        local ok2 = pcall(function()
+            while root.Parent do root = root.Parent end
+            hidden = (root ~= game)
+        end)
+        if not ok2 then hidden = true end
+        if hidden then
+            return ("--[[oculto]] KH_FindRemote(%s)"):format(S.q(full)), true
+        end
+        local first, rest = full:match("^([^%.]+)%.?(.*)$")
+        if first and first ~= "game" then
+            return ("game:GetService(\"%s\")%s"):format(first, rest ~= "" and ("." .. rest) or ""), false
+        end
+        return full, false
+    end
+
+    -- ── Procesado FUERA del hook ────────────────────────────────────────────
+    -- 🩹 CLAVE V5.9.4: el hook ya no serializa nada. Solo mete la captura cruda
+    -- en una cola y devuelve la llamada original en tail-call. Así el disparo /
+    -- ataque nunca se retrasa ni se corta (era lo que hacía que MM2 o TSB
+    -- registraran la ruta pero no ejecutaran la acción).
+    S.digest = function(cap)
+        local obj, method, args, n = cap[1], cap[2], cap[3], cap[4]
+        local okc, cls = pcall(function() return obj.ClassName end)
+        if not okc then return end
+        if cls ~= "RemoteEvent" and cls ~= "RemoteFunction" and cls ~= "UnreliableRemoteEvent"
+            and cls ~= "BindableEvent" and cls ~= "BindableFunction" then return end
+        local vals, disp = {}, {}
+        local lim = math.min(n, 10)
+        for i = 1, lim do
+            local okl, lit = pcall(S.lit, args[i], 0)
+            vals[i] = okl and lit or "--[[?]] nil"
+            disp[i] = S.short(vals[i])
+        end
+        if n > lim then disp[#disp + 1] = "…" end
+        local path, hidden = S.pathOf(obj)
+        -- Firma por RUTA + MÉTODO + VALORES: dos ítems distintos con la misma
+        -- ruta se muestran como líneas separadas (no se pisan entre sí).
+        local sig = path .. "|" .. method .. "|" .. table.concat(vals, "\1")
+        local hit = S.seen[sig]
+        if hit then
+            hit.count = hit.count + 1
+            hit.dormant = false
+            if not hit.pending then hit.pending = true; S.dirty[#S.dirty + 1] = hit end
+            return
+        end
+        S.unique = S.unique + 1
+        local okn, nm = pcall(function() return obj.Name end)
+        local e = {
+            sig = sig, path = path, method = method, count = 1, hidden = hidden,
+            vals = vals, script = cap[5], remote = okn and nm or "remote",
+            args = "(" .. table.concat(disp, ", ") .. ")"
+        }
+        S.seen[sig] = e
+        S.buffer[#S.buffer + 1] = e
+    end
+
+    S.tick = function()
+        if S.rawn > 0 then
+            local q, n = S.raw, S.rawn
+            S.raw, S.rawn = {}, 0
+            for i = 1, n do pcall(S.digest, q[i]) end
+        end
+        S.flush()
+    end
+
+    -- ── Hook ────────────────────────────────────────────────────────────────
+    -- El wrapper es lo más corto posible: un booleano, el nombre del método y
+    -- un table.pack. Nada de GetFullName, nada de string.format, nada de
+    -- getcallingscript pesado si el executor no lo tiene.
+    S.installHook = function()
+        if S.hooked then return true end
+        local hookmm = S.get("hookmetamethod")
+        local getnc  = S.get("getnamecallmethod")
+        local ckc    = S.get("checkcaller")
+        local gcs    = S.get("getcallingscript")
+        if not hookmm or not getnc then return false end
+        local ok = pcall(function()
+            local old
+            local fn = function(self, ...)
+                -- Ruta rápida: en pausa el hook cuesta una comparación booleana.
+                if S.active and S.rawn < S.RAWCAP and not (ckc and ckc()) then
+                    local okm, m = pcall(getnc)
+                    if okm and (S.watch[m] or (S.bindables and S.bindWatch[m])) then
+                        local scr
+                        if gcs then local okg, s = pcall(gcs); scr = okg and s or nil end
+                        S.rawn = S.rawn + 1
+                        S.raw[S.rawn] = {self, m, table.pack(...), select("#", ...), scr}
+                    end
+                end
+                -- ÚLTIMA línea y en tail-call: se preservan TODOS los valores de
+                -- retorno de InvokeServer y el thread puede seguir cediendo.
+                return old(self, ...)
+            end
+            -- ⚠️ newcclosure introduce una frontera C: en varios executors eso
+            -- rompe el yield de InvokeServer y la acción del juego se cancela
+            -- (el remote se ve en el spy pero el arma no dispara). Por eso ahora
+            -- está APAGADO por defecto y se puede alternar con "Compat mode".
+            if S.wrapC then
+                local ncc = S.get("newcclosure")
+                if ncc then local o, w = pcall(ncc, fn); if o then fn = w end end
+            end
+            old = hookmm(game, "__namecall", fn)
+        end)
+        S.hooked = ok
+        return ok
+    end
+
+    S.setActive = function(on)
+        if on and not S.hooked and not S.installHook() then
+            S.logLine("executor sin soporte de hook (hookmetamethod)")
+            return
+        end
+        S.active = on
+        S.main.Text = on and "Pause" or "Spy"
+        S.main.BackgroundColor3 = on and Color3.fromRGB(220, 160, 60) or CurrentTheme.ACCENT
+        S.dot.BackgroundColor3 = on and Color3.fromRGB(90, 220, 130) or Color3.fromRGB(220, 70, 70)
+        if on then
+            if not S.beat then S.beat = connect(RunService.Heartbeat, S.tick) end
+        elseif S.beat then
+            S.beat:Disconnect(); S.beat = nil
+            S.raw, S.rawn = {}, 0
+            S.flush()
+        end
+    end
+
+    connect(S.main.MouseButton1Click, function() S.setActive(not S.active) end)
+    connect(S.del.MouseButton1Click, function()
+        for i = 1, #S.rows do S.rows[i].btn:Destroy() end
+        table.clear(S.rows); table.clear(S.seen); table.clear(S.buffer); table.clear(S.dirty)
+        S.raw, S.rawn = {}, 0
+        S.unique = 0; S.sel = nil
+        S.counter.Text = "0 rutas"
+        S.title.Text = "KH SPY ~ remote tracer"
+    end)
+
+    -- Buscador: filtra sin recrear filas (solo cambia Visible).
+    connect(S.search:GetPropertyChangedSignal("Text"), function()
+        S.query = S.search.Text:lower()
+        for i = 1, #S.rows do
+            local r = S.rows[i]
+            r.btn.Visible = S.matches(r)
+        end
+    end)
+
+    -- ── Herramientas ────────────────────────────────────────────────────────
+    S.note = function(msg)
+        if KillerHub.Notify then KillerHub:Notify("Panel Spy", msg, 2) end
+    end
+    S.need = function()
+        if not S.sel or not S.sel.sig then S.note("Selecciona una línea primero"); return nil end
+        return S.sel
+    end
+    S.codeOf = function(e)
+        local b = {}
+        if e.hidden then
+            b[#b + 1] = "-- remote oculto: se busca por nombre en todo el juego"
+            b[#b + 1] = "local function KH_FindRemote(name)"
+            b[#b + 1] = "    for _, v in ipairs(game:GetDescendants()) do"
+            b[#b + 1] = "        if v:IsA(\"RemoteEvent\") or v:IsA(\"RemoteFunction\") then"
+            b[#b + 1] = "            if v:GetFullName() == name then return v end"
+            b[#b + 1] = "        end"
+            b[#b + 1] = "    end"
+            b[#b + 1] = "    local gni = getnilinstances or get_nil_instances"
+            b[#b + 1] = "    if gni then for _, v in ipairs(gni()) do if v.Name == name:match(\"[^%.]+$\") then return v end end end"
+            b[#b + 1] = "end"
+            b[#b + 1] = ""
+        end
+        b[#b + 1] = "local args = {"
+        for i = 1, #e.vals do
+            b[#b + 1] = ("    [%d] = %s%s"):format(i, e.vals[i], i < #e.vals and "," or "")
+        end
+        b[#b + 1] = "}"
+        b[#b + 1] = ""
+        local call = ("%s:%s(unpack(args))"):format(e.path, e.method)
+        if e.method == "InvokeServer" or e.method == "Invoke" then
+            b[#b + 1] = "local result = " .. call
+        else
+            b[#b + 1] = call
+        end
+        return table.concat(b, "\n")
+    end
+
+    S.mkTool("Get Code", 0, 0, function()
+        local e = S.need(); if not e then return end
+        S.note(S.clip(S.codeOf(e)) and "Código copiado" or "Executor sin portapapeles")
+    end)
+    S.mkTool("Copy Remote", 1, 0, function()
+        local e = S.need(); if not e then return end
+        S.note(S.clip(e.path) and "Ruta copiada" or "Executor sin portapapeles")
+    end)
+    S.mkTool("Get Script", 0, 1, function()
+        local e = S.need(); if not e then return end
+        if not e.script then S.note("Script de origen no disponible"); return end
+        local ok, full = pcall(function() return e.script:GetFullName() end)
+        local path = ok and ("game." .. tostring(full):gsub("^game%.", "")) or tostring(e.script)
+        S.logLine("script: " .. path)
+        S.flush()
+        S.clip(path)
+        S.note("Script copiado")
+    end)
+    S.mkTool("Decompile", 1, 1, function()
+        local e = S.need(); if not e then return end
+        local dec = S.get("decompile")
+        if not dec then S.note("Executor sin decompile"); return end
+        if not e.script then S.note("Script de origen no disponible"); return end
+        task.spawn(function()
+            local ok, src = pcall(dec, e.script)
+            if ok and type(src) == "string" and #src > 0 then
+                S.clip(src)
+                S.logLine(("decompile ok · %d caracteres copiados"):format(#src))
+                S.flush()
+                S.note("Fuente copiada")
+            else
+                S.note("No se pudo descompilar")
+            end
+        end)
+    end)
+
+    -- 🔎 Scan total: TODAS las rutas del juego, incluso las que nunca se
+    -- disparan y las escondidas (nil-parented, contenedores no replicados).
+    -- Se listan como [dormido] y en cuanto el juego las usa pierden la etiqueta.
+    S.scanOne = function(v, hiddenHint)
+        local okc, cls = pcall(function() return v.ClassName end)
+        if not okc then return end
+        if cls ~= "RemoteEvent" and cls ~= "RemoteFunction" and cls ~= "UnreliableRemoteEvent"
+            and not (S.bindables and (cls == "BindableEvent" or cls == "BindableFunction")) then return end
+        local path, hidden = S.pathOf(v)
+        hidden = hidden or hiddenHint
+        local method = (cls == "RemoteFunction") and "InvokeServer"
+            or (cls == "BindableFunction") and "Invoke"
+            or (cls == "BindableEvent") and "Fire" or "FireServer"
+        local sig = path .. "|scan"
+        if S.seen[sig] then return end
+        S.unique = S.unique + 1
+        local okn, nm = pcall(function() return v.Name end)
+        local e = {
+            sig = sig, path = path, method = method, count = 1, hidden = hidden, dormant = true,
+            vals = {}, script = nil, remote = okn and nm or "remote", args = "()"
+        }
+        S.seen[sig] = e
+        S.buffer[#S.buffer + 1] = e
+    end
+
+    S.mkTool("Scan rutas", 0, 2, function()
+        task.spawn(function()
+            local found, step = 0, 0
+            local okd, desc = pcall(function() return game:GetDescendants() end)
+            if okd then
+                for i = 1, #desc do
+                    S.scanOne(desc[i], false)
+                    step = step + 1
+                    if step % 900 == 0 then task.wait() end -- no congela el juego
+                end
+            end
+            -- Ocultos: instancias sin padre que el executor sí puede ver.
+            local gni = S.get("getnilinstances") or S.get("get_nil_instances")
+            if gni then
+                local okn, nils = pcall(gni)
+                if okn and type(nils) == "table" then
+                    for i = 1, #nils do S.scanOne(nils[i], true) end
+                end
+            end
+            found = #S.buffer
+            S.flush()
+            S.counter.Text = S.unique .. " rutas"
+            S.note(("Scan listo · %d rutas nuevas"):format(found))
+        end)
+    end)
+
+    S.bindBtn = S.mkTool("Bindables: OFF", 1, 2, function()
+        S.bindables = not S.bindables
+        S.bindBtn.Text = "Bindables: " .. (S.bindables and "ON" or "OFF")
+        S.note(S.bindables and "Bindables incluidos (más ruido)" or "Solo remotes del servidor")
+    end)
+
+    S.compatBtn = S.mkTool("Compat: yield-safe", 0, 3, function()
+        if S.hooked then
+            S.note("El hook ya está puesto: recarga el script para cambiarlo")
+            return
+        end
+        S.wrapC = not S.wrapC
+        S.compatBtn.Text = S.wrapC and "Compat: cclosure" or "Compat: yield-safe"
+        S.note(S.wrapC and "Modo cclosure (si tu executor lo exige)" or "Modo yield-safe (recomendado)")
+    end)
+
+    S.mkTool("Copiar todo", 1, 3, function()
+        local b = {}
+        for i = 1, #S.rows do
+            local r = S.rows[i]
+            if r.sig and S.matches(r) then
+                b[#b + 1] = ("%s:%s%s%s"):format(r.path, r.method, r.args, r.dormant and "  -- sin uso aún" or "")
+            end
+        end
+        if #b == 0 then S.note("No hay rutas para copiar"); return end
+        S.note(S.clip(table.concat(b, "\n")) and (#b .. " rutas copiadas") or "Executor sin portapapeles")
+    end)
+
+    S.page:CreateHint("Toca una línea para seleccionarla y usa los botones. \"Scan rutas\" lista TODAS las rutas del juego (incluidas las ocultas y las que nunca se usan). Solo lectura: no modifica ni envía nada.")
+    S.logLine("listo. pulsa Spy para trazar en vivo o Scan rutas para mapear el juego completo.")
+    S.counter.Text = "0 rutas"
+    S.unique = 0
+
+    KillerHub.__SpyStop = function()
+        S.active = false
+        if S.beat then S.beat:Disconnect(); S.beat = nil end
+        S.raw, S.rawn = {}, 0
+    end
+end
+end
 end
 
 task.defer(function()
@@ -5551,8 +6484,16 @@ task.defer(function()
 end)
 
 -- Publicación y Sincronización Inicial de Flags globales
-getgenv().KillerHub = KillerHub
-getgenv().KillerHub.Flags = Flags
+-- 🧩 V5.9.1: publicación blindada (getgenv puede no existir → cae a _G).
+do
+    local env = _G.__KH_ENV.genv()
+    env.KillerHub = KillerHub
+    env.KillerHub.Flags = Flags
+end
+KillerHub.Platform = _G.__KH_ENV.platform()
+KillerHub.Executor = _G.__KH_ENV.executor()
+KillerHub.IsPC = (KillerHub.Platform == "PC")
+KillerHub.IsMobile = (KillerHub.Platform == "Android" or KillerHub.Platform == "iOS" or KillerHub.Platform == "Móvil")
 
 
 -- ============================================================================
@@ -6147,5 +7088,732 @@ end
 -- FIN ENHANCEMENT LAYER v1.3
 -- ============================================================================
 
+
+-- ============================================================================
+-- 📡 V5.8.4 · KILLER HUB ANALYTICS + PANEL DE USUARIOS (SOLO EL DUEÑO)
+-- ----------------------------------------------------------------------------
+-- Cambios V5.8.4:
+--   • El panel abre y cierra con animación (escala + fade) y la fila del usuario
+--     despliega "Unirme" con rebote y fundido.
+--   • Ahora el panel se cierra con CUALQUIER tap: fuera, dentro del panel, en el
+--     hub o en el botón flotante. Solo se queda abierto si deslizas/scrolleas
+--     dentro del panel o si tocaste una fila o el botón "Unirme".
+--   • El ping rearma el payload cada vez: el jobId que guarda la web es el del
+--     servidor ACTUAL. Antes se serializaba al cargar el script, así que el
+--     panel podía tener un jobId viejo y "Unirme" te dejaba en un server random.
+--   • "Unirme" avisa cuando el usuario está desconectado o no reporta jobId
+--     (en esos casos Roblox no puede meterte a su servidor exacto).
+-- ----------------------------------------------------------------------------
+-- Cambios V5.8.2:
+--   • El contador ahora vive en la TOPBAR (pastilla al lado del FPS), con
+--     iconos de imagen en vez de emojis. Antes se colgaba del primer Frame que
+--     encontrara dentro del MainFrame (el fondo personalizado), por eso salía
+--     abajo a la derecha, casi invisible y sin recibir clics.
+--   • El panel abre de verdad: ZIndex por encima del hub y click garantizado.
+--   • Al tocar a un jugador se despliega "Join game" (TeleportToPlaceInstance).
+--   • Menos trabajo: el latido no re-crea el payload, las lecturas se detienen
+--     cuando el menú está cerrado o el panel no se ve, y las filas se reciclan
+--     en vez de destruirse y crearse de nuevo en cada refresco.
+-- ============================================================================
+do
+local KH_OWNER_USERID  = 312419911   -- ← TU USERID DE ROBLOX
+local KH_ANALYTICS_URL = "https://project--e9d15026-4081-4e74-a34f-79f6f3fea1cd-dev.lovable.app/api/public/kh"
+local KH_OWNER_KEY     = "killerhub-panel-2026"
+local KH_PING_INTERVAL = 20
+local KH_VERSION       = "5.9.0"
+
+local KH_ICON_USER  = "rbxassetid://81489458260315"
+local KH_ICON_CLOSE = "rbxassetid://82994774214203"
+
+    if KH_ANALYTICS_URL ~= "" then
+        -- 🧩 V5.9.1: la petición sale de la capa de compatibilidad (cubre
+        -- todos los executors de PC/móvil y nunca indexa globales inexistentes).
+        local httpReqList = _G.__KH_ENV.requestFn()
+
+        local function httpRequest(opts)
+            for _, fn in ipairs(httpReqList) do
+                local ok, res = pcall(fn, opts)
+                if ok and type(res) == "table" then return res end
+            end
+            return nil
+        end
+
+        local detectExecutor = _G.__KH_ENV.executor
+        local detectPlatform = _G.__KH_ENV.platform
+
+        local function gameName()
+            local name = "Juego " .. tostring(game.PlaceId)
+            pcall(function()
+                local mps = game:GetService("MarketplaceService")
+                local info = mps and mps:GetProductInfo(game.PlaceId)
+                if info and info.Name then name = info.Name end
+            end)
+            return name
+        end
+
+        local isOwner = (KH_OWNER_USERID ~= 0 and LocalPlayer and LocalPlayer.UserId == KH_OWNER_USERID)
+        local uid = (LocalPlayer and LocalPlayer.UserId) or 0
+        local payload
+        local cachedGameName
+
+        -- El payload se REARMA en cada ping: si el jugador cambia de servidor
+        -- (o de juego) el jobId que ve el panel siempre es el de AHORA. Antes se
+        -- serializaba una sola vez al cargar, así que el panel guardaba un jobId
+        -- viejo/muerto y "Unirme" terminaba en un servidor aleatorio.
+        local function buildPayload()
+            if not cachedGameName then cachedGameName = gameName() end
+            local ok, encoded = pcall(function()
+                return HttpService:JSONEncode({
+                    userId      = uid,
+                    username    = (LocalPlayer and LocalPlayer.Name) or "?",
+                    displayName = (LocalPlayer and LocalPlayer.DisplayName) or "?",
+                    avatarUrl   = ("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png"):format(uid),
+                    executor    = detectExecutor(),
+                    platform    = detectPlatform(),
+                    placeId     = tostring(game.PlaceId),
+                    jobId       = tostring(game.JobId or ""),
+                    gameName    = cachedGameName,
+                    version     = KH_VERSION,
+                })
+            end)
+            if ok then payload = encoded end
+            return payload
+        end
+
+        task.spawn(buildPayload)
+
+        local function sendPing()
+            if not buildPayload() then return end
+            httpRequest({
+                Url = KH_ANALYTICS_URL .. "/ping",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload,
+            })
+        end
+
+        -- Aviso de salida (guardado en la tabla del hub para no gastar
+        -- "local registers": este scope ya está al tope de 200 locales).
+        KillerHub.__KH_ByeSent = false
+        function KillerHub.__KH_SendBye()
+            if KillerHub.__KH_ByeSent then return end
+            KillerHub.__KH_ByeSent = true
+            httpRequest({
+                Url = KH_ANALYTICS_URL .. "/bye",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({ userId = uid }),
+            })
+        end
+
+        -- 1) Latido de presencia: todo el mundo, sin UI, en un hilo aparte.
+        task.spawn(function()
+            local waited = 0
+            while not payload and waited < 15 and not _G.__KillerHub_Unloaded__ do
+                waited = waited + task.wait(0.5)
+            end
+            while not _G.__KillerHub_Unloaded__ do
+                sendPing()
+                local slept = 0
+                while slept < KH_PING_INTERVAL and not _G.__KillerHub_Unloaded__ do
+                    slept = slept + task.wait(1)
+                end
+            end
+            KillerHub.__KH_SendBye()
+        end)
+
+        -- Si el jugador sale del juego o lo teletransportan, avisamos de una vez
+        -- para que el panel no lo siga mostrando "en línea" por minutos.
+        pcall(function()
+            LocalPlayer.AncestryChanged:Connect(function(_, parent)
+                if not parent then KillerHub.__KH_SendBye() end
+            end)
+        end)
+        pcall(function()
+            game:GetService("Players").PlayerRemoving:Connect(function(plr)
+                if plr == LocalPlayer then KillerHub.__KH_SendBye() end
+            end)
+        end)
+
+        -- 2) Lectura de datos: SOLO el dueño.
+        local function fetchJson(path)
+            local res = httpRequest({ Url = KH_ANALYTICS_URL .. path, Method = "GET" })
+            if not res or not res.Body then return nil end
+            local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
+            if ok then return data end
+            return nil
+        end
+
+        function KillerHub:GetActiveUsers()
+            if not isOwner then return nil end
+            return fetchJson("/stats?key=" .. KH_OWNER_KEY)
+        end
+
+        function KillerHub:GetUserList()
+            if not isOwner then return nil end
+            local data = fetchJson("/users?key=" .. KH_OWNER_KEY)
+            return data and data.users or nil
+        end
+
+        -- 3) Contador + panel con avatares: nada de esto existe para los demás.
+        if isOwner then
+            task.spawn(function()
+                local sg = _G.__KillerHub_ScreenGui__
+                local main = sg and sg:FindFirstChild("MainFrame")
+                local topbar = main and (main:FindFirstChild("Topbar") or main:FindFirstChildWhichIsA("Frame"))
+                if not topbar then return end
+
+                local function theme(key, fallback)
+                    local c = CurrentTheme and CurrentTheme[key]
+                    return typeof(c) == "Color3" and c or fallback
+                end
+
+                -- Sonido de la UI (el mismo de los toggles del hub).
+                local function click()
+                    if type(playUISound) == "function" then pcall(playUISound) end
+                end
+
+                -- Registro de piezas temáticas: repintar en caliente cuesta un
+                -- solo for por cambio de tema, cero trabajo por frame.
+                local themed = {}
+                local function paint(inst, prop, key, fallback)
+                    themed[#themed + 1] = { inst, prop, key, fallback }
+                    inst[prop] = theme(key, fallback)
+                    return inst
+                end
+                local function repaint()
+                    for i = #themed, 1, -1 do
+                        local t = themed[i]
+                        if t[1].Parent then
+                            pcall(function() t[1][t[2]] = theme(t[3], t[4]) end)
+                        else
+                            table.remove(themed, i)
+                        end
+                    end
+                end
+
+                -- ---------- Pastilla del contador (topbar, junto al FPS) ----------
+                local pill = Instance.new("TextButton")
+                pill.Name = "KH_OwnerStats"
+                pill.AutoButtonColor = false
+                pill.Text = ""
+                pill.Size = UDim2.new(0, 150, 0, 26)
+                pill.Position = UDim2.new(1, -185, 0.5, 0)
+                pill.AnchorPoint = Vector2.new(1, 0.5)
+                pill.BackgroundTransparency = 0.15
+                pill.BorderSizePixel = 0
+                pill.ZIndex = 20
+                pill.Parent = topbar
+                paint(pill, "BackgroundColor3", "BG_SECONDARY", Color3.fromRGB(24, 24, 30))
+                Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+                local pillStroke = Instance.new("UIStroke", pill)
+                pillStroke.Transparency = 0.45
+                paint(pillStroke, "Color", "ACCENT", Color3.fromRGB(255, 60, 60))
+
+                local pillIcon = Instance.new("ImageLabel")
+                pillIcon.BackgroundTransparency = 1
+                pillIcon.Image = KH_ICON_USER
+                pillIcon.Size = UDim2.new(0, 14, 0, 14)
+                pillIcon.Position = UDim2.new(0, 10, 0.5, 0)
+                pillIcon.AnchorPoint = Vector2.new(0, 0.5)
+                pillIcon.ZIndex = 21
+                pillIcon.Parent = pill
+                paint(pillIcon, "ImageColor3", "ACCENT", Color3.fromRGB(255, 60, 60))
+
+                local pillText = Instance.new("TextLabel")
+                pillText.BackgroundTransparency = 1
+                pillText.Size = UDim2.new(1, -34, 1, 0)
+                pillText.Position = UDim2.new(0, 30, 0, 0)
+                pillText.TextXAlignment = Enum.TextXAlignment.Left
+                pillText.Font = Enum.Font.GothamBold
+                pillText.TextSize = 11
+                pillText.Text = "-- online · -- today"
+                pillText.ZIndex = 21
+                pillText.Parent = pill
+                paint(pillText, "TextColor3", "TEXT_WHITE", Color3.new(1, 1, 1))
+
+                -- ---------- Panel de usuarios ----------
+                local panel = Instance.new("Frame")
+                panel.Name = "KH_OwnerPanel"
+                panel.Visible = false
+                panel.Active = true
+                panel.Size = UDim2.new(0, 330, 0, 360)
+                panel.Position = UDim2.new(0.5, -165, 0.5, -180)
+                panel.BorderSizePixel = 0
+                panel.ZIndex = 500
+                panel.Parent = sg
+                paint(panel, "BackgroundColor3", "BG_MAIN", Color3.fromRGB(14, 12, 18))
+                Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+                local panelStroke = Instance.new("UIStroke", panel)
+                panelStroke.Transparency = 0.4
+                paint(panelStroke, "Color", "ACCENT", Color3.fromRGB(255, 60, 60))
+
+                local headBar = Instance.new("Frame")
+                headBar.Size = UDim2.new(1, 0, 0, 40)
+                headBar.BackgroundTransparency = 1
+                headBar.Active = true
+                headBar.ZIndex = 501
+                headBar.Parent = panel
+
+                local headIcon = Instance.new("ImageLabel")
+                headIcon.BackgroundTransparency = 1
+                headIcon.Image = KH_ICON_USER
+                headIcon.Size = UDim2.new(0, 16, 0, 16)
+                headIcon.Position = UDim2.new(0, 14, 0.5, 0)
+                headIcon.AnchorPoint = Vector2.new(0, 0.5)
+                headIcon.ZIndex = 502
+                headIcon.Parent = headBar
+                paint(headIcon, "ImageColor3", "ACCENT", Color3.fromRGB(255, 60, 60))
+
+                local head = Instance.new("TextLabel")
+                head.BackgroundTransparency = 1
+                head.Size = UDim2.new(1, -80, 1, 0)
+                head.Position = UDim2.new(0, 38, 0, 0)
+                head.TextXAlignment = Enum.TextXAlignment.Left
+                head.Font = Enum.Font.GothamBold
+                head.TextSize = 13
+                head.Text = "Usuarios de Killer Hub"
+                head.ZIndex = 502
+                head.Parent = headBar
+                paint(head, "TextColor3", "TEXT_WHITE", Color3.new(1, 1, 1))
+
+                local close = Instance.new("ImageButton")
+                close.Size = UDim2.new(0, 16, 0, 16)
+                close.Position = UDim2.new(1, -16, 0.5, 0)
+                close.AnchorPoint = Vector2.new(1, 0.5)
+                close.BackgroundTransparency = 1
+                close.Image = KH_ICON_CLOSE
+                close.ZIndex = 503
+                close.Parent = headBar
+                paint(close, "ImageColor3", "TEXT_MUTED", Color3.fromRGB(150, 150, 160))
+
+                if type(makeDraggable) == "function" then
+                    pcall(makeDraggable, headBar, panel)
+                end
+
+                local list = Instance.new("ScrollingFrame")
+                list.Size = UDim2.new(1, -16, 1, -50)
+                list.Position = UDim2.new(0, 8, 0, 44)
+                list.BackgroundTransparency = 1
+                list.BorderSizePixel = 0
+                list.ScrollBarThickness = 4
+                list.CanvasSize = UDim2.new(0, 0, 0, 0)
+                list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                list.ZIndex = 501
+                list.Parent = panel
+                paint(list, "ScrollBarImageColor3", "ACCENT", Color3.fromRGB(255, 60, 60))
+                local ll = Instance.new("UIListLayout", list)
+                ll.Padding = UDim.new(0, 6)
+                ll.SortOrder = Enum.SortOrder.LayoutOrder
+
+                local empty = Instance.new("TextLabel")
+                empty.BackgroundTransparency = 1
+                empty.Size = UDim2.new(1, 0, 0, 40)
+                empty.Font = Enum.Font.Gotham
+                empty.TextSize = 11
+                empty.Text = "Cargando usuarios..."
+                empty.ZIndex = 502
+                empty.Parent = panel
+                empty.Position = UDim2.new(0, 0, 0, 60)
+                paint(empty, "TextColor3", "TEXT_MUTED", Color3.fromRGB(150, 150, 160))
+
+                -- ---------- Animaciones compartidas ----------
+                local TweenService = game:GetService("TweenService")
+                local function animOff()
+                    -- Respeta el interruptor "UI optimization" del hub.
+                    local s = rawget(_G, "UI_OPTIMIZATION")
+                    if s ~= nil then return s and true or false end
+                    if type(Settings) == "table" and Settings.UIOptimization ~= nil then
+                        return Settings.UIOptimization and true or false
+                    end
+                    return false
+                end
+                local function tween(inst, time, props, style, dir)
+                    if not inst or not inst.Parent then return end
+                    if animOff() then
+                        for k, v in pairs(props) do pcall(function() inst[k] = v end) end
+                        return
+                    end
+                    local info = TweenInfo.new(time, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out)
+                    local ok, t = pcall(function() return TweenService:Create(inst, info, props) end)
+                    if ok and t then t:Play() end
+                end
+
+                -- Cuando el usuario interactúa con algo del panel (fila, botón
+                -- Unirme) no queremos que ese mismo tap lo cierre.
+                local keepUntil = 0
+                local function keepPanelOpen() keepUntil = os.clock() + 0.35 end
+
+                -- ---------- Unirme al servidor donde está el usuario ----------
+                local TeleportService = game:GetService("TeleportService")
+                local teleporting = false
+
+                local function notify(title, msg)
+                    if KillerHub and KillerHub.Notify then
+                        pcall(function() KillerHub:Notify(title, msg, 4) end)
+                    end
+                end
+
+                local function joinUser(u)
+                    if teleporting then return end
+                    local placeId = tonumber(u.placeId)
+                    local jobId = tostring(u.jobId or "")
+                    if not placeId or placeId <= 0 then
+                        notify("Unirme", "Ese usuario no reporta el juego (placeId).")
+                        return
+                    end
+                    if jobId ~= "" and jobId == tostring(game.JobId) then
+                        notify("Unirme", "Ya estás en ese mismo servidor.")
+                        return
+                    end
+                    if not u.online then
+                        notify("Unirme", "Ese usuario ya no está usando Killer Hub.")
+                        return
+                    end
+                    if jobId == "" then
+                        notify("Unirme", "Ese usuario todavía no reporta servidor. Espera unos segundos.")
+                        return
+                    end
+
+                    teleporting = true
+                    notify("Unirme", "Entrando al servidor del usuario...")
+
+                    local failConn
+                    failConn = TeleportService.TeleportInitFailed:Connect(function(_, result, err)
+                        teleporting = false
+                        if failConn then failConn:Disconnect() failConn = nil end
+                        local reason = tostring(err or "")
+                        if result == Enum.TeleportResult.GameEnded or result == Enum.TeleportResult.GameFull then
+                            reason = "El servidor ya cerró o está lleno."
+                        elseif result == Enum.TeleportResult.Unauthorized or result == Enum.TeleportResult.Flooded then
+                            reason = "No se permite entrar (servidor privado o límite de teletransportes)."
+                        end
+                        notify("No pude unirme", reason ~= "" and reason or "Roblox rechazó el teletransporte.")
+                    end)
+                    task.delay(12, function()
+                        teleporting = false
+                        if failConn then failConn:Disconnect() failConn = nil end
+                    end)
+
+                    task.spawn(function()
+                        local ok = false
+                        if jobId ~= "" then
+                            -- TeleportToPlaceInstance es el único que respeta el
+                            -- servidor exacto cuando YA estás en ese mismo juego;
+                            -- Teleport+TeleportOptions ahí hace rejoin al azar.
+                            ok = pcall(function()
+                                TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+                            end)
+                            if not ok then
+                                ok = pcall(function()
+                                    local opts = Instance.new("TeleportOptions")
+                                    opts.ServerInstanceId = jobId
+                                    TeleportService:Teleport(placeId, LocalPlayer, nil, opts)
+                                end)
+                            end
+                        else
+                            ok = pcall(function()
+                                TeleportService:Teleport(placeId, LocalPlayer)
+                            end)
+                        end
+                        if not ok then
+                            teleporting = false
+                            if failConn then failConn:Disconnect() failConn = nil end
+                            notify("No pude unirme", "Tu ejecutor bloqueó el teletransporte.")
+                        end
+                    end)
+                end
+
+                -- Filas recicladas: nunca se destruyen mientras el panel viva.
+                local rows = {}
+                local function getRow(i)
+                    local r = rows[i]
+                    if r then return r end
+
+                    local row = Instance.new("Frame")
+                    row.Size = UDim2.new(1, -8, 0, 50)
+                    row.BackgroundTransparency = 0.2
+                    row.BorderSizePixel = 0
+                    row.ClipsDescendants = true
+                    row.LayoutOrder = i
+                    row.ZIndex = 502
+                    row.Parent = list
+                    paint(row, "BackgroundColor3", "BG_SECONDARY", Color3.fromRGB(32, 32, 40))
+                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+                    local hit = Instance.new("TextButton")
+                    hit.BackgroundTransparency = 1
+                    hit.Text = ""
+                    hit.Size = UDim2.new(1, 0, 0, 50)
+                    hit.ZIndex = 503
+                    hit.Parent = row
+
+                    local img = Instance.new("ImageLabel")
+                    img.Size = UDim2.new(0, 36, 0, 36)
+                    img.Position = UDim2.new(0, 7, 0, 7)
+                    img.BackgroundTransparency = 1
+                    img.ZIndex = 504
+                    img.Parent = row
+                    Instance.new("UICorner", img).CornerRadius = UDim.new(1, 0)
+
+                    local name = Instance.new("TextLabel")
+                    name.BackgroundTransparency = 1
+                    name.Size = UDim2.new(1, -56, 0, 16)
+                    name.Position = UDim2.new(0, 50, 0, 8)
+                    name.TextXAlignment = Enum.TextXAlignment.Left
+                    name.TextTruncate = Enum.TextTruncate.AtEnd
+                    name.Font = Enum.Font.GothamBold
+                    name.TextSize = 12
+                    name.ZIndex = 504
+                    name.Parent = row
+
+                    local info = Instance.new("TextLabel")
+                    info.BackgroundTransparency = 1
+                    info.Size = UDim2.new(1, -56, 0, 14)
+                    info.Position = UDim2.new(0, 50, 0, 26)
+                    info.TextXAlignment = Enum.TextXAlignment.Left
+                    info.TextTruncate = Enum.TextTruncate.AtEnd
+                    info.Font = Enum.Font.Gotham
+                    info.TextSize = 10
+                    info.ZIndex = 504
+                    info.Parent = row
+                    paint(info, "TextColor3", "TEXT_MUTED", Color3.fromRGB(150, 150, 160))
+
+                    local join = Instance.new("TextButton")
+                    join.Size = UDim2.new(1, -14, 0, 26)
+                    join.Position = UDim2.new(0, 7, 0, 54)
+                    join.BackgroundTransparency = 0.15
+                    join.BorderSizePixel = 0
+                    join.AutoButtonColor = false
+                    join.Font = Enum.Font.GothamBold
+                    join.TextSize = 11
+                    join.TextColor3 = Color3.new(1, 1, 1)
+                    join.Text = "Unirme a su servidor"
+                    join.ZIndex = 504
+                    join.Parent = row
+                    paint(join, "BackgroundColor3", "ACCENT", Color3.fromRGB(255, 60, 60))
+                    Instance.new("UICorner", join).CornerRadius = UDim.new(0, 6)
+
+                    join.BackgroundTransparency = 1
+                    join.TextTransparency = 1
+
+                    local r2 = { frame = row, img = img, name = name, info = info, join = join, open = false, data = nil }
+                    hit.MouseButton1Click:Connect(function()
+                        click()
+                        keepPanelOpen()
+                        if not (r2.data and r2.data.online and tostring(r2.data.jobId or "") ~= "") then
+                            r2.open = false
+                            return
+                        end
+                        r2.open = not r2.open
+                        tween(row, 0.22, { Size = UDim2.new(1, -8, 0, r2.open and 86 or 50) },
+                            Enum.EasingStyle.Back, r2.open and Enum.EasingDirection.Out or Enum.EasingDirection.In)
+                        tween(join, 0.18, {
+                            BackgroundTransparency = r2.open and 0.15 or 1,
+                            TextTransparency = r2.open and 0 or 1,
+                        })
+                        tween(join, 0.18, { Position = UDim2.new(0, 7, 0, r2.open and 54 or 50) })
+                    end)
+                    hit.MouseButton1Down:Connect(keepPanelOpen)
+                    join.MouseButton1Down:Connect(keepPanelOpen)
+                    join.MouseButton1Click:Connect(function()
+                        click()
+                        keepPanelOpen()
+                        if r2.data then joinUser(r2.data) end
+                    end)
+                    rows[i] = r2
+                    return r2
+                end
+
+                local function refreshPanel()
+                    local data = fetchJson("/users?key=" .. KH_OWNER_KEY)
+                    local users = data and data.users
+                    -- El contador de la topbar sale del MISMO pedido que la lista:
+                    -- así nunca se ven números distintos entre pastilla y panel.
+                    if data then
+                        pillText.Text = ("%s online · %s today"):format(
+                            tostring(data.online or "?"), tostring(data.today or "?"))
+                    end
+                    if not users then
+                        empty.Text = "No pude leer la web (revisa la URL/clave)."
+                        empty.Visible = true
+                        return
+                    end
+                    empty.Visible = (#users == 0)
+                    if #users == 0 then empty.Text = "Todavía no hay usuarios." end
+
+                    for i, u in ipairs(users) do
+                        local r = getRow(i)
+                        r.data = u
+                        r.frame.Visible = true
+                        local id = tonumber(u.robloxUserId or u.userId) or 0
+                        local newImg = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(id)
+                        if r.img.Image ~= newImg then r.img.Image = newImg end
+                        r.name.Text = ("%s (@%s)"):format(tostring(u.displayName or u.username or "?"), tostring(u.username or "?"))
+                        r.name.TextColor3 = u.online and theme("ACCENT", Color3.fromRGB(255, 60, 60))
+                            or theme("TEXT_WHITE", Color3.new(1, 1, 1))
+                        r.info.Text = ("%s · %s · %s"):format(
+                            u.online and "En línea" or "Desconectado",
+                            tostring(u.executor or "?"),
+                            tostring(u.gameName or u.platform or "?"))
+                        -- Los desconectados no muestran "Unirme": su servidor ya no existe.
+                        local canJoin = u.online and tostring(u.jobId or "") ~= ""
+                        r.join.Visible = canJoin
+                        r.join.Text = "Unirme a su servidor"
+                        if not canJoin and r.open then
+                            r.open = false
+                            r.frame.Size = UDim2.new(1, -8, 0, 50)
+                            r.join.BackgroundTransparency = 1
+                            r.join.TextTransparency = 1
+                        end
+                    end
+                    for i = #users + 1, #rows do
+                        rows[i].frame.Visible = false
+                        rows[i].data = nil
+                    end
+                end
+
+                -- ---------- Cerrar tocando fuera del panel ----------
+                local outsideConn
+                local function inside(gui, pos)
+                    local p, s = gui.AbsolutePosition, gui.AbsoluteSize
+                    return pos.X >= p.X and pos.X <= p.X + s.X
+                        and pos.Y >= p.Y and pos.Y <= p.Y + s.Y
+                end
+
+                local OPEN_SIZE = panel.Size
+                local OPEN_POS  = panel.Position
+                local panelOpen = false
+                local animToken = 0
+
+                local setPanelVisible
+                setPanelVisible = function(state)
+                    if panelOpen == state then return end
+                    panelOpen = state
+                    animToken = animToken + 1
+
+                    if state then
+                        -- 🎬 V5.9.1 (pedido): el panel privado abre AL INSTANTE.
+                        -- Sin tween de escala ni fundido: se ve ya en su tamaño
+                        -- final. Las demás animaciones del hub no se tocan.
+                        OPEN_POS = panel.Position
+                        empty.Text = "Cargando usuarios..."
+                        empty.Visible = true
+                        panel.Size = OPEN_SIZE
+                        panel.BackgroundTransparency = 0
+                        panelStroke.Transparency = 0.4
+                        panel.Visible = true
+                        task.spawn(refreshPanel)
+
+                        if not outsideConn then
+                            -- Cierra con CUALQUIER tap (fuera, dentro del panel,
+                            -- en el hub o en el botón flotante). Solo sobrevive si
+                            -- el gesto se convierte en arrastre/scroll dentro del
+                            -- panel, o si tocaste una fila / "Unirme".
+                            -- ⚡ V5.9.1: antes, CADA toque abría una corrutina
+                            -- que sondeaba la posición cada 0.03 s hasta soltar
+                            -- (33 iteraciones por segundo por dedo, con el panel
+                            -- abierto). Ahora todo es por evento: cero polling.
+                            outsideConn = UserInputService.InputBegan:Connect(function(input)
+                                if input.UserInputType ~= Enum.UserInputType.MouseButton1
+                                    and input.UserInputType ~= Enum.UserInputType.Touch then return end
+                                local startPos = input.Position
+                                local startedInside = inside(panel, startPos)
+                                local dragged = false
+                                local moveC, endC
+                                moveC = UserInputService.InputChanged:Connect(function(ci)
+                                    if ci ~= input and ci.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+                                    local d = input.Position - startPos
+                                    if math.abs(d.X) > 8 or math.abs(d.Y) > 8 then dragged = true end
+                                end)
+                                endC = UserInputService.InputEnded:Connect(function(ei)
+                                    if ei ~= input and ei.UserInputType ~= input.UserInputType then return end
+                                    if moveC then moveC:Disconnect() moveC = nil end
+                                    if endC then endC:Disconnect() endC = nil end
+                                    if not panelOpen then return end
+                                    if dragged and startedInside then return end   -- deslizando/scroll dentro
+                                    if os.clock() < keepUntil then return end      -- tocó fila o "Unirme"
+                                    setPanelVisible(false)
+                                end)
+                            end)
+                        end
+                    else
+                        if outsideConn then
+                            outsideConn:Disconnect()
+                            outsideConn = nil
+                        end
+                        -- 🎬 V5.9.1 (pedido): cierre instantáneo, sin tween.
+                        panel.Visible = false
+                        panel.Size = OPEN_SIZE
+                        panel.Position = OPEN_POS
+                        panel.BackgroundTransparency = 0
+                        panelStroke.Transparency = 0.4
+                    end
+                end
+
+                close.MouseButton1Click:Connect(function()
+                    click()
+                    setPanelVisible(false)
+                end)
+
+                pill.MouseButton1Down:Connect(keepPanelOpen)
+                pill.MouseButton1Click:Connect(function()
+                    click()
+                    keepPanelOpen()
+                    setPanelVisible(not panelOpen)
+                end)
+
+                -- ---------- Tema en tiempo real ----------
+                if KillerHub.ThemeChanged then
+                    pcall(function()
+                        KillerHub.ThemeChanged:Connect(function()
+                            repaint()
+                            if panelOpen then
+                                for _, r in ipairs(rows) do
+                                    if r.data then
+                                        r.name.TextColor3 = r.data.online
+                                            and theme("ACCENT", Color3.fromRGB(255, 60, 60))
+                                            or theme("TEXT_WHITE", Color3.new(1, 1, 1))
+                                    end
+                                end
+                            end
+                        end)
+                    end)
+                end
+                -- Respaldo barato: si el hub cambia de tema por otra vía, se
+                -- detecta comparando la tabla del tema (una comparación cada 2 s).
+                task.spawn(function()
+                    local last = CurrentTheme
+                    while pill.Parent and not _G.__KillerHub_Unloaded__ do
+                        if CurrentTheme ~= last then
+                            last = CurrentTheme
+                            repaint()
+                        end
+                        task.wait(2)
+                    end
+                end)
+
+                -- Bucle ligero: solo pide datos cuando hay algo que mostrar.
+                task.spawn(function()
+                    while pill.Parent and not _G.__KillerHub_Unloaded__ do
+                        -- ⚡ V5.9.1: con el hub cerrado no se pide NADA a la web
+                        -- (antes seguía consultando aunque no se viera).
+                        if panelOpen and (not main or main.Visible) then
+                            refreshPanel()
+                        end
+                        if not panelOpen and pill.Visible and (not main or main.Visible) then
+                            local data = KillerHub:GetActiveUsers()
+                            if data then
+                                pillText.Text = ("%s online · %s today"):format(
+                                    tostring(data.online or "?"), tostring(data.today or "?"))
+                            end
+                        end
+                        task.wait(panelOpen and 4 or 15)
+                    end
+                end)
+            end)
+        end
+    end
+end
 
 return KillerHub
